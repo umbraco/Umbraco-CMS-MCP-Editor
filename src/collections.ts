@@ -19,7 +19,9 @@
  * ```
  */
 
-export const collections: never[] = [];
+import contentCollection from "./umbraco-api/tools/content/index.js";
+
+export const collections = [contentCollection];
 
 export { allModes, allModeNames } from "./config/mode-registry.js";
 export { allSliceNames } from "./config/slice-registry.js";
