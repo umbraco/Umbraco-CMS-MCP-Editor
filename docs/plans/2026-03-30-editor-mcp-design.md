@@ -190,6 +190,25 @@ Before destructive or significant write operations, the tool shows what will cha
 - **Dry run mode**: tools can show what would change without committing
 - **Auditable**: all operations logged
 
+## Umbraco Workflow Integration
+
+Transparent support for the Umbraco Workflow package. The editor MCP detects whether Workflow is installed on the Umbraco instance and adapts its behaviour automatically — editors don't need to know or care.
+
+### Detection
+On startup (or first write operation), check whether Umbraco Workflow is installed. Cache the result for the session.
+
+### Behaviour When Workflow Is Installed
+- **Publish** submits content for approval rather than publishing directly
+- Tool responses reflect the workflow state ("Submitted for approval" instead of "Published")
+- Additional tools conditionally register: `check-approval-status`, `list-pending-approvals`
+
+### Behaviour When Workflow Is Not Installed
+- **Publish** publishes directly as normal
+- Workflow-specific tools are not registered
+
+### Principle
+The same tool (`publish-page`) handles both paths. The editor says "publish this" and the tool does the right thing for that instance. This is a cross-cutting concern built into Phase 1, not a separate phase.
+
 ## Phases
 
 | Phase | Focus | Collections | Tier Mix |
@@ -209,8 +228,9 @@ Phase 1 establishes the foundation patterns that all subsequent phases build on:
 - **Chaining setup** — configure mcpClientManager to call dev MCP tools internally
 - **Elicitation patterns** — establish reusable patterns for disambiguation, wizards, and confirmation
 - **Safety layer** — write confirmation, schema blocking, dry run support
-- **Content CRUD workflow** — create page (draft → validate → publish), edit page, delete page
-- **Publishing workflow** — publish/unpublish with confirmation, publish with descendants
+- **Workflow detection** — detect Umbraco Workflow on the instance, adapt publish behaviour transparently
+- **Content CRUD workflow** — create page (draft → validate → publish/submit), edit page, delete page
+- **Publishing workflow** — publish/unpublish with confirmation (or submit for approval if Workflow installed)
 - **Version history** — list versions, view version, rollback with confirmation
 - **Content search/browse** — utility tools for finding and listing content
 - **Both entry points** — stdio and hosted worker registering the same collections
