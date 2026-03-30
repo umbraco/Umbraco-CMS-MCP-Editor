@@ -1,0 +1,1 @@
+- [Editor MCP vision](project_editor_mcp_vision.md) — Simon Antony's feature ideas: content auditing, bulk ops, multilingual, reporting, safety model
