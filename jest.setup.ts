@@ -1,3 +1,8 @@
+// Polyfill Symbol.dispose / Symbol.asyncDispose for Node.js versions that lack it.
+// The Claude Agent SDK (using `Symbol.dispose`) requires these to be present.
+(Symbol as any).dispose ??= Symbol("Symbol.dispose");
+(Symbol as any).asyncDispose ??= Symbol("Symbol.asyncDispose");
+
 // Must be set before any TLS connections
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 

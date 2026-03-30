@@ -13,23 +13,17 @@ configureEvals({
   // Path to the built MCP server
   mcpServerPath: path.resolve(process.cwd(), "dist/index.js"),
 
-  // MCP server name (used in tool name prefixes like mcp__my-umbraco-mcp__tool-name)
-  mcpServerName: "my-umbraco-mcp",
+  // MCP server name (used in tool name prefixes like mcp__umbraco-editor-mcp__tool-name)
+  mcpServerName: "umbraco-editor-mcp",
 
   // Environment variables for the MCP server
-  // USE_MOCK_API=true uses the in-memory mock client for testing
-  // Auth credentials are required even for mock mode (server validates config at startup)
-  // DISABLE_MCP_CHAINING=true prevents attempting to connect to chained MCP servers
+  // Editor MCP tools delegate to the chained dev MCP, so chaining must be enabled.
+  // Real Umbraco credentials are required — set them in your .env file.
   serverEnv: {
-    USE_MOCK_API: "true",
-    DISABLE_MCP_CHAINING: "true",
-    UMBRACO_CLIENT_ID: "test-client",
-    UMBRACO_CLIENT_SECRET: "test-secret",
-    UMBRACO_BASE_URL: "http://localhost:9999",
-    // For real API testing, override these from environment:
-    // UMBRACO_CLIENT_ID: process.env.UMBRACO_CLIENT_ID || "",
-    // UMBRACO_CLIENT_SECRET: process.env.UMBRACO_CLIENT_SECRET || "",
-    // UMBRACO_BASE_URL: process.env.UMBRACO_BASE_URL || "http://localhost:44391",
+    NODE_TLS_REJECT_UNAUTHORIZED: "0",
+    UMBRACO_CLIENT_ID: process.env.UMBRACO_CLIENT_ID || "umbraco-back-office-mcp",
+    UMBRACO_CLIENT_SECRET: process.env.UMBRACO_CLIENT_SECRET || "1234567890",
+    UMBRACO_BASE_URL: process.env.UMBRACO_BASE_URL || "https://localhost:44386",
   },
 
   // Test defaults

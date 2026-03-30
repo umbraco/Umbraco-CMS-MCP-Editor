@@ -44,6 +44,7 @@ const realCmsServer: McpServerConfig = {
   command: "npx",
   args: ["-y", "@umbraco-cms/mcp-dev@17"],
   env: {
+    NODE_TLS_REJECT_UNAUTHORIZED: "0",
     UMBRACO_BASE_URL: process.env.UMBRACO_BASE_URL || "http://localhost:44391",
     UMBRACO_CLIENT_ID: process.env.UMBRACO_CLIENT_ID || "",
     UMBRACO_CLIENT_SECRET: process.env.UMBRACO_CLIENT_SECRET || "",
