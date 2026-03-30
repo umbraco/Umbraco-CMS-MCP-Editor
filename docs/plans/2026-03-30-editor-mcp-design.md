@@ -217,8 +217,11 @@ The `workflow` chain is optional — if it fails to connect or isn't configured,
 - **Publish** publishes directly as normal
 - Workflow-specific tools are not registered
 
+### Current Status
+The `@umbraco-cms/mcp-workflow` package does not exist yet. Workflow integration cannot be implemented until that MCP server is built. Phase 1 builds the editor MCP with direct publish only. When the Workflow MCP becomes available, the publish tools will be updated to detect and route through it.
+
 ### Principle
-The same tool (`publish-page`) handles both paths. The editor says "publish this" and the tool does the right thing for that instance. This is a cross-cutting concern built into Phase 1, not a separate phase.
+The same tool (`publish-page`) handles both paths. The editor says "publish this" and the tool does the right thing for that instance. The architecture should be designed to accommodate the workflow chain when it's ready, but Phase 1 ships without it.
 
 ## Phases
 
@@ -239,9 +242,8 @@ Phase 1 establishes the foundation patterns that all subsequent phases build on:
 - **Chaining setup** — configure mcpClientManager to call dev MCP tools internally
 - **Elicitation patterns** — establish reusable patterns for disambiguation, wizards, and confirmation
 - **Safety layer** — write confirmation, schema blocking, dry run support
-- **Workflow detection** — detect Umbraco Workflow on the instance, adapt publish behaviour transparently
-- **Content CRUD workflow** — create page (draft → validate → publish/submit), edit page, delete page
-- **Publishing workflow** — publish/unpublish with confirmation (or submit for approval if Workflow installed)
+- **Content CRUD workflow** — create page (draft → validate → publish), edit page, delete page
+- **Publishing workflow** — publish/unpublish with confirmation (direct publish; Workflow integration deferred until mcp-workflow package exists)
 - **Version history** — list versions, view version, rollback with confirmation
 - **Content search/browse** — utility tools for finding and listing content
 - **Both entry points** — stdio and hosted worker registering the same collections
