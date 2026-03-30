@@ -10,11 +10,8 @@ import "dotenv/config";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import packageJson from "../package.json" with { type: "json" };
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import {
   createToolAnnotations,
-  discoverProxiedTools,
-  parseProxiedToolName,
   createCollectionConfigLoader,
   shouldIncludeTool,
   type CollectionConfiguration,
@@ -101,38 +98,12 @@ for (const collection of collections) {
 
 // Start the server
 async function main() {
-  // Discover and register proxied tools from chained MCP servers
+  // Connect to chained MCP servers for delegation (no proxied tools)
   // Skip if chaining is disabled via config (DISABLE_MCP_CHAINING=true)
   const chainingEnabled = mcpServers.length > 0 && !serverConfig.custom.disableMcpChaining;
 
   if (chainingEnabled) {
-    try {
-      const proxiedTools = await discoverProxiedTools(mcpClientManager);
-
-      for (const pt of proxiedTools) {
-        // Register proxied tool with forwarding handler
-        // Note: We don't pass inputSchema since validation happens on the chained server
-        // and the MCP SDK expects Zod schemas, not raw JSON Schema objects
-        server.registerTool(
-          pt.prefixedName,
-          {
-            description: `[Proxied from ${pt.serverName}] ${pt.originalTool.description || "No description"}`,
-          },
-          async (args: Record<string, unknown>): Promise<CallToolResult> => {
-            const { serverName, toolName } = parseProxiedToolName(pt.prefixedName);
-            const result = await mcpClientManager.callTool(serverName, toolName, args);
-            return result as CallToolResult;
-          }
-        );
-      }
-
-      if (proxiedTools.length > 0) {
-        console.error(`Registered ${proxiedTools.length} proxied tool(s) from chained MCP servers`);
-      }
-    } catch (error) {
-      console.error("Warning: Failed to discover proxied tools:", error);
-      // Continue without proxied tools - local tools still work
-    }
+    console.error("MCP chaining enabled — chained servers will connect on first tool call");
   }
 
   const transport = new StdioServerTransport();

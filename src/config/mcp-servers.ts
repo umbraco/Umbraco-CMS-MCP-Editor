@@ -1,14 +1,9 @@
 /**
  * MCP Server Chain Configuration
  *
- * Configure external MCP servers that this server can connect to and proxy.
- * Tools from these servers will be available to the parent client with a prefix.
- *
- * @example
- * When configured with name: "cms", tools from that server appear as:
- * - cms:get-document
- * - cms:list-documents
- * - etc.
+ * Configure external MCP servers that this server can delegate to internally.
+ * Tools from these servers are called via mcpClientManager.callTool() but are
+ * NOT exposed/proxied to the editor client.
  */
 
 import path from "path";
@@ -38,7 +33,7 @@ const mockCmsServer: McpServerConfig = {
     // From dist/index.js, go to ../src/testing/
     path.resolve(__dirname, "../src/testing/mock-mcp-server.ts"),
   ],
-  proxyTools: true,
+  proxyTools: false,  // Delegation only — tools not exposed to editors
 };
 
 /**
@@ -53,7 +48,7 @@ const realCmsServer: McpServerConfig = {
     UMBRACO_CLIENT_ID: process.env.UMBRACO_CLIENT_ID || "",
     UMBRACO_CLIENT_SECRET: process.env.UMBRACO_CLIENT_SECRET || "",
   },
-  proxyTools: true,
+  proxyTools: false,  // Delegation only — tools not exposed to editors
 };
 
 /**
@@ -61,8 +56,7 @@ const realCmsServer: McpServerConfig = {
  *
  * Each server configured here will:
  * 1. Be available for internal delegation (tools calling mcpClientManager.callTool())
- * 2. Have its tools proxied to the parent client (if proxyTools is true)
- * 3. Receive the same filter configuration (tools, slices, modes) as this server
+ * 2. Receive the same filter configuration (tools, slices, modes) as this server
  */
 export const mcpServers: McpServerConfig[] = [
   // Use mock server for testing, real server otherwise
