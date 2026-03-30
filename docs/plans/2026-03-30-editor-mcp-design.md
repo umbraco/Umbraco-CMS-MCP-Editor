@@ -195,14 +195,25 @@ Before destructive or significant write operations, the tool shows what will cha
 Transparent support for the Umbraco Workflow package. The editor MCP detects whether Workflow is installed on the Umbraco instance and adapts its behaviour automatically — editors don't need to know or care.
 
 ### Detection
-On startup (or first write operation), check whether Umbraco Workflow is installed. Cache the result for the session.
+On startup, attempt to connect to the Workflow chained MCP. If the connection succeeds, Workflow is available. Cache the result for the session.
 
-### Behaviour When Workflow Is Installed
+### Chaining
+Workflow tools are accessed via a second chained MCP server (e.g. `@umbraco-cms/mcp-workflow`), separate from the core `cms` chain. Both go through the Management API but are separate MCP servers:
+
+```
+Editor MCP
+├── cms chain      → @umbraco-cms/mcp-dev     (content, media, etc.)
+└── workflow chain  → @umbraco-cms/mcp-workflow (approval, review, etc.)
+```
+
+The `workflow` chain is optional — if it fails to connect or isn't configured, the editor MCP falls back to direct operations.
+
+### Behaviour When Workflow Is Available
 - **Publish** submits content for approval rather than publishing directly
 - Tool responses reflect the workflow state ("Submitted for approval" instead of "Published")
 - Additional tools conditionally register: `check-approval-status`, `list-pending-approvals`
 
-### Behaviour When Workflow Is Not Installed
+### Behaviour When Workflow Is Not Available
 - **Publish** publishes directly as normal
 - Workflow-specific tools are not registered
 
