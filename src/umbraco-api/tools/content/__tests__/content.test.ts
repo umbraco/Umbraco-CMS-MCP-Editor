@@ -15,6 +15,7 @@ import {
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
+import { extractChainedResult } from "../../extract-chained-result.js";
 
 // Mock the server-ref module so elicitation always accepts
 jest.unstable_mockModule("@/umbraco-api/server-ref", () => ({
@@ -157,7 +158,7 @@ describe("Content Collection", () => {
         skip: 0,
       });
 
-      const docTypes = docTypesResult.structuredContent as any;
+      const docTypes = extractChainedResult(docTypesResult);
       if (!docTypes?.items?.length) {
         console.warn("Skipping create test: no document types found");
         return;

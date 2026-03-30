@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
+import { extractChainedResult } from "../../extract-chained-result.js";
 import { getServerRef } from "../../../server-ref.js";
 
 const inputSchema = {
@@ -68,7 +69,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const createResult = await mcpClientManager.callTool("cms", "create-document", createArgs);
     if (createResult.isError) return createToolResultError(createResult);
 
-    const created = createResult.structuredContent as any;
+    const created = extractChainedResult(createResult);
     const createdId = created?.id ?? "";
 
     return createToolResult({

@@ -15,6 +15,7 @@ import {
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
+import { extractChainedResult } from "../../extract-chained-result.js";
 
 // Mock the server-ref module — default: always accept
 const mockElicitInput = jest.fn<() => Promise<{ action: string; content: Record<string, boolean> }>>();
@@ -61,7 +62,7 @@ describe("Publishing Collection", () => {
             take: 1,
             skip: 0,
           });
-          const docTypes = docTypesResult.structuredContent as any;
+          const docTypes = extractChainedResult(docTypesResult);
           if (docTypes?.items?.length) {
             const createResult = await createPageTool.handler(
               {

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
+import { extractChainedResult } from "../../extract-chained-result.js";
 
 const inputSchema = {
   query: z.string().describe("Search term to find content pages"),
@@ -23,7 +24,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   handler: async ({ query, take, skip }) => {
     const result = await mcpClientManager.callTool("cms", "search-document", { query, take, skip });
     if (result.isError) return createToolResultError(result);
-    const data = result.structuredContent as any;
+    const data = extractChainedResult(result);
     return createToolResult({ items: data.items ?? [], total: data.total ?? 0 });
   },
 };

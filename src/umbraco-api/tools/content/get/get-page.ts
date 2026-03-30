@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
+import { extractChainedResult } from "../../extract-chained-result.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The unique ID of the page to retrieve"),
@@ -25,7 +26,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   handler: async ({ id }) => {
     const result = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
     if (result.isError) return createToolResultError(result);
-    const doc = result.structuredContent as any;
+    const doc = extractChainedResult(result);
     return createToolResult({
       id: doc.id,
       name: doc.variants?.[0]?.name ?? doc.name ?? "Unknown",
