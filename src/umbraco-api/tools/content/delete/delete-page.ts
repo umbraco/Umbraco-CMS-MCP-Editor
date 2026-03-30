@@ -15,7 +15,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "delete-page",
-  description: "Move a content page to the recycle bin. This is a destructive operation. You will be asked to confirm before deleting.",
+  description: "Move a content page to the recycle bin. The page can be restored later if needed. You will be asked to confirm before deleting.",
   inputSchema,
   outputSchema,
   slices: ["delete"],

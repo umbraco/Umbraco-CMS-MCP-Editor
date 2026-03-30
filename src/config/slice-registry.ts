@@ -21,8 +21,11 @@ export const toolSliceNames = [
   // Query
   'search',
 
-  // Add your slices here as you build out your MCP server
-  // 'tree', 'publish', 'move', 'copy', etc.
+  // Navigation
+  'tree',
+
+  // Workflow
+  'publish',
 ] as const;
 
 /**

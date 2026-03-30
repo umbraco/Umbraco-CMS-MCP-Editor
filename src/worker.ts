@@ -63,7 +63,7 @@ import { collections, allModes, allModeNames, allSliceNames } from "./collection
 // };
 
 const options = {
-  name: "my-umbraco-mcp",
+  name: "umbraco-editor-mcp",
   version: "1.0.0",
   collections,
   modeRegistry: allModes,

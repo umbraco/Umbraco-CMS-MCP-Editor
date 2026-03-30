@@ -44,7 +44,7 @@ import { allModes, allModeNames, allSliceNames, loadServerConfig, clearConfigCac
 
 // Create MCP server
 const server = new McpServer({
-  name: "my-umbraco-mcp",
+  name: "umbraco-editor-mcp",
   version: packageJson.version,
 });
 
