@@ -21,8 +21,9 @@
 
 import contentCollection from "./umbraco-api/tools/content/index.js";
 import publishingCollection from "./umbraco-api/tools/publishing/index.js";
+import versioningCollection from "./umbraco-api/tools/versioning/index.js";
 
-export const collections = [contentCollection, publishingCollection];
+export const collections = [contentCollection, publishingCollection, versioningCollection];
 
 export { allModes, allModeNames } from "./config/mode-registry.js";
 export { allSliceNames } from "./config/slice-registry.js";

@@ -22,6 +22,7 @@ import {
 // Import tool collections
 import contentCollection from "./umbraco-api/tools/content/index.js";
 import publishingCollection from "./umbraco-api/tools/publishing/index.js";
+import versioningCollection from "./umbraco-api/tools/versioning/index.js";
 
 // Import MCP client manager (for chaining to other MCP servers)
 import { mcpClientManager } from "./umbraco-api/mcp-client.js";
@@ -74,7 +75,7 @@ const filterConfig: CollectionConfiguration = configLoader.loadFromConfig(server
 // Register Tools with Filtering
 // ============================================================================
 
-const collections: ToolCollectionExport[] = [contentCollection, publishingCollection];
+const collections: ToolCollectionExport[] = [contentCollection, publishingCollection, versioningCollection];
 let registeredToolCount = 0;
 
 for (const collection of collections) {
