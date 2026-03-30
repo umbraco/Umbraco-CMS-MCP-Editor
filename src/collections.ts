@@ -20,8 +20,9 @@
  */
 
 import contentCollection from "./umbraco-api/tools/content/index.js";
+import publishingCollection from "./umbraco-api/tools/publishing/index.js";
 
-export const collections = [contentCollection];
+export const collections = [contentCollection, publishingCollection];
 
 export { allModes, allModeNames } from "./config/mode-registry.js";
 export { allSliceNames } from "./config/slice-registry.js";

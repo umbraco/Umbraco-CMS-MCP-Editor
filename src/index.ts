@@ -21,9 +21,13 @@ import {
 // Import the Orval-generated API client
 // Import tool collections
 import contentCollection from "./umbraco-api/tools/content/index.js";
+import publishingCollection from "./umbraco-api/tools/publishing/index.js";
 
 // Import MCP client manager (for chaining to other MCP servers)
 import { mcpClientManager } from "./umbraco-api/mcp-client.js";
+
+// Import server reference setter (for tools that need server-level capabilities)
+import { setServerRef } from "./umbraco-api/server-ref.js";
 
 // Import MCP server chain configuration
 import { mcpServers } from "./config/mcp-servers.js";
@@ -42,6 +46,9 @@ const server = new McpServer({
   name: "my-umbraco-mcp",
   version: packageJson.version,
 });
+
+// Make the underlying Server available to tools that need elicitation
+setServerRef(server.server);
 
 // ============================================================================
 // Tool Filtering Setup
@@ -67,7 +74,7 @@ const filterConfig: CollectionConfiguration = configLoader.loadFromConfig(server
 // Register Tools with Filtering
 // ============================================================================
 
-const collections: ToolCollectionExport[] = [contentCollection];
+const collections: ToolCollectionExport[] = [contentCollection, publishingCollection];
 let registeredToolCount = 0;
 
 for (const collection of collections) {
