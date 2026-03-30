@@ -59,10 +59,25 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       return createToolResult({ message: "Edit cancelled", id, name: pageName, updatedFields: [] });
     }
 
-    // Step 3: Execute update
-    const updateResult = await mcpClientManager.callTool("cms", "update-document-properties", {
+    // Step 3: Execute update — update-document requires { id, data: { values, variants } }
+    // Merge new values with existing ones from the document
+    const existingValues = (doc.values ?? []) as any[];
+    const mergedValues = [...existingValues];
+    for (const v of values) {
+      const idx = mergedValues.findIndex(
+        (ev: any) => ev.alias === v.alias && (ev.culture ?? null) === (v.culture ?? null) && (ev.segment ?? null) === (v.segment ?? null)
+      );
+      const mapped = { alias: v.alias, value: v.value, culture: v.culture ?? null, segment: v.segment ?? null };
+      if (idx >= 0) mergedValues[idx] = mapped;
+      else mergedValues.push(mapped);
+    }
+
+    const updateResult = await mcpClientManager.callTool("cms", "update-document", {
       id,
-      data: { values },
+      data: {
+        values: mergedValues,
+        variants: doc.variants ?? [],
+      },
     });
     if (updateResult.isError) return createToolResultError(updateResult);
 

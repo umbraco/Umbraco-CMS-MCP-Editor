@@ -56,15 +56,19 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       return createToolResult({ message: "Create cancelled", id: "", name });
     }
 
-    // Execute create
+    // Execute create via dev MCP (flat args: documentTypeId, parentId, name, values)
     const createArgs: Record<string, unknown> = {
-      data: {
-        documentType: { id: documentTypeId },
-        parent: parentId ? { id: parentId } : null,
-        variants: [{ name, culture: null, segment: null }],
-        values: values ?? [],
-      },
+      documentTypeId,
+      name,
+      values: (values ?? []).map(v => ({
+        alias: v.alias,
+        value: v.value,
+        editorAlias: v.alias,
+        culture: v.culture ?? null,
+        segment: v.segment ?? null,
+      })),
     };
+    if (parentId) createArgs.parentId = parentId;
 
     const createResult = await mcpClientManager.callTool("cms", "create-document", createArgs);
     if (createResult.isError) return createToolResultError(createResult);

@@ -52,7 +52,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     }
 
     // Step 3: Move to recycle bin
-    const deleteResult = await mcpClientManager.callTool("cms", "move-to-recycle-bin", { id });
+    const deleteResult = await mcpClientManager.callTool("cms", "move-document-to-recycle-bin", { id });
     if (deleteResult.isError) return createToolResultError(deleteResult);
 
     return createToolResult({
