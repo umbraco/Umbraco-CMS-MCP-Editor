@@ -18,11 +18,11 @@ import {
   createCollectionConfigLoader,
   shouldIncludeTool,
   type CollectionConfiguration,
+  type ToolCollectionExport,
 } from "@umbraco-cms/mcp-server-sdk";
 
 // Import the Orval-generated API client
 // Import tool collections
-import chainedCollection from "./umbraco-api/tools/chained/index.js";
 
 // Import MCP client manager (for chaining to other MCP servers)
 import { mcpClientManager } from "./umbraco-api/mcp-client.js";
@@ -69,7 +69,7 @@ const filterConfig: CollectionConfiguration = configLoader.loadFromConfig(server
 // Register Tools with Filtering
 // ============================================================================
 
-const collections = [chainedCollection];
+const collections: ToolCollectionExport[] = [];
 let registeredToolCount = 0;
 
 for (const collection of collections) {

@@ -25,24 +25,11 @@ import type { ToolModeDefinition } from "@umbraco-cms/mcp-server-sdk";
  */
 export const toolModes: ToolModeDefinition[] = [
   {
-    name: 'umbraco-server',
-    displayName: 'Umbraco Server',
-    description: 'Server information and status from the Umbraco Management API',
-    collections: ['umbraco-server']
+    name: 'content',
+    displayName: 'Content Management',
+    description: 'Create, edit, search, and manage content pages',
+    collections: ['content', 'publishing', 'versioning']
   },
-  // Add your modes here as you build out your MCP server
-  // {
-  //   name: 'content',
-  //   displayName: 'Content Management',
-  //   description: 'Document creation, editing, and versioning',
-  //   collections: ['document', 'document-version', 'document-blueprint']
-  // },
-  // {
-  //   name: 'media',
-  //   displayName: 'Media Management',
-  //   description: 'Media library and file operations',
-  //   collections: ['media', 'imaging', 'temporary-file']
-  // }
 ];
 
 /**
