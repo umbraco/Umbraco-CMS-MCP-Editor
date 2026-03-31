@@ -256,6 +256,31 @@ Phase 1 establishes the foundation patterns that all subsequent phases build on:
 - All phases depend on Phase 1 foundation (chaining, elicitation, safety layer)
 - Phases 2-5 are relatively independent and could be reordered based on priority
 
+## Cross-Project Tasks
+
+These tasks require changes in the base MCP SDK (`umbraco-mcp-base`) rather than this editor MCP.
+
+### 1. Eval runner elicitation support (mcp-server-sdk)
+
+Update the eval runner to pass `onElicitation` callback to the Claude Agent SDK's `query()` function. The Agent SDK already supports `onElicitation` in query options — the eval runner just needs to accept it and default to auto-accept (`{ action: "accept", content: { confirm: true } }`). One file change. This unblocks eval testing of all write operation tools (create, edit, publish, delete, rollback).
+
+### 2. Per-request server ref for hosted elicitation (mcp-hosted + editor MCP)
+
+The current `getServerRef()` singleton pattern doesn't work in the hosted Cloudflare Worker where `createPerRequestServer()` creates a new server per request. Concurrent requests would clash. Options:
+- Have `createPerRequestServer()` inject the server into tool handler context
+- Use AsyncLocalStorage to scope the server ref per request
+- Pass server through the `extra` parameter in tool handlers (cleanest if MCP SDK supports it)
+
+This blocks all workflow tools (elicitation) in hosted mode.
+
+### 3. Test elicitation over Streamable HTTP (mcp-hosted)
+
+Verify that `server.elicitInput()` works over Streamable HTTP transport in the Cloudflare Worker. The MCP SDK server supports `elicitation/create` on any transport, but it hasn't been tested through the `McpAgent` Durable Object and OAuth provider. Needs an integration test.
+
+### 4. Dev MCP outputSchema (umbraco-mcp-cms)
+
+Add `outputSchema` to `@umbraco-cms/mcp-dev` tools so chained calls return `structuredContent` instead of JSON strings in text content. The editor MCP's `extractChainedResult()` helper already handles both formats, so no editor MCP changes needed when this ships.
+
 ## Inspiration
 
 Feature ideas informed by feedback from Simon Antony (Umbraco Silver Partner Agency, Dec 2025):
