@@ -19,7 +19,10 @@ configureEvals({
   // Environment variables for the MCP server
   // Editor MCP tools delegate to the chained dev MCP, so chaining must be enabled.
   // Real Umbraco credentials are required — set them in your .env file.
+  // Pass through the full parent environment so the chained dev MCP subprocess
+  // can find npx, node, and other system tools. Override with Umbraco-specific vars.
   serverEnv: {
+    ...process.env,
     NODE_TLS_REJECT_UNAUTHORIZED: "0",
     UMBRACO_CLIENT_ID: process.env.UMBRACO_CLIENT_ID || "umbraco-back-office-mcp",
     UMBRACO_CLIENT_SECRET: process.env.UMBRACO_CLIENT_SECRET || "1234567890",

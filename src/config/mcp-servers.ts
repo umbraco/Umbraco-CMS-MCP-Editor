@@ -48,6 +48,17 @@ const realCmsServer: McpServerConfig = {
     UMBRACO_BASE_URL: process.env.UMBRACO_BASE_URL || "http://localhost:44391",
     UMBRACO_CLIENT_ID: process.env.UMBRACO_CLIENT_ID || "",
     UMBRACO_CLIENT_SECRET: process.env.UMBRACO_CLIENT_SECRET || "",
+    // Clear tool filters so our editor tool names (search-content etc.) don't
+    // leak to the dev MCP which uses different names (search-document etc.).
+    // The SDK always merges process.env into chained server env, so we must
+    // explicitly override these to prevent filter propagation.
+    UMBRACO_INCLUDE_TOOLS: "",
+    UMBRACO_EXCLUDE_TOOLS: "",
+    UMBRACO_INCLUDE_TOOL_COLLECTIONS: "",
+    UMBRACO_EXCLUDE_TOOL_COLLECTIONS: "",
+    UMBRACO_INCLUDE_SLICES: "",
+    UMBRACO_EXCLUDE_SLICES: "",
+    UMBRACO_TOOL_MODES: "",
   },
   proxyTools: false,  // Delegation only — tools not exposed to editors
 };

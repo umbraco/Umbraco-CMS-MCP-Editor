@@ -25,7 +25,13 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const result = await mcpClientManager.callTool("cms", "search-document", { query, take, skip });
     if (result.isError) return createToolResultError(result);
     const data = extractChainedResult(result);
-    return createToolResult({ items: data.items ?? [], total: data.total ?? 0 });
+    return createToolResult({
+      items: (data.items ?? []).map((item: any) => ({
+        id: item.id,
+        name: item.variants?.[0]?.name ?? item.name ?? "Unknown",
+      })),
+      total: data.total ?? 0,
+    });
   },
 };
 

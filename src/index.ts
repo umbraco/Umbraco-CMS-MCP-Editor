@@ -112,7 +112,16 @@ async function main() {
   const chainingEnabled = mcpServers.length > 0 && !serverConfig.custom.disableMcpChaining;
 
   if (chainingEnabled) {
-    console.error("MCP chaining enabled — chained servers will connect on first tool call");
+    console.error("MCP chaining enabled — pre-connecting to chained servers...");
+    try {
+      for (const srv of mcpServers) {
+        await mcpClientManager.connect(srv.name);
+        console.error(`Connected to chained server: ${srv.name}`);
+      }
+    } catch (error) {
+      console.error("Warning: Failed to pre-connect chained servers:", error);
+      // Continue — tools will retry connection on first call
+    }
   }
 
   const transport = new StdioServerTransport();
