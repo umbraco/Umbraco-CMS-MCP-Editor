@@ -76,6 +76,24 @@ describe("Editor Content Workflows", () => {
   );
 
   it(
+    "editor asks to publish a page (elicitation auto-confirmed)",
+    runScenarioTest({
+      prompt:
+        "Find the homepage and publish it for me.",
+      tools: [
+        "search-content",
+        "get-page",
+        "browse-children",
+        "publish-page",
+      ],
+      requiredTools: ["publish-page"],
+      successPattern: /publish|live|published/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
     "editor searches for content by topic",
     runScenarioTest({
       prompt:
