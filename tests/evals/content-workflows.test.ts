@@ -1,20 +1,22 @@
 /**
  * Content Workflow Eval Tests
  *
- * These tests use the Claude Agent SDK to verify that the editor MCP tools
- * work correctly when invoked by an LLM agent against a real Umbraco instance.
+ * These tests simulate realistic editor requests — natural language prompts
+ * that a content editor would actually say. The LLM must figure out which
+ * tools to use based on tool descriptions alone.
  *
- * The agent is given a prompt and access to specific tools, then we verify:
- * - The correct tools were called
- * - The agent reports success
+ * This validates that:
+ * - Tool descriptions are clear enough for the LLM to pick the right tool
+ * - Tools return useful, editor-friendly responses
+ * - Multi-step workflows work end-to-end
  *
  * These tests require:
  * - A running Umbraco instance with content pages
- * - Valid credentials in .env (UMBRACO_CLIENT_ID, UMBRACO_CLIENT_SECRET, UMBRACO_BASE_URL)
- * - MCP chaining enabled (the editor tools delegate to the dev MCP)
+ * - Valid credentials in .env
+ * - MCP chaining enabled
  *
- * Note: Only read-only tools are tested here. Write operations require
- * elicitation which the eval framework does not support.
+ * Note: Only read-only tools are tested. Write operations use elicitation
+ * which the eval framework can't interact with.
  */
 
 import { describe, it } from "@jest/globals";
@@ -24,42 +26,42 @@ import {
   getDefaultTimeoutMs,
 } from "@umbraco-cms/mcp-server-sdk/evals";
 
-describe("Content Workflows", () => {
+describe("Editor Content Workflows", () => {
   setupConsoleMock();
 
   const timeout = getDefaultTimeoutMs();
 
   it(
-    "should search and read content",
+    "editor asks to find a specific page and see its content",
     runScenarioTest({
       prompt:
-        'Use the search-content tool to search for pages using the query "home". Then use get-page on the first result to show its full details. Do not ask me any questions — just do it.',
+        "Can you find the homepage and show me what content is on it?",
       tools: ["search-content", "get-page", "browse-children"],
-      requiredTools: ["search-content", "get-page"],
-      successPattern: /found|details|page|content|home/i,
+      requiredTools: ["get-page"],
+      successPattern: /home|content|field|value|page/i,
       verbose: true,
     }),
     timeout
   );
 
   it(
-    "should browse site structure",
+    "editor asks what pages are on the site",
     runScenarioTest({
       prompt:
-        "Use browse-children with no parentId to get the top-level pages. Then if any result has children, use browse-children again with that page's id to show its children. Do not ask me any questions.",
-      tools: ["browse-children", "get-page"],
+        "What pages do we have on the site? Give me an overview of the site structure.",
+      tools: ["browse-children", "get-page", "search-content"],
       requiredTools: ["browse-children"],
-      successPattern: /root|top.level|children|pages|page/i,
+      successPattern: /home|page|site|structure/i,
       verbose: true,
     }),
     timeout
   );
 
   it(
-    "should view version history",
+    "editor asks about version history of a page",
     runScenarioTest({
       prompt:
-        "Use browse-children with no parentId to find a content page. Then use list-versions on the first page's id to show its version history. Do not ask me any questions — just do it.",
+        "Has anyone made changes to the homepage recently? Show me its version history.",
       tools: [
         "search-content",
         "get-page",
@@ -67,7 +69,33 @@ describe("Content Workflows", () => {
         "list-versions",
       ],
       requiredTools: ["list-versions"],
-      successPattern: /version|history|versions/i,
+      successPattern: /version|change|history|date|modified/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "editor searches for content by topic",
+    runScenarioTest({
+      prompt:
+        "I'm looking for any pages that mention 'home' — can you find them for me?",
+      tools: ["search-content", "get-page", "browse-children"],
+      requiredTools: ["search-content"],
+      successPattern: /found|result|match|home|page/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "editor wants to drill into a section of the site",
+    runScenarioTest({
+      prompt:
+        "Show me the top-level pages, then drill into whichever one has child pages so I can see what's underneath it.",
+      tools: ["browse-children", "get-page"],
+      requiredTools: ["browse-children"],
+      successPattern: /child|under|page|section/i,
       verbose: true,
     }),
     timeout
