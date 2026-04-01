@@ -185,4 +185,22 @@ describe("Editor Content Workflows", () => {
     }),
     timeout
   );
+
+  it(
+    "editor asks what blocks are on a page",
+    runScenarioTest({
+      prompt:
+        "Show me the block content structure of the homepage — I want to see what blocks are on the page and what's in them.",
+      tools: [
+        "search-content",
+        "get-page",
+        "list-children",
+        "inspect-blocks",
+      ],
+      requiredTools: ["inspect-blocks"],
+      successPattern: /block|content|property|structure|no block/i,
+      verbose: true,
+    }),
+    timeout
+  );
 });
