@@ -50,7 +50,14 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       return createToolResult({ message: "Unpublish cancelled", id, name: pageName });
     }
 
-    const result = await mcpClientManager.callTool("cms", "unpublish-document", { id, data: { cultures: [] } });
+    // Pass cultures: null for invariant content ([] is rejected by the API)
+    const cultures = (doc.variants ?? [])
+      .filter((v: any) => v.culture)
+      .map((v: any) => v.culture);
+    const result = await mcpClientManager.callTool("cms", "unpublish-document", {
+      id,
+      data: { cultures: cultures.length > 0 ? cultures : null },
+    });
     if (result.isError) return createToolResultError(result);
 
     return createToolResult({ message: `Unpublished "${pageName}" — it is now a draft only`, id, name: pageName });
