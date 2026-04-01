@@ -16,9 +16,38 @@ const outputSchema = z.object({
   urls: z.array(z.any()).optional().describe("Published URLs"),
 });
 
+/**
+ * Check if a value is block-based content and return a summary instead of the raw data.
+ */
+function summariseIfBlock(value: any): any {
+  if (!value || typeof value !== "object") return value;
+
+  // BlockList/BlockGrid
+  if (Array.isArray(value.contentData) && Array.isArray(value.settingsData)) {
+    return {
+      _blockSummary: true,
+      blockCount: value.contentData.length,
+      hint: "Use inspect-blocks to see block details and edit-block to update block content",
+    };
+  }
+
+  // RTE with blocks
+  if (typeof value.markup === "string" && value.blocks && Array.isArray(value.blocks?.contentData)) {
+    const blockCount = value.blocks.contentData.length;
+    return {
+      _blockSummary: true,
+      markup: value.markup,
+      blockCount,
+      hint: blockCount > 0 ? "Use inspect-blocks to see embedded block details" : undefined,
+    };
+  }
+
+  return value;
+}
+
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "get-page",
-  description: "Get the full details of a content page including all its fields and values. Use this after search-content to see what a page contains. Note: responses may be large for pages with many fields or rich content — only call when you need the full field values (e.g. before editing).",
+  description: "Get the full details of a content page including all its fields and values. Non-block properties are returned as-is. Block-based properties (BlockList, BlockGrid, Rich Text) are summarised with a block count — use inspect-blocks to see their full structure. Use this after search-content to see what a page contains.",
   inputSchema,
   outputSchema,
   slices: ["read"],
@@ -31,7 +60,10 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       id: doc.id,
       name: doc.variants?.[0]?.name ?? doc.name ?? "Unknown",
       documentType: doc.documentType?.alias ?? "unknown",
-      values: doc.values ?? [],
+      values: (doc.values ?? []).map((v: any) => ({
+        ...v,
+        value: summariseIfBlock(v.value),
+      })),
       variants: doc.variants ?? [],
       urls: doc.urls ?? [],
     });

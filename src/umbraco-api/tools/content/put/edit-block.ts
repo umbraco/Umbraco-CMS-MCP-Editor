@@ -26,7 +26,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "edit-block",
-  description: "Update properties within a specific block (BlockList, BlockGrid, or Rich Text block). Use inspect-blocks first to find the propertyAlias and contentKey. Changes are saved but NOT published. You will be asked to confirm before updating.",
+  description: "Update properties within a specific block (BlockList, BlockGrid, or Rich Text block). Use inspect-blocks first to find the propertyAlias and contentKey. For non-block page properties, use edit-page instead. Culture/segment applies to the document property level — use separate calls for mixed-variant blocks. Changes are saved but NOT published. You will be asked to confirm before updating.",
   inputSchema,
   outputSchema,
   slices: ["update"],
