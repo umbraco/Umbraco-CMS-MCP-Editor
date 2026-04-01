@@ -62,25 +62,15 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       return createToolResult({ message: "Edit cancelled", id, name: pageName, updatedFields: [] });
     }
 
-    // Step 3: Execute update — update-document requires { id, data: { values, variants } }
-    // Merge new values with existing ones from the document
-    const existingValues = (doc.values ?? []) as any[];
-    const mergedValues = [...existingValues];
-    for (const v of values) {
-      const idx = mergedValues.findIndex(
-        (ev: any) => ev.alias === v.alias && (ev.culture ?? null) === (v.culture ?? null) && (ev.segment ?? null) === (v.segment ?? null)
-      );
-      const mapped = { alias: v.alias, value: v.value, culture: v.culture ?? null, segment: v.segment ?? null };
-      if (idx >= 0) mergedValues[idx] = { ...mergedValues[idx], ...mapped };
-      else mergedValues.push(mapped);
-    }
-
-    const updateResult = await mcpClientManager.callTool("cms", "update-document", {
+    // Step 3: Delegate to update-document-properties (handles validation + merge internally)
+    const updateResult = await mcpClientManager.callTool("cms", "update-document-properties", {
       id,
-      data: {
-        values: mergedValues,
-        variants: doc.variants ?? [],
-      },
+      properties: values.map(v => ({
+        alias: v.alias,
+        value: v.value,
+        culture: v.culture ?? null,
+        segment: v.segment ?? null,
+      })),
     });
     if (updateResult.isError) return createToolResultError(updateResult);
 
