@@ -28,14 +28,6 @@ import {
 export interface MyServerCustomConfig {
   /** Disable MCP server chaining (useful for testing or isolated deployments) */
   disableMcpChaining?: boolean;
-  /** Enable experimental features */
-  experimentalFeatures?: boolean;
-  /** Custom API endpoints to enable */
-  customEndpoints?: string[];
-  /** External service API key */
-  externalApiKey?: string;
-  /** Maximum items per page for list operations */
-  maxPageSize?: string;
 }
 
 // ============================================================================
@@ -55,30 +47,6 @@ const customFields: ConfigFieldDefinition[] = [
     envVar: "DISABLE_MCP_CHAINING",
     cliFlag: "disable-mcp-chaining",
     type: "boolean",
-  },
-  {
-    name: "experimentalFeatures",
-    envVar: "MY_EXPERIMENTAL_FEATURES",
-    cliFlag: "my-experimental-features",
-    type: "boolean",
-  },
-  {
-    name: "customEndpoints",
-    envVar: "MY_CUSTOM_ENDPOINTS",
-    cliFlag: "my-custom-endpoints",
-    type: "csv",
-  },
-  {
-    name: "externalApiKey",
-    envVar: "MY_EXTERNAL_API_KEY",
-    cliFlag: "my-external-api-key",
-    type: "string",
-  },
-  {
-    name: "maxPageSize",
-    envVar: "MY_MAX_PAGE_SIZE",
-    cliFlag: "my-max-page-size",
-    type: "string",
   },
 ];
 

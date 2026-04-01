@@ -30,7 +30,7 @@ jest.unstable_mockModule("@/umbraco-api/server-ref", () => ({
 // Dynamic imports after mocking
 const { default: listVersionsTool } = await import("../get/list-versions.js");
 const { default: rollbackPageTool } = await import("../post/rollback-page.js");
-const { default: browseChildrenTool } = await import("../../content/get/browse-children.js");
+const { default: listChildrenTool } = await import("../../content/get/browse-children.js");
 
 describe("Versioning Collection", () => {
   setupTestEnvironment();
@@ -41,7 +41,7 @@ describe("Versioning Collection", () => {
 
   beforeAll(async () => {
     try {
-      const browseResult = await browseChildrenTool.handler(
+      const browseResult = await listChildrenTool.handler(
         { parentId: undefined, take: 5, skip: 0 },
         extra,
       );
@@ -67,7 +67,7 @@ describe("Versioning Collection", () => {
       if (!cmsAvailable || !testPageId) return;
 
       const result = await listVersionsTool.handler(
-        { documentId: testPageId, skip: 0, take: 10 },
+        { id: testPageId, skip: 0, take: 10 },
         extra,
       );
 
@@ -89,7 +89,7 @@ describe("Versioning Collection", () => {
       if (!cmsAvailable || !testPageId) return;
 
       const result = await listVersionsTool.handler(
-        { documentId: testPageId, skip: 0, take: 2 },
+        { id: testPageId, skip: 0, take: 2 },
         extra,
       );
 
@@ -105,7 +105,7 @@ describe("Versioning Collection", () => {
 
       // Get versions first
       const versionsResult = await listVersionsTool.handler(
-        { documentId: testPageId, skip: 0, take: 10 },
+        { id: testPageId, skip: 0, take: 10 },
         extra,
       );
       const versionsData = getStructuredContent(versionsResult) as any;
@@ -118,7 +118,7 @@ describe("Versioning Collection", () => {
       // Pick a non-current version to rollback to (the second one)
       const targetVersion = versionsData.versions[1];
       const result = await rollbackPageTool.handler(
-        { versionId: targetVersion.versionId, culture: undefined },
+        { id: testPageId, versionId: targetVersion.versionId, culture: undefined },
         extra,
       );
 
@@ -126,6 +126,7 @@ describe("Versioning Collection", () => {
       const data = getStructuredContent(result) as any;
       expect(data).toBeDefined();
       expect(data.message).toContain("Rolled back");
+      expect(data.id).toBe(testPageId);
       expect(data.versionId).toBe(targetVersion.versionId);
     }, 30000);
 
@@ -134,7 +135,7 @@ describe("Versioning Collection", () => {
 
       // Get a version ID
       const versionsResult = await listVersionsTool.handler(
-        { documentId: testPageId, skip: 0, take: 5 },
+        { id: testPageId, skip: 0, take: 5 },
         extra,
       );
       const versionsData = getStructuredContent(versionsResult) as any;
@@ -149,7 +150,7 @@ describe("Versioning Collection", () => {
 
       const targetVersion = versionsData.versions[0];
       const result = await rollbackPageTool.handler(
-        { versionId: targetVersion.versionId, culture: undefined },
+        { id: testPageId, versionId: targetVersion.versionId, culture: undefined },
         extra,
       );
 

@@ -21,7 +21,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   outputSchema,
   slices: ["delete"],
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
-  handler: async ({ id }) => {
+  handler: async ({ id }, extra) => {
     // Step 1: Fetch page details for confirmation
     const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
     if (docResult.isError) return createToolResultError(docResult);
@@ -32,20 +32,23 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const confirmMessage = `WARNING: Move "${pageName}" to the recycle bin? This will remove the page from the site.`;
 
     const server = getServerRef();
-    const elicitResult = await server.elicitInput({
-      message: confirmMessage,
-      requestedSchema: {
-        type: "object" as const,
-        properties: {
-          confirm: {
-            type: "boolean" as const,
-            title: "Confirm delete",
-            description: confirmMessage,
-            default: false,
+    const elicitResult = await server.elicitInput(
+      {
+        message: confirmMessage,
+        requestedSchema: {
+          type: "object" as const,
+          properties: {
+            confirm: {
+              type: "boolean" as const,
+              title: "Confirm delete",
+              description: confirmMessage,
+              default: false,
+            },
           },
         },
       },
-    });
+      { relatedRequestId: extra?.requestId },
+    );
 
     if (elicitResult.action !== "accept" || !(elicitResult.content as any)?.confirm) {
       return createToolResult({ message: "Delete cancelled", id, name: pageName });

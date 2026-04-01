@@ -20,28 +20,31 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   inputSchema,
   outputSchema,
   slices: ["publish"],
-  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
-  handler: async ({ id }) => {
+  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+  handler: async ({ id }, extra) => {
     const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
     if (docResult.isError) return createToolResultError(docResult);
     const doc = extractChainedResult(docResult);
     const pageName = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
 
     const server = getServerRef();
-    const elicitResult = await server.elicitInput({
-      message: `Unpublish "${pageName}"? This will remove it from the live website. The page will still exist as a draft.`,
-      requestedSchema: {
-        type: "object" as const,
-        properties: {
-          confirm: {
-            type: "boolean" as const,
-            title: "Confirm unpublish",
-            description: `Remove "${pageName}" from the live site`,
-            default: false,
+    const elicitResult = await server.elicitInput(
+      {
+        message: `Unpublish "${pageName}"? This will remove it from the live website. The page will still exist as a draft.`,
+        requestedSchema: {
+          type: "object" as const,
+          properties: {
+            confirm: {
+              type: "boolean" as const,
+              title: "Confirm unpublish",
+              description: `Remove "${pageName}" from the live site`,
+              default: false,
+            },
           },
         },
       },
-    });
+      { relatedRequestId: extra?.requestId },
+    );
 
     if (elicitResult.action !== "accept" || !(elicitResult.content as any)?.confirm) {
       return createToolResult({ message: "Unpublish cancelled", id, name: pageName });

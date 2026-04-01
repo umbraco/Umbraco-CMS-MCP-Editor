@@ -26,6 +26,9 @@ export const toolSliceNames = [
 
   // Workflow
   'publish',
+
+  // Versioning
+  'version',
 ] as const;
 
 /**

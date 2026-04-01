@@ -6,13 +6,13 @@ import { getServerRef } from "../../../server-ref.js";
 
 const inputSchema = {
   name: z.string().describe("The name of the page to create"),
-  documentTypeId: z.string().uuid().describe("The ID of the document type to use"),
+  documentTypeId: z.string().uuid().describe("The ID of the document type to use. Call list-document-types first to find available types."),
   parentId: z.string().uuid().optional().describe("The ID of the parent page. If omitted, the page is created at the root"),
   values: z.array(z.object({
     alias: z.string().describe("The property alias"),
     value: z.any().describe("The property value"),
-    culture: z.string().optional().describe("The culture code for variant content"),
-    segment: z.string().optional().describe("The segment for segmented content"),
+    culture: z.string().nullable().optional().describe("The culture code for variant content"),
+    segment: z.string().nullable().optional().describe("The segment for segmented content"),
   })).optional().describe("Property values to set on the new page"),
 };
 
@@ -29,41 +29,55 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   outputSchema,
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-  handler: async ({ name, documentTypeId, parentId, values }) => {
+  handler: async ({ name, documentTypeId, parentId, values }, extra) => {
     const fieldCount = values?.length ?? 0;
-    const location = parentId ? `under parent ${parentId}` : "at the root";
+
+    // Resolve parent name for human-readable confirmation
+    let location = "at the root";
+    if (parentId) {
+      const parentResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: parentId });
+      if (!parentResult.isError) {
+        const parent = extractChainedResult(parentResult);
+        const parentName = parent?.variants?.[0]?.name ?? parent?.name ?? parentId;
+        location = `under "${parentName}"`;
+      } else {
+        location = `under parent ${parentId}`;
+      }
+    }
 
     // Elicit confirmation
     const confirmMessage = `Create page "${name}" ${location} with ${fieldCount} field(s)? The page will be saved as a draft (not published).`;
 
     const server = getServerRef();
-    const elicitResult = await server.elicitInput({
-      message: confirmMessage,
-      requestedSchema: {
-        type: "object" as const,
-        properties: {
-          confirm: {
-            type: "boolean" as const,
-            title: "Confirm create",
-            description: confirmMessage,
-            default: true,
+    const elicitResult = await server.elicitInput(
+      {
+        message: confirmMessage,
+        requestedSchema: {
+          type: "object" as const,
+          properties: {
+            confirm: {
+              type: "boolean" as const,
+              title: "Confirm create",
+              description: confirmMessage,
+              default: true,
+            },
           },
         },
       },
-    });
+      { relatedRequestId: extra?.requestId },
+    );
 
     if (elicitResult.action !== "accept" || !(elicitResult.content as any)?.confirm) {
       return createToolResult({ message: "Create cancelled", id: "", name });
     }
 
-    // Execute create via dev MCP (flat args: documentTypeId, parentId, name, values)
+    // Execute create via dev MCP
     const createArgs: Record<string, unknown> = {
       documentTypeId,
       name,
       values: (values ?? []).map(v => ({
         alias: v.alias,
         value: v.value,
-        editorAlias: v.alias,
         culture: v.culture ?? null,
         segment: v.segment ?? null,
       })),

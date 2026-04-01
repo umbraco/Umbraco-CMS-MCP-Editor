@@ -22,7 +22,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   outputSchema,
   slices: ["publish"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
-  handler: async ({ id, includeDescendants }) => {
+  handler: async ({ id, includeDescendants }, extra) => {
     // Step 1: Fetch page details for confirmation
     const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
     if (docResult.isError) return createToolResultError(docResult);
@@ -35,20 +35,23 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       : `Publish "${pageName}" to the live site?`;
 
     const server = getServerRef();
-    const elicitResult = await server.elicitInput({
-      message: confirmMessage,
-      requestedSchema: {
-        type: "object" as const,
-        properties: {
-          confirm: {
-            type: "boolean" as const,
-            title: "Confirm publish",
-            description: confirmMessage,
-            default: true,
+    const elicitResult = await server.elicitInput(
+      {
+        message: confirmMessage,
+        requestedSchema: {
+          type: "object" as const,
+          properties: {
+            confirm: {
+              type: "boolean" as const,
+              title: "Confirm publish",
+              description: confirmMessage,
+              default: true,
+            },
           },
         },
       },
-    });
+      { relatedRequestId: extra?.requestId },
+    );
 
     if (elicitResult.action !== "accept" || !(elicitResult.content as any)?.confirm) {
       return createToolResult({ message: "Publish cancelled", id, name: pageName });

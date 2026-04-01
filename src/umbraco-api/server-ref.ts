@@ -1,8 +1,13 @@
 /**
  * Shared reference to the MCP Server instance.
  *
- * Set once during server initialization in index.ts.
- * Used by tools that need server-level capabilities like elicitation.
+ * Set once during server initialization:
+ * - Stdio mode: in index.ts at startup
+ * - Hosted mode: in worker.ts DO init() per session
+ *
+ * DOs are single-threaded so a module-scoped ref is safe per instance.
+ * This is equivalent to Cloudflare's `this.server.server` closure pattern
+ * but works with tools in separate files.
  */
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 

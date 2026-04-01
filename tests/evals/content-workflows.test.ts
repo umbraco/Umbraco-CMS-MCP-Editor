@@ -36,7 +36,7 @@ describe("Editor Content Workflows", () => {
     runScenarioTest({
       prompt:
         "Can you find the homepage and show me what content is on it?",
-      tools: ["search-content", "get-page", "browse-children"],
+      tools: ["search-content", "get-page", "list-children"],
       requiredTools: ["get-page"],
       successPattern: /home|content|field|value|page/i,
       verbose: true,
@@ -49,8 +49,8 @@ describe("Editor Content Workflows", () => {
     runScenarioTest({
       prompt:
         "What pages do we have on the site? Give me an overview of the site structure.",
-      tools: ["browse-children", "get-page", "search-content"],
-      requiredTools: ["browse-children"],
+      tools: ["list-children", "get-page", "search-content"],
+      requiredTools: ["list-children"],
       successPattern: /home|page|site|structure/i,
       verbose: true,
     }),
@@ -65,7 +65,7 @@ describe("Editor Content Workflows", () => {
       tools: [
         "search-content",
         "get-page",
-        "browse-children",
+        "list-children",
         "list-versions",
       ],
       requiredTools: ["list-versions"],
@@ -83,7 +83,7 @@ describe("Editor Content Workflows", () => {
       tools: [
         "search-content",
         "get-page",
-        "browse-children",
+        "list-children",
         "publish-page",
       ],
       requiredTools: ["publish-page"],
@@ -98,7 +98,7 @@ describe("Editor Content Workflows", () => {
     runScenarioTest({
       prompt:
         "I'm looking for any pages that mention 'home' — can you find them for me?",
-      tools: ["search-content", "get-page", "browse-children"],
+      tools: ["search-content", "get-page", "list-children"],
       requiredTools: ["search-content"],
       successPattern: /found|result|match|home|page/i,
       verbose: true,
@@ -111,8 +111,8 @@ describe("Editor Content Workflows", () => {
     runScenarioTest({
       prompt:
         "Show me the top-level pages, then drill into whichever one has child pages so I can see what's underneath it.",
-      tools: ["browse-children", "get-page"],
-      requiredTools: ["browse-children"],
+      tools: ["list-children", "get-page"],
+      requiredTools: ["list-children"],
       successPattern: /child|under|page|section/i,
       verbose: true,
     }),

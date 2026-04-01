@@ -36,7 +36,7 @@
  * - isConnected(serverName) - Check if a server is connected
  * - hasServer(serverName) - Check if a server is registered
  *
- * See `src/tools/chained/get-chained-info.ts` for a complete example.
+ * See tool files (e.g. `src/umbraco-api/tools/content/get/search-content.ts`) for usage examples.
  */
 
 import { createMcpClientManager } from "@umbraco-cms/mcp-server-sdk";

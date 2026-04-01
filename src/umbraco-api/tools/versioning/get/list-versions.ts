@@ -4,7 +4,7 @@ import { mcpClientManager } from "../../../mcp-client.js";
 import { extractChainedResult } from "../../extract-chained-result.js";
 
 const inputSchema = {
-  documentId: z.string().uuid().describe("The ID of the page to get version history for"),
+  id: z.string().uuid().describe("The ID of the page to get version history for"),
   skip: z.number().int().min(0).optional().default(0).describe("Number of versions to skip (for pagination)"),
   take: z.number().int().min(1).max(100).optional().default(20).describe("Number of versions to return"),
 };
@@ -26,18 +26,18 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   description: "List the version history of a content page. Shows when each version was saved and by whom. Use this to find a version ID before rolling back.",
   inputSchema,
   outputSchema,
-  slices: ["read"],
+  slices: ["list", "version"],
   annotations: { readOnlyHint: true },
-  handler: async ({ documentId, skip, take }) => {
+  handler: async ({ id, skip, take }) => {
     // Fetch page details for context
-    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: documentId });
+    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
     if (docResult.isError) return createToolResultError(docResult);
     const doc = extractChainedResult(docResult);
     const pageName = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
 
     // Fetch version history
     const versionResult = await mcpClientManager.callTool("cms", "get-document-version", {
-      documentId,
+      documentId: id,
       skip,
       take,
     });

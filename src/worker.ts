@@ -35,6 +35,7 @@ import {
 
 // Import tool collections and registries (shared with stdio mode via collections.ts)
 import { collections, allModes, allModeNames, allSliceNames } from "./collections.js";
+import { setServerRef } from "./umbraco-api/server-ref.js";
 
 // Import the Orval-generated API client (same factory as stdio mode)
 // Uncomment for in-process chaining:
@@ -99,6 +100,10 @@ export class UmbracoMcpAgent extends McpAgent<HostedMcpEnv, unknown, AuthProps> 
       this.env,
       this.props!
     );
+
+    // Make the underlying Server available to tools that need elicitation.
+    // DOs are single-threaded so the global ref is safe per-instance.
+    setServerRef(this.server.server);
 
     // ========================================================================
     // In-Process Chaining (uncomment to enable)

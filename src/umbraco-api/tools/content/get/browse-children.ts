@@ -15,8 +15,8 @@ const outputSchema = z.object({
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
-  name: "browse-children",
-  description: "Browse content pages in the site tree. Shows child pages under a parent, or root-level pages if no parent is specified. Use this to navigate the site structure.",
+  name: "list-children",
+  description: "List content pages in the site tree. Shows child pages under a parent, or root-level pages if no parent is specified. Use this to navigate the site structure.",
   inputSchema,
   outputSchema,
   slices: ["tree"],
@@ -31,7 +31,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     return createToolResult({
       items: (data.items ?? []).map((item: any) => ({
         id: item.id,
-        name: item.name ?? item.variants?.[0]?.name ?? "Unknown",
+        name: item.variants?.[0]?.name ?? item.name ?? "Unknown",
         hasChildren: item.hasChildren ?? false,
       })),
       total: data.total ?? 0,

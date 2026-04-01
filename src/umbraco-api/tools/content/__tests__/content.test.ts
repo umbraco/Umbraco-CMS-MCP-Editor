@@ -1,7 +1,7 @@
 /**
  * Content Collection Integration Tests
  *
- * Tests for search-content, get-page, browse-children, create-page, edit-page, delete-page.
+ * Tests for search-content, get-page, list-children, create-page, edit-page, delete-page.
  * Runs against a real Umbraco instance via the chained @umbraco-cms/mcp-dev MCP server.
  *
  * Prerequisites:
@@ -29,7 +29,7 @@ jest.unstable_mockModule("@/umbraco-api/server-ref", () => ({
 // Dynamic imports after mocking
 const { default: searchContentTool } = await import("../get/search-content.js");
 const { default: getPageTool } = await import("../get/get-page.js");
-const { default: browseChildrenTool } = await import("../get/browse-children.js");
+const { default: listChildrenTool } = await import("../get/browse-children.js");
 const { default: createPageTool } = await import("../post/create-page.js");
 const { default: editPageTool } = await import("../put/edit-page.js");
 const { default: deletePageTool } = await import("../delete/delete-page.js");
@@ -46,7 +46,7 @@ describe("Content Collection", () => {
   beforeAll(async () => {
     // Check connectivity by attempting to browse root pages
     try {
-      const browseResult = await browseChildrenTool.handler(
+      const browseResult = await listChildrenTool.handler(
         { parentId: undefined, take: 5, skip: 0 },
         extra,
       );
@@ -72,11 +72,11 @@ describe("Content Collection", () => {
     }
   }, 30000);
 
-  describe("browse-children", () => {
+  describe("list-children", () => {
     it("should return root-level pages", async () => {
       if (!cmsAvailable) return;
 
-      const result = await browseChildrenTool.handler(
+      const result = await listChildrenTool.handler(
         { parentId: undefined, take: 10, skip: 0 },
         extra,
       );

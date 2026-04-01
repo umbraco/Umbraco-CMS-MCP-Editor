@@ -31,7 +31,7 @@ jest.unstable_mockModule("@/umbraco-api/server-ref", () => ({
 // Dynamic imports after mocking
 const { default: publishPageTool } = await import("../post/publish-page.js");
 const { default: unpublishPageTool } = await import("../post/unpublish-page.js");
-const { default: browseChildrenTool } = await import("../../content/get/browse-children.js");
+const { default: listChildrenTool } = await import("../../content/get/browse-children.js");
 const { default: createPageTool } = await import("../../content/post/create-page.js");
 const { default: deletePageTool } = await import("../../content/delete/delete-page.js");
 
@@ -45,7 +45,7 @@ describe("Publishing Collection", () => {
 
   beforeAll(async () => {
     try {
-      const browseResult = await browseChildrenTool.handler(
+      const browseResult = await listChildrenTool.handler(
         { parentId: undefined, take: 5, skip: 0 },
         extra,
       );
