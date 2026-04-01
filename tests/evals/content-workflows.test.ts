@@ -15,8 +15,7 @@
  * - Valid credentials in .env
  * - MCP chaining enabled
  *
- * Note: Only read-only tools are tested. Write operations use elicitation
- * which the eval framework can't interact with.
+ * Write operations use elicitation which is auto-accepted by the eval runner.
  */
 
 import { describe, it } from "@jest/globals";
@@ -114,6 +113,74 @@ describe("Editor Content Workflows", () => {
       tools: ["list-children", "get-page"],
       requiredTools: ["list-children"],
       successPattern: /child|under|page|section/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "editor asks what page types are available",
+    runScenarioTest({
+      prompt:
+        "What types of pages can I create on this site?",
+      tools: ["list-document-types", "list-children", "get-page"],
+      requiredTools: ["list-document-types"],
+      successPattern: /type|document|template|content/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "editor asks to update content on a page",
+    runScenarioTest({
+      prompt:
+        "Find the homepage and update its title field to 'Welcome to Our Site'.",
+      tools: [
+        "search-content",
+        "get-page",
+        "list-children",
+        "edit-page",
+      ],
+      requiredTools: ["edit-page"],
+      successPattern: /update|edit|saved|changed|field/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "editor asks to take a page offline",
+    runScenarioTest({
+      prompt:
+        "Can you unpublish the homepage? We need to take it offline temporarily.",
+      tools: [
+        "search-content",
+        "get-page",
+        "list-children",
+        "unpublish-page",
+      ],
+      requiredTools: ["unpublish-page"],
+      successPattern: /unpublish|offline|draft|removed/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "editor asks to revert a page to a previous version",
+    runScenarioTest({
+      prompt:
+        "The homepage was changed by mistake. Can you roll it back to the previous version?",
+      tools: [
+        "search-content",
+        "get-page",
+        "list-children",
+        "list-versions",
+        "rollback-page",
+      ],
+      requiredTools: ["list-versions", "rollback-page"],
+      successPattern: /roll|revert|version|previous|restored/i,
       verbose: true,
     }),
     timeout
