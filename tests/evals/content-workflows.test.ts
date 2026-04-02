@@ -135,7 +135,7 @@ describe("Editor Content Workflows", () => {
     "editor asks to update content on a page",
     runScenarioTest({
       prompt:
-        "Find the homepage and update its title field to 'Welcome to Our Site'.",
+        "Find the homepage and change its heroHeader field to 'Explore Our World'. Just do it — don't check the current value first.",
       tools: [
         "search-content",
         "get-page",
@@ -208,7 +208,7 @@ describe("Editor Content Workflows", () => {
     "editor asks to change a value inside a block",
     runScenarioTest({
       prompt:
-        "Look at the homepage blocks in the contentRows property and change the pageSize to 5.",
+        "Look at the homepage blocks in the contentRows property and change the pageSize to 7. Just do it — don't skip even if it looks like the same value.",
       tools: [
         "search-content",
         "get-page",
@@ -218,6 +218,80 @@ describe("Editor Content Workflows", () => {
       ],
       requiredTools: ["inspect-blocks", "edit-block"],
       successPattern: /update|edit|block|saved|changed|pageSize/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  // =========================================================================
+  // Full tool set — tool selection accuracy
+  // =========================================================================
+  // These evals give the LLM ALL 13 tools and test whether it picks the
+  // right ones from a natural editor prompt without guidance.
+
+  const allTools = [
+    "search-content",
+    "get-page",
+    "list-children",
+    "list-document-types",
+    "inspect-blocks",
+    "create-page",
+    "edit-page",
+    "edit-block",
+    "delete-page",
+    "publish-page",
+    "unpublish-page",
+    "list-versions",
+    "rollback-page",
+  ];
+
+  it(
+    "full tool set: simple read doesn't trigger writes",
+    runScenarioTest({
+      prompt:
+        "What's on the homepage? Just show me what content it has.",
+      tools: allTools,
+      requiredTools: ["get-page"],
+      successPattern: /home|content|field|value|page/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "full tool set: multi-step edit and publish",
+    runScenarioTest({
+      prompt:
+        "Find the homepage, change the showPagination value in the contentRows block to true, then publish the page.",
+      tools: allTools,
+      requiredTools: ["inspect-blocks", "edit-block", "publish-page"],
+      successPattern: /publish|updated|block|live/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "full tool set: block summary guides to inspect-blocks",
+    runScenarioTest({
+      prompt:
+        "Get the homepage details, and if there are any blocks on it, show me what's inside them.",
+      tools: allTools,
+      requiredTools: ["get-page", "inspect-blocks"],
+      successPattern: /block|content|property|inspect/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "full tool set: site structure uses list-children not search",
+    runScenarioTest({
+      prompt:
+        "Give me the full site tree — all pages and their children.",
+      tools: allTools,
+      requiredTools: ["list-children"],
+      successPattern: /page|site|tree|structure|child/i,
       verbose: true,
     }),
     timeout
