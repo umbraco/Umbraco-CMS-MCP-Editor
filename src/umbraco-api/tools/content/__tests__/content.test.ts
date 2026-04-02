@@ -17,11 +17,13 @@ import {
 } from "@umbraco-cms/mcp-server-sdk/testing";
 import { extractChainedResult } from "../../extract-chained-result.js";
 
-// Mock the server-ref module so elicitation always accepts
+// Mock the server-ref module — default: always accept
+const mockElicitInput = jest.fn<() => Promise<{ action: string; content: Record<string, boolean> }>>();
+mockElicitInput.mockResolvedValue({ action: "accept", content: { confirm: true } });
+
 jest.unstable_mockModule("@/umbraco-api/server-ref", () => ({
   getServerRef: () => ({
-    elicitInput: jest.fn<() => Promise<{ action: string; content: Record<string, boolean> }>>()
-      .mockResolvedValue({ action: "accept", content: { confirm: true } }),
+    elicitInput: mockElicitInput,
   }),
   setServerRef: jest.fn(),
 }));
@@ -33,6 +35,7 @@ const { default: listChildrenTool } = await import("../get/browse-children.js");
 const { default: createPageTool } = await import("../post/create-page.js");
 const { default: editPageTool } = await import("../put/edit-page.js");
 const { default: deletePageTool } = await import("../delete/delete-page.js");
+const { default: inspectBlocksTool } = await import("../get/inspect-blocks.js");
 
 describe("Content Collection", () => {
   setupTestEnvironment();
@@ -145,6 +148,25 @@ describe("Content Collection", () => {
     }, 30000);
   });
 
+  describe("inspect-blocks", () => {
+    it("should return block structure for a page", async () => {
+      if (!cmsAvailable || !testPageId) return;
+
+      const result = await inspectBlocksTool.handler(
+        { id: testPageId, propertyAlias: undefined },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      expect(data).toBeDefined();
+      expect(data.id).toBe(testPageId);
+      expect(data.name).toEqual(expect.any(String));
+      expect(data.blockProperties).toBeInstanceOf(Array);
+      // blockProperties may be empty if the test page has no block content — that's fine
+    }, 30000);
+  });
+
   describe("create-page, edit-page, delete-page lifecycle", () => {
     let createdId: string;
 
@@ -221,6 +243,63 @@ describe("Content Collection", () => {
       // Remove from cleanup list since already deleted
       const idx = createdPageIds.indexOf(createdId);
       if (idx !== -1) createdPageIds.splice(idx, 1);
+    }, 30000);
+  });
+
+  describe("elicitation rejection", () => {
+    afterEach(() => {
+      // Reset to default accept after each rejection test
+      mockElicitInput.mockResolvedValue({ action: "accept", content: { confirm: true } });
+    });
+
+    it("should cancel create when elicitation is rejected", async () => {
+      if (!cmsAvailable || !testPageId) return;
+
+      mockElicitInput.mockResolvedValue({ action: "reject", content: { confirm: false } });
+
+      const result = await createPageTool.handler(
+        {
+          name: "Should Not Be Created",
+          documentTypeId: testDocumentTypeId || "00000000-0000-0000-0000-000000000000",
+          parentId: testPageId,
+          values: undefined,
+        },
+        extra,
+      );
+
+      const data = getStructuredContent(result) as any;
+      expect(data.message).toContain("cancelled");
+    }, 30000);
+
+    it("should cancel edit when elicitation is rejected", async () => {
+      if (!cmsAvailable || !testPageId) return;
+
+      mockElicitInput.mockResolvedValue({ action: "reject", content: { confirm: false } });
+
+      const result = await editPageTool.handler(
+        {
+          id: testPageId,
+          values: [{ alias: "title", value: "Should Not Change" }],
+        },
+        extra,
+      );
+
+      const data = getStructuredContent(result) as any;
+      expect(data.message).toContain("cancelled");
+    }, 30000);
+
+    it("should cancel delete when elicitation is rejected", async () => {
+      if (!cmsAvailable || !testPageId) return;
+
+      mockElicitInput.mockResolvedValue({ action: "reject", content: { confirm: false } });
+
+      const result = await deletePageTool.handler(
+        { id: testPageId },
+        extra,
+      );
+
+      const data = getStructuredContent(result) as any;
+      expect(data.message).toContain("cancelled");
     }, 30000);
   });
 });
