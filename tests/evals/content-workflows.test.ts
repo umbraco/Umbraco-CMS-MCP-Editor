@@ -203,4 +203,23 @@ describe("Editor Content Workflows", () => {
     }),
     timeout
   );
+
+  it(
+    "editor asks to change a value inside a block",
+    runScenarioTest({
+      prompt:
+        "Look at the homepage blocks in the contentRows property and change the pageSize to 5.",
+      tools: [
+        "search-content",
+        "get-page",
+        "list-children",
+        "inspect-blocks",
+        "edit-block",
+      ],
+      requiredTools: ["inspect-blocks", "edit-block"],
+      successPattern: /update|edit|block|saved|changed|pageSize/i,
+      verbose: true,
+    }),
+    timeout
+  );
 });
