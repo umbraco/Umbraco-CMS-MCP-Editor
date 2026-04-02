@@ -1,21 +1,8 @@
 /**
- * Content Workflow Eval Tests
+ * Read-Only Workflow Eval Tests
  *
- * These tests simulate realistic editor requests — natural language prompts
- * that a content editor would actually say. The LLM must figure out which
- * tools to use based on tool descriptions alone.
- *
- * This validates that:
- * - Tool descriptions are clear enough for the LLM to pick the right tool
- * - Tools return useful, editor-friendly responses
- * - Multi-step workflows work end-to-end
- *
- * These tests require:
- * - A running Umbraco instance with content pages
- * - Valid credentials in .env
- * - MCP chaining enabled
- *
- * Write operations use elicitation which is auto-accepted by the eval runner.
+ * These tests are safe to run in parallel — they only read content,
+ * never mutate it. Split from write workflows to enable parallel execution.
  */
 
 import { describe, it } from "@jest/globals";
@@ -25,7 +12,23 @@ import {
   getDefaultTimeoutMs,
 } from "@umbraco-cms/mcp-server-sdk/evals";
 
-describe("Editor Content Workflows", () => {
+const allTools = [
+  "search-content",
+  "get-page",
+  "list-children",
+  "list-document-types",
+  "inspect-blocks",
+  "create-page",
+  "edit-page",
+  "edit-block",
+  "delete-page",
+  "publish-page",
+  "unpublish-page",
+  "list-versions",
+  "rollback-page",
+];
+
+describe("Read-Only Workflows", () => {
   setupConsoleMock();
 
   const timeout = getDefaultTimeoutMs();
@@ -75,24 +78,6 @@ describe("Editor Content Workflows", () => {
   );
 
   it(
-    "editor asks to publish a page (elicitation auto-confirmed)",
-    runScenarioTest({
-      prompt:
-        "Find the homepage and publish it for me.",
-      tools: [
-        "search-content",
-        "get-page",
-        "list-children",
-        "publish-page",
-      ],
-      requiredTools: ["publish-page"],
-      successPattern: /publish|live|published/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
     "editor searches for content by topic",
     runScenarioTest({
       prompt:
@@ -132,61 +117,6 @@ describe("Editor Content Workflows", () => {
   );
 
   it(
-    "editor asks to update content on a page",
-    runScenarioTest({
-      prompt:
-        "Find the homepage and change its heroHeader field to 'Explore Our World'. Just do it — don't check the current value first.",
-      tools: [
-        "search-content",
-        "get-page",
-        "list-children",
-        "edit-page",
-      ],
-      requiredTools: ["edit-page"],
-      successPattern: /update|edit|saved|changed|field/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
-    "editor asks to take a page offline",
-    runScenarioTest({
-      prompt:
-        "Can you unpublish the homepage? We need to take it offline temporarily.",
-      tools: [
-        "search-content",
-        "get-page",
-        "list-children",
-        "unpublish-page",
-      ],
-      requiredTools: ["unpublish-page"],
-      successPattern: /unpublish|offline|draft|removed/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
-    "editor asks to revert a page to a previous version",
-    runScenarioTest({
-      prompt:
-        "The homepage was changed by mistake. Can you roll it back to the previous version?",
-      tools: [
-        "search-content",
-        "get-page",
-        "list-children",
-        "list-versions",
-        "rollback-page",
-      ],
-      requiredTools: ["list-versions", "rollback-page"],
-      successPattern: /roll|revert|version|previous|restored/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
     "editor asks what blocks are on a page",
     runScenarioTest({
       prompt:
@@ -205,47 +135,6 @@ describe("Editor Content Workflows", () => {
   );
 
   it(
-    "editor asks to change a value inside a block",
-    runScenarioTest({
-      prompt:
-        "Look at the homepage blocks in the contentRows property and change the pageSize to 7. Just do it — don't skip even if it looks like the same value.",
-      tools: [
-        "search-content",
-        "get-page",
-        "list-children",
-        "inspect-blocks",
-        "edit-block",
-      ],
-      requiredTools: ["inspect-blocks", "edit-block"],
-      successPattern: /update|edit|block|saved|changed|pageSize/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  // =========================================================================
-  // Full tool set — tool selection accuracy
-  // =========================================================================
-  // These evals give the LLM ALL 13 tools and test whether it picks the
-  // right ones from a natural editor prompt without guidance.
-
-  const allTools = [
-    "search-content",
-    "get-page",
-    "list-children",
-    "list-document-types",
-    "inspect-blocks",
-    "create-page",
-    "edit-page",
-    "edit-block",
-    "delete-page",
-    "publish-page",
-    "unpublish-page",
-    "list-versions",
-    "rollback-page",
-  ];
-
-  it(
     "full tool set: simple read doesn't trigger writes",
     runScenarioTest({
       prompt:
@@ -253,19 +142,6 @@ describe("Editor Content Workflows", () => {
       tools: allTools,
       requiredTools: ["get-page"],
       successPattern: /home|content|field|value|page/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
-    "full tool set: multi-step edit and publish",
-    runScenarioTest({
-      prompt:
-        "Find the homepage, change the showPagination value in the contentRows block to true, then publish the page.",
-      tools: allTools,
-      requiredTools: ["inspect-blocks", "edit-block", "publish-page"],
-      successPattern: /publish|updated|block|live/i,
       verbose: true,
     }),
     timeout

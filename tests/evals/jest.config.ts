@@ -33,8 +33,9 @@ const config: Config = {
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json", "node"],
 
   // Eval specific settings
-  maxConcurrency: 1,
-  maxWorkers: 1,
+  // Allow multiple workers so read-only and write test files run in parallel.
+  // Write tests within their file still run sequentially (Jest default).
+  maxWorkers: 2,
   testTimeout: 120000, // 2 minute timeout for long-running tests
 
   // Disable slow test warnings (these are expected to be slow)
