@@ -4,82 +4,66 @@
  * Configure external MCP servers that this server can delegate to internally.
  * Tools from these servers are called via mcpClientManager.callTool() but are
  * NOT exposed/proxied to the editor client.
+ *
+ * This module is safe in both Node.js (stdio) and Cloudflare Workers (hosted)
+ * runtimes. In Workers, mcpServers is empty since chaining uses in-process
+ * connections instead of stdio subprocesses.
  */
 
-import path from "path";
-import { fileURLToPath } from "url";
 import type { McpServerConfig } from "@umbraco-cms/mcp-server-sdk";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+function buildServers(): McpServerConfig[] {
+  try {
+    // Guard: Workers runtime doesn't have process.env in the same way
+    if (typeof process === "undefined" || !process.env) return [];
 
-/**
- * Use mock MCP server for testing chaining functionality.
- * Set USE_MOCK_MCP_CHAIN=true to use a simple mock server instead of real Umbraco.
- */
-const useMockChain = process.env.USE_MOCK_MCP_CHAIN === "true";
+    const useMockChain = process.env.USE_MOCK_MCP_CHAIN === "true";
 
-/**
- * Mock MCP server configuration for testing.
- * Uses a simple server that returns mock tools and responses.
- * Path resolves from dist/ to src/ since tsx runs TypeScript directly.
- * Note: tsup bundles into dist/index.js so __dirname is dist/, not dist/config/
- */
-const mockCmsServer: McpServerConfig = {
-  name: "cms",
-  command: "npx",
-  args: [
-    "tsx",
-    // From dist/index.js, go to ../src/testing/
-    path.resolve(__dirname, "../src/testing/mock-mcp-server.ts"),
-  ],
-  proxyTools: false,  // Delegation only — tools not exposed to editors
-};
+    if (useMockChain) {
+      // Mock server for testing — resolve path from dist/ to src/
+      const path = require("path");
+      const { fileURLToPath } = require("url");
+      const __dirname = path.dirname(fileURLToPath(import.meta.url));
+      return [{
+        name: "cms",
+        command: "npx",
+        args: ["tsx", path.resolve(__dirname, "../src/testing/mock-mcp-server.ts")],
+        proxyTools: false,
+      }];
+    }
 
-/**
- * Real Umbraco CMS MCP server configuration.
- */
-const realCmsServer: McpServerConfig = {
-  name: "cms",
-  command: "npx",
-  args: ["-y", "@umbraco-cms/mcp-dev@17.2.2"],
-  env: {
-    NODE_TLS_REJECT_UNAUTHORIZED: "0",
-    UMBRACO_BASE_URL: process.env.UMBRACO_BASE_URL || "http://localhost:44391",
-    UMBRACO_CLIENT_ID: process.env.UMBRACO_CLIENT_ID || "",
-    UMBRACO_CLIENT_SECRET: process.env.UMBRACO_CLIENT_SECRET || "",
-    // Clear tool filters so our editor tool names (search-content etc.) don't
-    // leak to the dev MCP which uses different names (search-document etc.).
-    // The SDK always merges process.env into chained server env, so we must
-    // explicitly override these to prevent filter propagation.
-    UMBRACO_INCLUDE_TOOLS: "",
-    UMBRACO_EXCLUDE_TOOLS: "",
-    UMBRACO_INCLUDE_TOOL_COLLECTIONS: "",
-    UMBRACO_EXCLUDE_TOOL_COLLECTIONS: "",
-    UMBRACO_INCLUDE_SLICES: "",
-    UMBRACO_EXCLUDE_SLICES: "",
-    UMBRACO_TOOL_MODES: "",
-  },
-  proxyTools: false,  // Delegation only — tools not exposed to editors
-};
+    // Real Umbraco CMS MCP server
+    return [{
+      name: "cms",
+      command: "npx",
+      args: ["-y", "@umbraco-cms/mcp-dev@17.2.2"],
+      env: {
+        NODE_TLS_REJECT_UNAUTHORIZED: "0",
+        UMBRACO_BASE_URL: process.env.UMBRACO_BASE_URL || "http://localhost:44391",
+        UMBRACO_CLIENT_ID: process.env.UMBRACO_CLIENT_ID || "",
+        UMBRACO_CLIENT_SECRET: process.env.UMBRACO_CLIENT_SECRET || "",
+        // Clear tool filters so our editor tool names (search-content etc.) don't
+        // leak to the dev MCP which uses different names (search-document etc.).
+        // The SDK always merges process.env into chained server env, so we must
+        // explicitly override these to prevent filter propagation.
+        UMBRACO_INCLUDE_TOOLS: "",
+        UMBRACO_EXCLUDE_TOOLS: "",
+        UMBRACO_INCLUDE_TOOL_COLLECTIONS: "",
+        UMBRACO_EXCLUDE_TOOL_COLLECTIONS: "",
+        UMBRACO_INCLUDE_SLICES: "",
+        UMBRACO_EXCLUDE_SLICES: "",
+        UMBRACO_TOOL_MODES: "",
+      },
+      proxyTools: false,
+    }];
+  } catch {
+    // Workers runtime or other environment without Node APIs
+    return [];
+  }
+}
 
 /**
  * External MCP servers to chain to.
- *
- * Each server configured here will:
- * 1. Be available for internal delegation (tools calling mcpClientManager.callTool())
- * 2. Receive the same filter configuration (tools, slices, modes) as this server
+ * Empty in Workers runtime (chaining uses in-process connections there).
  */
-export const mcpServers: McpServerConfig[] = [
-  // Use mock server for testing, real server otherwise
-  useMockChain ? mockCmsServer : realCmsServer,
-
-  // Add more chained MCP servers here as needed
-  // {
-  //   name: "another-mcp",
-  //   command: "npx",
-  //   args: ["-y", "@scope/another-mcp"],
-  //   env: { ... },
-  //   proxyTools: true,
-  // },
-];
+export const mcpServers: McpServerConfig[] = buildServers();

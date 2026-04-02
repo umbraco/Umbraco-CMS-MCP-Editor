@@ -10,9 +10,9 @@ let worker: Unstable_DevWorker | undefined;
 let workerUrl: string | undefined;
 
 const BASE_VARS = {
-  UMBRACO_BASE_URL: "https://localhost:5201",
-  UMBRACO_SERVER_URL: "http://localhost:5200",
-  UMBRACO_OAUTH_CLIENT_ID: "umbraco-back-office-mcp",
+  UMBRACO_BASE_URL: "https://localhost:44386",
+  UMBRACO_SERVER_URL: "http://localhost:53620",
+  UMBRACO_OAUTH_CLIENT_ID: "umbraco-editor-mcp-hosted",
   COOKIE_ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   ENABLE_INFO_ENDPOINT: "true",
 };

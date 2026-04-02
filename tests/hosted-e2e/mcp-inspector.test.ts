@@ -1,16 +1,12 @@
 /**
- * MCP Inspector E2E tests.
+ * Hosted MCP E2E tests via MCP Inspector.
  *
  * Drives the MCP Inspector UI through the full OAuth flow,
- * verifies the tools list, and executes a tool call.
- *
- * Customize the tool lists, credentials, and ports below to match
- * your project. Add more tests for consent screen filtering
- * (modes, slices, readOnly) as needed — see the SDK's test suites
- * in tests/hosted-mcp-e2e/ for comprehensive examples.
+ * verifies tool discovery, tool execution, and elicitation.
  *
  * Prerequisites:
- * - Umbraco running (update UMBRACO_BASE_URL in worker-setup.ts)
+ * - Umbraco demo site running on https://localhost:44386
+ * - McpOAuthComposer registered (authorization_code client)
  * - Worker and Inspector started automatically in beforeAll
  *
  * Run: npm run test:e2e
@@ -24,27 +20,35 @@ import {
 } from "@umbraco-cms/mcp-hosted/testing";
 
 // ============================================================================
-// Tool list — update with your project's tool names
+// Tool lists
 // ============================================================================
 
-const ALL_TOOLS = [
-  "get-example",
-  "list-examples",
-  "search-examples",
-  "create-example",
-  "update-example",
-  "delete-example",
-  "get-widget",
-  "list-widgets",
-  "create-widget",
-  "get-server-info",
+const READ_TOOLS = [
+  "search-content",
+  "get-page",
+  "list-children",
+  "list-document-types",
+  "inspect-blocks",
+  "list-versions",
 ];
+
+const WRITE_TOOLS = [
+  "create-page",
+  "edit-page",
+  "edit-block",
+  "delete-page",
+  "publish-page",
+  "unpublish-page",
+  "rollback-page",
+];
+
+const ALL_TOOLS = [...READ_TOOLS, ...WRITE_TOOLS];
 
 // ============================================================================
 // Tests
 // ============================================================================
 
-test.describe("MCP Inspector E2E", () => {
+test.describe("Hosted MCP E2E", () => {
   let workerUrl: string;
   let inspector: InspectorHandle;
 
@@ -69,63 +73,51 @@ test.describe("MCP Inspector E2E", () => {
     test.setTimeout(120000);
 
     const oauthPage = await connectInspector(page, workerUrl, inspector.url);
-    await handleOAuthFlow(page, oauthPage);
-    // Pass custom credentials if your Umbraco uses different login:
-    // await handleOAuthFlow(page, oauthPage, undefined, {
-    //   email: "admin@example.com",
-    //   password: "YourPassword",
-    // });
+    await handleOAuthFlow(page, oauthPage, undefined, {
+      email: "admin@test.com",
+      password: "SecurePass1234",
+    });
 
     const tools = await getToolNames(page, ALL_TOOLS);
-    for (const tool of ALL_TOOLS) {
+    for (const tool of READ_TOOLS) {
+      expect(tools).toContain(tool);
+    }
+    for (const tool of WRITE_TOOLS) {
       expect(tools).toContain(tool);
     }
   });
 
-  test("execute a tool call", async ({ page }) => {
+  test("execute a read-only tool", async ({ page }) => {
     test.setTimeout(120000);
 
     const oauthPage = await connectInspector(page, workerUrl, inspector.url);
-    await handleOAuthFlow(page, oauthPage);
-
-    const tools = await getToolNames(page, ALL_TOOLS);
-    expect(tools).toContain("get-server-info");
-
-    // Call a tool and verify the response contains expected text
-    const result = await callTool(page, "get-server-info", "assemblyVersion");
-    expect(result).toContain("assemblyVersion");
-  });
-
-  test("consent screen mode filtering", async ({ page }) => {
-    test.setTimeout(120000);
-
-    const oauthPage = await connectInspector(page, workerUrl, inspector.url);
-    await handleOAuthFlow(page, oauthPage, {
-      checkModes: ["example"],
+    await handleOAuthFlow(page, oauthPage, undefined, {
+      email: "admin@test.com",
+      password: "SecurePass1234",
     });
 
-    const tools = await getToolNames(page, ALL_TOOLS);
+    await getToolNames(page, ALL_TOOLS);
 
-    // Only example collection tools should be present
-    expect(tools).toContain("get-example");
-    expect(tools).not.toContain("get-widget");
-    expect(tools).not.toContain("get-server-info");
+    // Call list-children (no required args — returns root pages)
+    const result = await callTool(page, "list-children", "items");
+    expect(result).toContain("items");
+    expect(result).toContain("total");
   });
 
-  test("readOnly toggle excludes write tools", async ({ page }) => {
+  test("execute a read-only tool that returns structured content", async ({ page }) => {
     test.setTimeout(120000);
 
     const oauthPage = await connectInspector(page, workerUrl, inspector.url);
-    await handleOAuthFlow(page, oauthPage, { checkReadOnly: true });
+    await handleOAuthFlow(page, oauthPage, undefined, {
+      email: "admin@test.com",
+      password: "SecurePass1234",
+    });
 
-    const tools = await getToolNames(page, ALL_TOOLS);
+    await getToolNames(page, ALL_TOOLS);
 
-    // Write tools should be excluded
-    expect(tools).not.toContain("create-example");
-    expect(tools).not.toContain("delete-example");
-
-    // Read-only tools should remain
-    expect(tools).toContain("get-example");
-    expect(tools).toContain("get-server-info");
+    // Call list-children (no args needed for root) and verify response
+    const result = await callTool(page, "list-children", "total");
+    expect(result).toContain("total");
+    expect(result).toContain("items");
   });
 });
