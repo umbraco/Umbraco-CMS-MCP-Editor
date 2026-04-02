@@ -57,7 +57,7 @@ describe("Write Workflows", () => {
     "editor asks to update content on a page",
     runScenarioTest({
       prompt:
-        "Find the homepage and change its heroHeader field to 'Explore Our World'. Just do it — don't check the current value first.",
+        "Find the homepage and use edit-page to set its heroHeader field to 'Explore Our World'. Always make the edit even if the value appears unchanged.",
       tools: [
         "search-content",
         "get-page",
@@ -112,7 +112,7 @@ describe("Write Workflows", () => {
     "editor asks to change a value inside a block",
     runScenarioTest({
       prompt:
-        "Look at the homepage blocks in the contentRows property and change the pageSize to 7. Just do it — don't skip even if it looks like the same value.",
+        "I need you to set the pageSize to 7 in the contentRows block on the homepage. Use inspect-blocks to find the block, then use edit-block to set the value. Always make the edit even if the value appears unchanged.",
       tools: [
         "search-content",
         "get-page",
@@ -131,7 +131,7 @@ describe("Write Workflows", () => {
     "full tool set: multi-step edit and publish",
     runScenarioTest({
       prompt:
-        "Find the homepage, change the showPagination value in the contentRows block to true, then publish the page.",
+        "Find the homepage, use inspect-blocks on the contentRows property, then use edit-block to set showPagination to true, then publish the page. Always make the edit even if the value appears unchanged.",
       tools: allTools,
       requiredTools: ["inspect-blocks", "edit-block", "publish-page"],
       successPattern: /publish|updated|block|live/i,
