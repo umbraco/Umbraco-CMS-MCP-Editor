@@ -84,26 +84,6 @@ export class UmbracoMcpAgent extends McpAgent<HostedMcpEnv, unknown, AuthProps> 
     // Make the underlying Server available to tools that need elicitation.
     setServerRef(this.server.server);
 
-    // Replace the Ajv JSON Schema validator for Workers runtime.
-    // Ajv uses `new Function()` which is blocked in Workers ("Code generation
-    // from strings disallowed"). This lightweight validator handles our
-    // elicitation schemas (simple object with typed properties) without eval.
-    (this.server.server as any)._jsonSchemaValidator = {
-      getValidator: (schema: any) => (data: any) => {
-        if (schema.type === "object" && typeof data !== "object") {
-          return { valid: false, errors: ["Expected object"] };
-        }
-        if (schema.properties) {
-          for (const [key, prop] of Object.entries(schema.properties) as [string, any][]) {
-            if (data[key] !== undefined && prop.type && typeof data[key] !== prop.type) {
-              return { valid: false, errors: [`${key}: expected ${prop.type}`] };
-            }
-          }
-        }
-        return { valid: true };
-      },
-    };
-
     // Register the CMS as an in-process server on mcpClientManager so
     // editor tools can call mcpClientManager.callTool("cms", ...).
     // The clientFactory provides the CMS Orval client which uses the
