@@ -28,7 +28,7 @@ import {
 
 // Import tool collections and registries (shared with stdio mode via collections.ts)
 import { collections, allModes, allModeNames, allSliceNames } from "./collections.js";
-import { setServerRef } from "./umbraco-api/server-ref.js";
+import { setServerRef } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "./umbraco-api/mcp-client.js";
 
 // Import CMS collections for in-process chaining

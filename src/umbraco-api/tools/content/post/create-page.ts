@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition , extractChainedResult, confirmAction, getServerRef } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
-import { extractChainedResult } from "../../extract-chained-result.js";
-import { getServerRef } from "../../../server-ref.js";
+
+
 
 const inputSchema = {
   name: z.string().describe("The name of the page to create"),

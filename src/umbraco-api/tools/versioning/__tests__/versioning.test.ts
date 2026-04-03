@@ -16,21 +16,16 @@ import {
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
 
-// Mock the server-ref module — default: always accept
+import { setServerRef } from "@umbraco-cms/mcp-server-sdk";
+
+import listVersionsTool from "../get/list-versions.js";
+import rollbackPageTool from "../post/rollback-page.js";
+import listChildrenTool from "../../content/get/browse-children.js";
+
+// Set up mock server for elicitation — default: always accept
 const mockElicitInput = jest.fn<() => Promise<{ action: string; content: Record<string, boolean> }>>();
 mockElicitInput.mockResolvedValue({ action: "accept", content: { confirm: true } });
-
-jest.unstable_mockModule("@/umbraco-api/server-ref", () => ({
-  getServerRef: () => ({
-    elicitInput: mockElicitInput,
-  }),
-  setServerRef: jest.fn(),
-}));
-
-// Dynamic imports after mocking
-const { default: listVersionsTool } = await import("../get/list-versions.js");
-const { default: rollbackPageTool } = await import("../post/rollback-page.js");
-const { default: listChildrenTool } = await import("../../content/get/browse-children.js");
+setServerRef({ elicitInput: mockElicitInput } as any);
 
 describe("Versioning Collection", () => {
   setupTestEnvironment();

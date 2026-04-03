@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition , extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
-import { extractChainedResult } from "../../extract-chained-result.js";
+
 
 const inputSchema = {
   id: z.string().uuid().describe("The unique ID of the page to retrieve"),

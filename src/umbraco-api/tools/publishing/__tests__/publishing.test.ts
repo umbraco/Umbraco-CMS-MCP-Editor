@@ -15,25 +15,18 @@ import {
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
-import { extractChainedResult } from "../../extract-chained-result.js";
+import { extractChainedResult, setServerRef } from "@umbraco-cms/mcp-server-sdk";
 
-// Mock the server-ref module — default: always accept
+import publishPageTool from "../post/publish-page.js";
+import unpublishPageTool from "../post/unpublish-page.js";
+import listChildrenTool from "../../content/get/browse-children.js";
+import createPageTool from "../../content/post/create-page.js";
+import deletePageTool from "../../content/delete/delete-page.js";
+
+// Set up mock server for elicitation — default: always accept
 const mockElicitInput = jest.fn<() => Promise<{ action: string; content: Record<string, boolean> }>>();
 mockElicitInput.mockResolvedValue({ action: "accept", content: { confirm: true } });
-
-jest.unstable_mockModule("@/umbraco-api/server-ref", () => ({
-  getServerRef: () => ({
-    elicitInput: mockElicitInput,
-  }),
-  setServerRef: jest.fn(),
-}));
-
-// Dynamic imports after mocking
-const { default: publishPageTool } = await import("../post/publish-page.js");
-const { default: unpublishPageTool } = await import("../post/unpublish-page.js");
-const { default: listChildrenTool } = await import("../../content/get/browse-children.js");
-const { default: createPageTool } = await import("../../content/post/create-page.js");
-const { default: deletePageTool } = await import("../../content/delete/delete-page.js");
+setServerRef({ elicitInput: mockElicitInput } as any);
 
 describe("Publishing Collection", () => {
   setupTestEnvironment();

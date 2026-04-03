@@ -14,6 +14,7 @@ import {
   createToolAnnotations,
   createCollectionConfigLoader,
   shouldIncludeTool,
+  setServerRef,
   type CollectionConfiguration,
   type ToolCollectionExport,
 } from "@umbraco-cms/mcp-server-sdk";
@@ -28,7 +29,7 @@ import versioningCollection from "./umbraco-api/tools/versioning/index.js";
 import { mcpClientManager } from "./umbraco-api/mcp-client.js";
 
 // Import server reference setter (for tools that need server-level capabilities)
-import { setServerRef } from "./umbraco-api/server-ref.js";
+
 
 // Import MCP server chain configuration and register servers
 import { mcpServers } from "./config/mcp-servers.js";
