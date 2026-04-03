@@ -1,8 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition , extractChainedResult, confirmAction, getServerRef } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
-
-
 
 const inputSchema = {
   id: z.string().uuid().describe("The page ID to rollback"),
@@ -52,26 +50,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // Step 2: Elicit confirmation (destructive action, default false)
     const confirmMessage = `Rollback "${pageName}" to a previous version? This replaces the current draft. The published version is not affected until you publish again.`;
 
-    const server = getServerRef();
-    const elicitResult = await server.elicitInput(
-      {
-        message: confirmMessage,
-        requestedSchema: {
-          type: "object" as const,
-          properties: {
-            confirm: {
-              type: "boolean" as const,
-              title: "Confirm rollback",
-              description: confirmMessage,
-              default: false,
-            },
-          },
-        },
-      },
-      { relatedRequestId: extra?.requestId },
-    );
-
-    if (elicitResult.action !== "accept" || !(elicitResult.content as any)?.confirm) {
+    if (!await confirmAction(extra, confirmMessage, { title: "Confirm rollback", defaultValue: false })) {
       return createToolResult({ message: "Rollback cancelled", id, name: pageName, versionId });
     }
 

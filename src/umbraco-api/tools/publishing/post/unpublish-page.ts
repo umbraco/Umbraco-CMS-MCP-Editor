@@ -1,8 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition , extractChainedResult, confirmAction, getServerRef } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
-
-
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to unpublish"),
@@ -27,36 +25,16 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const doc = extractChainedResult(docResult);
     const pageName = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
 
-    const server = getServerRef();
-    const elicitResult = await server.elicitInput(
-      {
-        message: `Unpublish "${pageName}"? This will remove it from the live website. The page will still exist as a draft.`,
-        requestedSchema: {
-          type: "object" as const,
-          properties: {
-            confirm: {
-              type: "boolean" as const,
-              title: "Confirm unpublish",
-              description: `Remove "${pageName}" from the live site`,
-              default: false,
-            },
-          },
-        },
-      },
-      { relatedRequestId: extra?.requestId },
-    );
-
-    if (elicitResult.action !== "accept" || !(elicitResult.content as any)?.confirm) {
+    if (!await confirmAction(extra, `Unpublish "${pageName}"? This will remove it from the live website.`, {
+      title: "Confirm unpublish", defaultValue: false,
+    })) {
       return createToolResult({ message: "Unpublish cancelled", id, name: pageName });
     }
 
     // Pass cultures: null for invariant content ([] is rejected by the API)
-    const cultures = (doc.variants ?? [])
-      .filter((v: any) => v.culture)
-      .map((v: any) => v.culture);
+    const cultures = (doc.variants ?? []).filter((v: any) => v.culture).map((v: any) => v.culture);
     const result = await mcpClientManager.callTool("cms", "unpublish-document", {
-      id,
-      data: { cultures: cultures.length > 0 ? cultures : null },
+      id, data: { cultures: cultures.length > 0 ? cultures : null },
     });
     if (result.isError) return createToolResultError(result);
 

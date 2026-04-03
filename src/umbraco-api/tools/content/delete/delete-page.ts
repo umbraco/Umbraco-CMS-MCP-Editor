@@ -1,8 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition , extractChainedResult, confirmAction, getServerRef } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
-
-
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to delete"),
@@ -31,26 +29,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // Step 2: Elicit confirmation with strong warning (default: false)
     const confirmMessage = `WARNING: Move "${pageName}" to the recycle bin? This will remove the page from the site.`;
 
-    const server = getServerRef();
-    const elicitResult = await server.elicitInput(
-      {
-        message: confirmMessage,
-        requestedSchema: {
-          type: "object" as const,
-          properties: {
-            confirm: {
-              type: "boolean" as const,
-              title: "Confirm delete",
-              description: confirmMessage,
-              default: false,
-            },
-          },
-        },
-      },
-      { relatedRequestId: extra?.requestId },
-    );
-
-    if (elicitResult.action !== "accept" || !(elicitResult.content as any)?.confirm) {
+    if (!await confirmAction(extra, confirmMessage, { title: "Confirm delete", defaultValue: false })) {
       return createToolResult({ message: "Delete cancelled", id, name: pageName });
     }
 

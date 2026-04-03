@@ -1,8 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition , extractChainedResult, confirmAction, getServerRef } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
-
-
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to edit"),
@@ -39,26 +37,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const fieldNames = values.map((v) => v.alias);
     const confirmMessage = `Update ${fieldNames.length} field(s) on "${pageName}": ${fieldNames.join(", ")}? Changes will be saved but not published.`;
 
-    const server = getServerRef();
-    const elicitResult = await server.elicitInput(
-      {
-        message: confirmMessage,
-        requestedSchema: {
-          type: "object" as const,
-          properties: {
-            confirm: {
-              type: "boolean" as const,
-              title: "Confirm edit",
-              description: confirmMessage,
-              default: true,
-            },
-          },
-        },
-      },
-      { relatedRequestId: extra?.requestId },
-    );
-
-    if (elicitResult.action !== "accept" || !(elicitResult.content as any)?.confirm) {
+    if (!await confirmAction(extra, confirmMessage, { title: "Confirm edit", defaultValue: true })) {
       return createToolResult({ message: "Edit cancelled", id, name: pageName, updatedFields: [] });
     }
 

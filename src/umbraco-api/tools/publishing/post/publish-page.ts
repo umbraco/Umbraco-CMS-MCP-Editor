@@ -1,8 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition , extractChainedResult, confirmAction, getServerRef } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
-
-
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to publish"),
@@ -23,44 +21,21 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["publish"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   handler: async ({ id, includeDescendants }, extra) => {
-    // Step 1: Fetch page details for confirmation
     const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
     if (docResult.isError) return createToolResultError(docResult);
     const doc = extractChainedResult(docResult);
     const pageName = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
 
-    // Step 2: Elicit confirmation via server
-    const confirmMessage = includeDescendants
+    const message = includeDescendants
       ? `Publish "${pageName}" and all its child pages to the live site?`
       : `Publish "${pageName}" to the live site?`;
 
-    const server = getServerRef();
-    const elicitResult = await server.elicitInput(
-      {
-        message: confirmMessage,
-        requestedSchema: {
-          type: "object" as const,
-          properties: {
-            confirm: {
-              type: "boolean" as const,
-              title: "Confirm publish",
-              description: confirmMessage,
-              default: true,
-            },
-          },
-        },
-      },
-      { relatedRequestId: extra?.requestId },
-    );
-
-    if (elicitResult.action !== "accept" || !(elicitResult.content as any)?.confirm) {
+    if (!await confirmAction(extra, message, { title: "Confirm publish" })) {
       return createToolResult({ message: "Publish cancelled", id, name: pageName });
     }
 
-    // Step 3: Execute publish
-    const publishArgs: Record<string, unknown> = { id, data: { publishSchedules: [] } };
     const toolName = includeDescendants ? "publish-document-with-descendants" : "publish-document";
-    const publishResult = await mcpClientManager.callTool("cms", toolName, publishArgs);
+    const publishResult = await mcpClientManager.callTool("cms", toolName, { id, data: { publishSchedules: [] } });
     if (publishResult.isError) return createToolResultError(publishResult);
 
     return createToolResult({

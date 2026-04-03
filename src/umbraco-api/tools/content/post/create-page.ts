@@ -1,8 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition , extractChainedResult, confirmAction, getServerRef } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
-
-
 
 const inputSchema = {
   name: z.string().describe("The name of the page to create"),
@@ -48,26 +46,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // Elicit confirmation
     const confirmMessage = `Create page "${name}" ${location} with ${fieldCount} field(s)? The page will be saved as a draft (not published).`;
 
-    const server = getServerRef();
-    const elicitResult = await server.elicitInput(
-      {
-        message: confirmMessage,
-        requestedSchema: {
-          type: "object" as const,
-          properties: {
-            confirm: {
-              type: "boolean" as const,
-              title: "Confirm create",
-              description: confirmMessage,
-              default: true,
-            },
-          },
-        },
-      },
-      { relatedRequestId: extra?.requestId },
-    );
-
-    if (elicitResult.action !== "accept" || !(elicitResult.content as any)?.confirm) {
+    if (!await confirmAction(extra, confirmMessage, { title: "Confirm create", defaultValue: true })) {
       return createToolResult({ message: "Create cancelled", id: "", name });
     }
 
