@@ -16,7 +16,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "search-content",
-  description: "Search for content pages by name or text. Returns a list of matching pages with their names and IDs.",
+  description: "Search for content pages by name or text. Returns a list of matching pages with their names and IDs. Use get-page with an ID from the results to retrieve full page content.",
   inputSchema,
   outputSchema,
   slices: ["search"],

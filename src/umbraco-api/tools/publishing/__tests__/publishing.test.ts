@@ -19,7 +19,7 @@ import { extractChainedResult, setServerRef } from "@umbraco-cms/mcp-server-sdk"
 
 import publishPageTool from "../post/publish-page.js";
 import unpublishPageTool from "../post/unpublish-page.js";
-import listChildrenTool from "../../content/get/browse-children.js";
+import listChildrenTool from "../../content/get/list-children.js";
 import createPageTool from "../../content/post/create-page.js";
 import deletePageTool from "../../content/delete/delete-page.js";
 

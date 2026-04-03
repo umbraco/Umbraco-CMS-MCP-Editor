@@ -1,7 +1,7 @@
 import { ToolCollectionExport } from "@umbraco-cms/mcp-server-sdk";
 import searchContentTool from "./get/search-content.js";
 import getPageTool from "./get/get-page.js";
-import listChildrenTool from "./get/browse-children.js";
+import listChildrenTool from "./get/list-children.js";
 import listDocumentTypesTool from "./get/list-document-types.js";
 import inspectBlocksTool from "./get/inspect-blocks.js";
 import createPageTool from "./post/create-page.js";

@@ -10,7 +10,7 @@ const inputSchema = {
 };
 
 const outputSchema = z.object({
-  pageName: z.string(),
+  name: z.string(),
   versions: z.array(z.object({
     versionId: z.string(),
     date: z.string(),
@@ -33,7 +33,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
     if (docResult.isError) return createToolResultError(docResult);
     const doc = extractChainedResult(docResult);
-    const pageName = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
+    const name = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
 
     // Fetch version history
     const versionResult = await mcpClientManager.callTool("cms", "get-document-version", {
@@ -53,7 +53,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     }));
 
     return createToolResult({
-      pageName,
+      name,
       versions,
       total: versionData.total ?? versions.length,
     });

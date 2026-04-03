@@ -23,7 +23,7 @@ import {
 
 import searchContentTool from "../get/search-content.js";
 import getPageTool from "../get/get-page.js";
-import listChildrenTool from "../get/browse-children.js";
+import listChildrenTool from "../get/list-children.js";
 import createPageTool from "../post/create-page.js";
 import editPageTool from "../put/edit-page.js";
 import deletePageTool from "../delete/delete-page.js";

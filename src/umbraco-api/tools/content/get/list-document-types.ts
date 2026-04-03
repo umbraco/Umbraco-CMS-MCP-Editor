@@ -21,7 +21,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "list-document-types",
-  description: "List available document types that can be used to create new pages. Returns the ID, alias, and name of each type. Use this before create-page to find the correct documentTypeId.",
+  description: "List available document types that can be used to create new pages. Returns the ID, alias, and name of each type. Use this before create-page to find the correct documentTypeId. Returns up to 50 by default — check total to determine if more exist and use skip to paginate.",
   inputSchema,
   outputSchema,
   slices: ["list"],

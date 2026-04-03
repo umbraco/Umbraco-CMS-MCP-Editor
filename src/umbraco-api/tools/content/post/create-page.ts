@@ -22,7 +22,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "create-page",
-  description: "Create a new content page as a draft. The page will NOT be published automatically. You will be asked to confirm before creating.",
+  description: "Create a new content page as a draft. The page will NOT be published automatically. Call list-document-types first to find a valid documentTypeId. You will be asked to confirm before creating.",
   inputSchema,
   outputSchema,
   slices: ["create"],

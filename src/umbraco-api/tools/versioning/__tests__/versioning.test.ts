@@ -20,7 +20,7 @@ import { setServerRef } from "@umbraco-cms/mcp-server-sdk";
 
 import listVersionsTool from "../get/list-versions.js";
 import rollbackPageTool from "../post/rollback-page.js";
-import listChildrenTool from "../../content/get/browse-children.js";
+import listChildrenTool from "../../content/get/list-children.js";
 
 // Set up mock server for elicitation — default: always accept
 const mockElicitInput = jest.fn<() => Promise<{ action: string; content: Record<string, boolean> }>>();
@@ -69,7 +69,7 @@ describe("Versioning Collection", () => {
       expect(result.isError).toBeFalsy();
       const data = getStructuredContent(result) as any;
       expect(data).toBeDefined();
-      expect(data.pageName).toEqual(expect.any(String));
+      expect(data.name).toEqual(expect.any(String));
       expect(data.versions).toBeInstanceOf(Array);
       expect(data.total).toEqual(expect.any(Number));
 

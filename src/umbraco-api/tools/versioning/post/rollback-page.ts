@@ -17,7 +17,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "rollback-page",
-  description: "Rollback a content page to a previous version. This replaces the current draft with the selected version. The published version is not affected until you publish again.",
+  description: "Rollback a content page to a previous version. This replaces the current draft with the selected version. The published version is not affected until you publish again. Use list-versions first to find a valid versionId.",
   inputSchema,
   outputSchema,
   slices: ["update", "version"],
