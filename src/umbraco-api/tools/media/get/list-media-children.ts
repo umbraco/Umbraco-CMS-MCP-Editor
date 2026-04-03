@@ -23,7 +23,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "list-media-children",
-  description: "Browse the media library. Shows items and folders under a parent, or root-level items if no parent specified. Use this to navigate the media tree.",
+  description: "List items and folders in the media library under a parent, or root-level items if no parent specified. Use this to navigate the media tree.",
   inputSchema,
   outputSchema,
   slices: ["tree"],

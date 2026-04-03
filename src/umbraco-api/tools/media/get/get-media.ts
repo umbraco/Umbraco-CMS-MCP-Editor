@@ -11,8 +11,17 @@ const outputSchema = z.object({
   name: z.string(),
   mediaType: z.string(),
   urls: z.array(z.string()),
-  values: z.array(z.any()),
-  variants: z.array(z.any()),
+  values: z.array(z.object({
+    alias: z.string(),
+    value: z.any(),
+    culture: z.string().nullable().optional(),
+    segment: z.string().nullable().optional(),
+  })),
+  variants: z.array(z.object({
+    name: z.string(),
+    culture: z.string().nullable().optional(),
+    segment: z.string().nullable().optional(),
+  })),
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {

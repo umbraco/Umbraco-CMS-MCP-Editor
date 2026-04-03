@@ -41,7 +41,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         name: item.name ?? "",
         icon: item.icon ?? "",
       })),
-      total: items.length,
+      total: data.total ?? items.length,
     });
   },
 };

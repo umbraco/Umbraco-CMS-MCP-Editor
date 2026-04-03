@@ -14,11 +14,11 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "restore-media",
-  description: "Restore a media item from the recycle bin to its original location. You will be asked to confirm before restoring.",
+  description: "Restore a media item from the recycle bin. You will be asked to confirm before restoring.",
   inputSchema,
   outputSchema,
   slices: ["update"],
-  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   handler: async ({ id }, extra) => {
     // Step 1: Fetch item name for confirmation
     const itemResult = await mcpClientManager.callTool("cms", "get-media-by-id", { id });

@@ -15,7 +15,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "move-media",
-  description: "Move a media item or folder to a different location in the media library. You will be asked to confirm before moving.",
+  description: "Move a media item or folder to a different folder in the media library. Moving to the root level is not supported. You will be asked to confirm before moving.",
   inputSchema,
   outputSchema,
   slices: ["move"],

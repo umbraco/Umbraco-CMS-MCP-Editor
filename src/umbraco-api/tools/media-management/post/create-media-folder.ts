@@ -15,7 +15,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "create-media-folder",
-  description: "Create a new folder in the media library. You will be asked to confirm before creating.",
+  description: "Create a new folder in the media library. The returned ID can be used as parentId in upload-media or list-media-children. You will be asked to confirm before creating.",
   inputSchema,
   outputSchema,
   slices: ["create"],
