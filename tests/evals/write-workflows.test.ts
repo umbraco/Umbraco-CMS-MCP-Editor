@@ -15,6 +15,7 @@ import {
 } from "@umbraco-cms/mcp-server-sdk/evals";
 
 const allTools = [
+  // Content
   "search-content",
   "get-page",
   "list-children",
@@ -24,10 +25,26 @@ const allTools = [
   "edit-page",
   "edit-block",
   "delete-page",
+  // Publishing
   "publish-page",
   "unpublish-page",
+  // Versioning
   "list-versions",
   "rollback-page",
+  // Media
+  "search-media",
+  "list-media-children",
+  "get-media",
+  "list-media-types",
+  "upload-media",
+  "create-media-folder",
+  "move-media",
+  "delete-media",
+  "restore-media",
+  // Blueprints
+  "list-blueprints",
+  "get-blueprint",
+  "create-blueprint",
 ];
 
 describe("Write Workflows", () => {
