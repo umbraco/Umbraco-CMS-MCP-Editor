@@ -17,6 +17,9 @@ const ALL_TOOLS = [
   "search-content", "get-page", "list-children", "list-document-types",
   "inspect-blocks", "create-page", "edit-page", "edit-block",
   "delete-page", "publish-page", "unpublish-page", "list-versions", "rollback-page",
+  "search-media", "list-media-children", "get-media", "list-media-types",
+  "upload-media", "create-media-folder", "move-media", "delete-media", "restore-media",
+  "list-blueprints", "get-blueprint", "create-blueprint",
 ];
 
 test.describe("Elicitation over Streamable HTTP", () => {

@@ -24,22 +24,17 @@ import {
 // ============================================================================
 
 const READ_TOOLS = [
-  "search-content",
-  "get-page",
-  "list-children",
-  "list-document-types",
-  "inspect-blocks",
-  "list-versions",
+  "search-content", "get-page", "list-children", "list-document-types",
+  "inspect-blocks", "list-versions",
+  "search-media", "list-media-children", "get-media", "list-media-types",
+  "list-blueprints", "get-blueprint",
 ];
 
 const WRITE_TOOLS = [
-  "create-page",
-  "edit-page",
-  "edit-block",
-  "delete-page",
-  "publish-page",
-  "unpublish-page",
-  "rollback-page",
+  "create-page", "edit-page", "edit-block", "delete-page",
+  "publish-page", "unpublish-page", "rollback-page",
+  "upload-media", "create-media-folder", "move-media", "delete-media", "restore-media",
+  "create-blueprint",
 ];
 
 const ALL_TOOLS = [...READ_TOOLS, ...WRITE_TOOLS];
