@@ -29,6 +29,9 @@ export const toolSliceNames = [
 
   // Versioning
   'version',
+
+  // Movement
+  'move',
 ] as const;
 
 /**

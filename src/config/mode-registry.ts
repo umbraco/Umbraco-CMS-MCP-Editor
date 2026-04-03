@@ -30,6 +30,18 @@ export const toolModes: ToolModeDefinition[] = [
     description: 'Create, edit, search, and manage content pages',
     collections: ['content', 'publishing', 'versioning']
   },
+  {
+    name: 'media',
+    displayName: 'Media Management',
+    description: 'Browse, search, upload, and manage media files and folders',
+    collections: ['media', 'media-management']
+  },
+  {
+    name: 'blueprints',
+    displayName: 'Blueprints',
+    description: 'List, view, and create page blueprints (templates)',
+    collections: ['blueprint']
+  },
 ];
 
 /**
