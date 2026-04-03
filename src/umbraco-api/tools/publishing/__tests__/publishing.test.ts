@@ -12,10 +12,11 @@
 import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
+  setupElicitationMock,
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
-import { extractChainedResult, setServerRef } from "@umbraco-cms/mcp-server-sdk";
+import { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 
 import publishPageTool from "../post/publish-page.js";
 import unpublishPageTool from "../post/unpublish-page.js";
@@ -23,10 +24,7 @@ import listChildrenTool from "../../content/get/list-children.js";
 import createPageTool from "../../content/post/create-page.js";
 import deletePageTool from "../../content/delete/delete-page.js";
 
-// Set up mock server for elicitation — default: always accept
-const mockElicitInput = jest.fn<() => Promise<{ action: string; content: Record<string, boolean> }>>();
-mockElicitInput.mockResolvedValue({ action: "accept", content: { confirm: true } });
-setServerRef({ elicitInput: mockElicitInput } as any);
+const elicitation = setupElicitationMock(jest.fn as any);
 
 describe("Publishing Collection", () => {
   setupTestEnvironment();
@@ -49,11 +47,9 @@ describe("Publishing Collection", () => {
         if (browseData.items?.length > 0) {
           testPageId = browseData.items[0].id;
         } else {
-          // Create a test page if none exist
           const { mcpClientManager } = await import("../../../mcp-client.js");
           const docTypesResult = await mcpClientManager.callTool("cms", "get-document-type-root", {
-            take: 1,
-            skip: 0,
+            take: 1, skip: 0,
           });
           const docTypes = extractChainedResult(docTypesResult);
           if (docTypes?.items?.length) {
@@ -87,11 +83,11 @@ describe("Publishing Collection", () => {
         // Best-effort cleanup
       }
     }
+    elicitation.cleanup();
   }, 30000);
 
   beforeEach(() => {
-    // Reset elicitation mock to accept before each test
-    mockElicitInput.mockResolvedValue({ action: "accept", content: { confirm: true } });
+    elicitation.reset();
   });
 
   describe("publish-page", () => {
@@ -104,11 +100,23 @@ describe("Publishing Collection", () => {
       );
 
       expect(result.isError).toBeFalsy();
+      expect(elicitation.mock).toHaveBeenCalled();
       const data = getStructuredContent(result) as any;
       expect(data).toBeDefined();
       expect(data.message).toContain("Published");
       expect(data.id).toBe(testPageId);
       expect(data.name).toEqual(expect.any(String));
+    }, 30000);
+
+    it("should return error for non-existent page", async () => {
+      if (!cmsAvailable) return;
+
+      const result = await publishPageTool.handler(
+        { id: "00000000-0000-0000-0000-000000000000", includeDescendants: false },
+        extra,
+      );
+
+      expect(result.isError).toBeTruthy();
     }, 30000);
   });
 
@@ -122,6 +130,7 @@ describe("Publishing Collection", () => {
       );
 
       expect(result.isError).toBeFalsy();
+      expect(elicitation.mock).toHaveBeenCalled();
       const data = getStructuredContent(result) as any;
       expect(data).toBeDefined();
       expect(data.message).toContain("Unpublished");
@@ -147,14 +156,14 @@ describe("Publishing Collection", () => {
     it("should cancel publish when elicitation is rejected", async () => {
       if (!cmsAvailable || !testPageId) return;
 
-      // Configure mock to reject
-      mockElicitInput.mockResolvedValue({ action: "reject", content: { confirm: false } });
+      elicitation.rejectAll();
 
       const result = await publishPageTool.handler(
         { id: testPageId, includeDescendants: false },
         extra,
       );
 
+      expect(elicitation.mock).toHaveBeenCalled();
       const data = getStructuredContent(result) as any;
       expect(data.message).toContain("cancelled");
     }, 30000);
@@ -162,13 +171,14 @@ describe("Publishing Collection", () => {
     it("should cancel unpublish when elicitation is rejected", async () => {
       if (!cmsAvailable || !testPageId) return;
 
-      mockElicitInput.mockResolvedValue({ action: "reject", content: { confirm: false } });
+      elicitation.rejectAll();
 
       const result = await unpublishPageTool.handler(
         { id: testPageId },
         extra,
       );
 
+      expect(elicitation.mock).toHaveBeenCalled();
       const data = getStructuredContent(result) as any;
       expect(data.message).toContain("cancelled");
     }, 30000);

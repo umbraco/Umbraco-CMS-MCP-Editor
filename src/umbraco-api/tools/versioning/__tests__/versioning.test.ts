@@ -9,23 +9,19 @@
  * - Valid credentials in .env file
  */
 
-import { jest, describe, it, expect, beforeAll, beforeEach } from "@jest/globals";
+import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
+  setupElicitationMock,
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
-
-import { setServerRef } from "@umbraco-cms/mcp-server-sdk";
 
 import listVersionsTool from "../get/list-versions.js";
 import rollbackPageTool from "../post/rollback-page.js";
 import listChildrenTool from "../../content/get/list-children.js";
 
-// Set up mock server for elicitation — default: always accept
-const mockElicitInput = jest.fn<() => Promise<{ action: string; content: Record<string, boolean> }>>();
-mockElicitInput.mockResolvedValue({ action: "accept", content: { confirm: true } });
-setServerRef({ elicitInput: mockElicitInput } as any);
+const elicitation = setupElicitationMock(jest.fn as any);
 
 describe("Versioning Collection", () => {
   setupTestEnvironment();
@@ -53,8 +49,12 @@ describe("Versioning Collection", () => {
     }
   }, 60000);
 
+  afterAll(() => {
+    elicitation.cleanup();
+  });
+
   beforeEach(() => {
-    mockElicitInput.mockResolvedValue({ action: "accept", content: { confirm: true } });
+    elicitation.reset();
   });
 
   describe("list-versions", () => {
@@ -92,13 +92,23 @@ describe("Versioning Collection", () => {
       const data = getStructuredContent(result) as any;
       expect(data.versions.length).toBeLessThanOrEqual(2);
     }, 30000);
+
+    it("should return error for non-existent page", async () => {
+      if (!cmsAvailable) return;
+
+      const result = await listVersionsTool.handler(
+        { id: "00000000-0000-0000-0000-000000000000", skip: 0, take: 10 },
+        extra,
+      );
+
+      expect(result.isError).toBeTruthy();
+    }, 30000);
   });
 
   describe("rollback-page", () => {
     it("should rollback to a previous version", async () => {
       if (!cmsAvailable || !testPageId) return;
 
-      // Get versions first
       const versionsResult = await listVersionsTool.handler(
         { id: testPageId, skip: 0, take: 10 },
         extra,
@@ -110,7 +120,6 @@ describe("Versioning Collection", () => {
         return;
       }
 
-      // Pick a non-current version to rollback to (the second one)
       const targetVersion = versionsData.versions[1];
       const result = await rollbackPageTool.handler(
         { id: testPageId, versionId: targetVersion.versionId, culture: undefined },
@@ -118,6 +127,7 @@ describe("Versioning Collection", () => {
       );
 
       expect(result.isError).toBeFalsy();
+      expect(elicitation.mock).toHaveBeenCalled();
       const data = getStructuredContent(result) as any;
       expect(data).toBeDefined();
       expect(data.message).toContain("Rolled back");
@@ -128,7 +138,6 @@ describe("Versioning Collection", () => {
     it("should cancel rollback when elicitation is rejected", async () => {
       if (!cmsAvailable || !testPageId) return;
 
-      // Get a version ID
       const versionsResult = await listVersionsTool.handler(
         { id: testPageId, skip: 0, take: 5 },
         extra,
@@ -140,8 +149,7 @@ describe("Versioning Collection", () => {
         return;
       }
 
-      // Configure mock to reject
-      mockElicitInput.mockResolvedValue({ action: "reject", content: { confirm: false } });
+      elicitation.rejectAll();
 
       const targetVersion = versionsData.versions[0];
       const result = await rollbackPageTool.handler(
@@ -149,6 +157,7 @@ describe("Versioning Collection", () => {
         extra,
       );
 
+      expect(elicitation.mock).toHaveBeenCalled();
       const data = getStructuredContent(result) as any;
       expect(data.message).toContain("cancelled");
     }, 30000);

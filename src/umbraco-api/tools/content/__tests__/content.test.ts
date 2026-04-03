@@ -1,7 +1,8 @@
 /**
  * Content Collection Integration Tests
  *
- * Tests for search-content, get-page, list-children, create-page, edit-page, delete-page.
+ * Tests for search-content, get-page, list-children, list-document-types,
+ * inspect-blocks, create-page, edit-page, edit-block, delete-page.
  * Runs against a real Umbraco instance via the chained @umbraco-cms/mcp-dev MCP server.
  *
  * Prerequisites:
@@ -9,30 +10,26 @@
  * - Valid credentials in .env file
  */
 
-import { jest, describe, it, expect, beforeAll, afterAll } from "@jest/globals";
+import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
+  setupElicitationMock,
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
-import {
-  extractChainedResult,
-  setServerRef,
-  clearServerRef,
-} from "@umbraco-cms/mcp-server-sdk";
+import { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 
 import searchContentTool from "../get/search-content.js";
 import getPageTool from "../get/get-page.js";
 import listChildrenTool from "../get/list-children.js";
+import listDocumentTypesTool from "../get/list-document-types.js";
+import inspectBlocksTool from "../get/inspect-blocks.js";
 import createPageTool from "../post/create-page.js";
 import editPageTool from "../put/edit-page.js";
+import editBlockTool from "../put/edit-block.js";
 import deletePageTool from "../delete/delete-page.js";
-import inspectBlocksTool from "../get/inspect-blocks.js";
 
-// Set up mock server for elicitation — default: always accept
-const mockElicitInput = jest.fn<() => Promise<{ action: string; content: Record<string, boolean> }>>();
-mockElicitInput.mockResolvedValue({ action: "accept", content: { confirm: true } });
-setServerRef({ elicitInput: mockElicitInput } as any);
+const elicitation = setupElicitationMock(jest.fn as any);
 
 describe("Content Collection", () => {
   setupTestEnvironment();
@@ -44,7 +41,6 @@ describe("Content Collection", () => {
   let cmsAvailable = false;
 
   beforeAll(async () => {
-    // Check connectivity by attempting to browse root pages
     try {
       const browseResult = await listChildrenTool.handler(
         { parentId: undefined, take: 5, skip: 0 },
@@ -70,7 +66,12 @@ describe("Content Collection", () => {
         // Best-effort cleanup
       }
     }
+    elicitation.cleanup();
   }, 30000);
+
+  beforeEach(() => {
+    elicitation.reset();
+  });
 
   describe("list-children", () => {
     it("should return root-level pages", async () => {
@@ -143,6 +144,53 @@ describe("Content Collection", () => {
       expect(data.values).toBeInstanceOf(Array);
       expect(data.variants).toBeInstanceOf(Array);
     }, 30000);
+
+    it("should return error for non-existent page", async () => {
+      if (!cmsAvailable) return;
+
+      const result = await getPageTool.handler(
+        { id: "00000000-0000-0000-0000-000000000000" },
+        extra,
+      );
+
+      expect(result.isError).toBeTruthy();
+    }, 30000);
+  });
+
+  describe("list-document-types", () => {
+    it("should list available document types", async () => {
+      if (!cmsAvailable) return;
+
+      const result = await listDocumentTypesTool.handler(
+        { take: 10, skip: 0 },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      expect(data).toBeDefined();
+      expect(data.items).toBeInstanceOf(Array);
+      expect(data.total).toEqual(expect.any(Number));
+
+      if (data.items.length > 0) {
+        expect(data.items[0]).toHaveProperty("id");
+        expect(data.items[0]).toHaveProperty("alias");
+        expect(data.items[0]).toHaveProperty("name");
+      }
+    }, 30000);
+
+    it("should handle pagination", async () => {
+      if (!cmsAvailable) return;
+
+      const result = await listDocumentTypesTool.handler(
+        { take: 2, skip: 0 },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      expect(data.items.length).toBeLessThanOrEqual(2);
+    }, 30000);
   });
 
   describe("inspect-blocks", () => {
@@ -160,7 +208,6 @@ describe("Content Collection", () => {
       expect(data.id).toBe(testPageId);
       expect(data.name).toEqual(expect.any(String));
       expect(data.blockProperties).toBeInstanceOf(Array);
-      // blockProperties may be empty if the test page has no block content — that's fine
     }, 30000);
   });
 
@@ -170,7 +217,6 @@ describe("Content Collection", () => {
     it("should create a draft page", async () => {
       if (!cmsAvailable || !testPageId) return;
 
-      // Get a document type from the existing home page so we know it works
       const { mcpClientManager } = await import("../../../mcp-client.js");
       const pageResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: testPageId });
       const pageData = extractChainedResult(pageResult);
@@ -192,10 +238,11 @@ describe("Content Collection", () => {
       );
 
       if (result.isError) {
-        // Content structure restrictions (doc type not allowed as child) — skip gracefully
-        console.warn("Skipping create test: Umbraco instance doc type restrictions prevent creating test page");
+        console.warn("Skipping create test: doc type restrictions prevent creating test page");
         return;
       }
+
+      expect(elicitation.mock).toHaveBeenCalled();
       const data = getStructuredContent(result) as any;
       expect(data).toBeDefined();
       expect(data.message).toContain("Created");
@@ -207,52 +254,131 @@ describe("Content Collection", () => {
     }, 30000);
 
     it("should edit the created page", async () => {
-      if (!cmsAvailable || !createdId) return;
+      if (!cmsAvailable || !createdId) {
+        console.warn("Skipping edit test: no page was created");
+        return;
+      }
 
       const result = await editPageTool.handler(
         {
           id: createdId,
-          values: [
-            { alias: "title", value: "Updated Title" },
-          ],
+          values: [{ alias: "title", value: "Updated Title" }],
         },
         extra,
       );
 
-      // The edit may fail if the doc type doesn't have a "title" property,
-      // but it should not throw — it should return a structured result
+      expect(elicitation.mock).toHaveBeenCalled();
       const data = getStructuredContent(result) as any;
       expect(data).toBeDefined();
       expect(data.id).toBe(createdId);
+      // If the doc type has a title property, verify the response shape
+      if (!result.isError) {
+        expect(data.message).toContain("Updated");
+      }
     }, 30000);
 
     it("should delete the created page", async () => {
-      if (!cmsAvailable || !createdId) return;
+      if (!cmsAvailable || !createdId) {
+        console.warn("Skipping delete test: no page was created");
+        return;
+      }
 
       const result = await deletePageTool.handler({ id: createdId }, extra);
 
       expect(result.isError).toBeFalsy();
+      expect(elicitation.mock).toHaveBeenCalled();
       const data = getStructuredContent(result) as any;
       expect(data).toBeDefined();
       expect(data.message).toContain("recycle bin");
       expect(data.id).toBe(createdId);
 
-      // Remove from cleanup list since already deleted
       const idx = createdPageIds.indexOf(createdId);
       if (idx !== -1) createdPageIds.splice(idx, 1);
     }, 30000);
   });
 
-  describe("elicitation rejection", () => {
-    afterEach(() => {
-      // Reset to default accept after each rejection test
-      mockElicitInput.mockResolvedValue({ action: "accept", content: { confirm: true } });
-    });
+  describe("edit-block", () => {
+    it("should edit a block property when blocks exist", async () => {
+      if (!cmsAvailable || !testPageId) return;
 
+      // First inspect blocks to find a target
+      const inspectResult = await inspectBlocksTool.handler(
+        { id: testPageId, propertyAlias: undefined },
+        extra,
+      );
+      const inspectData = getStructuredContent(inspectResult) as any;
+
+      if (!inspectData?.blockProperties?.length) {
+        console.warn("Skipping edit-block test: no block properties on test page");
+        return;
+      }
+
+      // Find a block with content
+      const blockProp = inspectData.blockProperties.find(
+        (bp: any) => bp.blocks?.length > 0,
+      );
+      if (!blockProp) {
+        console.warn("Skipping edit-block test: no blocks with content found");
+        return;
+      }
+
+      const block = blockProp.blocks[0];
+      if (!block.contentKey || !block.values?.length) {
+        console.warn("Skipping edit-block test: block has no contentKey or values");
+        return;
+      }
+
+      // Try to update the first property value
+      const firstValue = block.values[0];
+      const result = await editBlockTool.handler(
+        {
+          id: testPageId,
+          propertyAlias: blockProp.propertyAlias,
+          contentKey: block.contentKey,
+          values: [{ alias: firstValue.alias, value: firstValue.value }],
+          culture: undefined,
+          segment: undefined,
+        },
+        extra,
+      );
+
+      expect(elicitation.mock).toHaveBeenCalled();
+      const data = getStructuredContent(result) as any;
+      expect(data).toBeDefined();
+      if (!result.isError) {
+        expect(data.message).toContain("Updated");
+        expect(data.contentKey).toBe(block.contentKey);
+      }
+    }, 30000);
+
+    it("should cancel edit-block when elicitation is rejected", async () => {
+      if (!cmsAvailable || !testPageId) return;
+
+      elicitation.rejectAll();
+
+      const result = await editBlockTool.handler(
+        {
+          id: testPageId,
+          propertyAlias: "content",
+          contentKey: "00000000-0000-0000-0000-000000000001",
+          values: [{ alias: "text", value: "should not change" }],
+          culture: undefined,
+          segment: undefined,
+        },
+        extra,
+      );
+
+      expect(elicitation.mock).toHaveBeenCalled();
+      const data = getStructuredContent(result) as any;
+      expect(data.message).toContain("cancelled");
+    }, 30000);
+  });
+
+  describe("elicitation rejection", () => {
     it("should cancel create when elicitation is rejected", async () => {
       if (!cmsAvailable || !testPageId) return;
 
-      mockElicitInput.mockResolvedValue({ action: "reject", content: { confirm: false } });
+      elicitation.rejectAll();
 
       const result = await createPageTool.handler(
         {
@@ -264,6 +390,7 @@ describe("Content Collection", () => {
         extra,
       );
 
+      expect(elicitation.mock).toHaveBeenCalled();
       const data = getStructuredContent(result) as any;
       expect(data.message).toContain("cancelled");
     }, 30000);
@@ -271,7 +398,7 @@ describe("Content Collection", () => {
     it("should cancel edit when elicitation is rejected", async () => {
       if (!cmsAvailable || !testPageId) return;
 
-      mockElicitInput.mockResolvedValue({ action: "reject", content: { confirm: false } });
+      elicitation.rejectAll();
 
       const result = await editPageTool.handler(
         {
@@ -281,6 +408,7 @@ describe("Content Collection", () => {
         extra,
       );
 
+      expect(elicitation.mock).toHaveBeenCalled();
       const data = getStructuredContent(result) as any;
       expect(data.message).toContain("cancelled");
     }, 30000);
@@ -288,13 +416,14 @@ describe("Content Collection", () => {
     it("should cancel delete when elicitation is rejected", async () => {
       if (!cmsAvailable || !testPageId) return;
 
-      mockElicitInput.mockResolvedValue({ action: "reject", content: { confirm: false } });
+      elicitation.rejectAll();
 
       const result = await deletePageTool.handler(
         { id: testPageId },
         extra,
       );
 
+      expect(elicitation.mock).toHaveBeenCalled();
       const data = getStructuredContent(result) as any;
       expect(data.message).toContain("cancelled");
     }, 30000);
