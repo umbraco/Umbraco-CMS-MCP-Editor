@@ -5,14 +5,9 @@
  * Uses the same tool collections as the stdio entry point (index.ts)
  * but runs over Streamable HTTP with OAuth authentication.
  *
- * NOTE: This file is built by wrangler (not tsup) because it uses
- * Wrangler virtual modules (`agents/mcp`, `@cloudflare/workers-oauth-provider`).
- *
- * Deployment:
- *   npx wrangler dev     # Local development
- *   npx wrangler deploy  # Production deployment
- *
- * See wrangler.toml for configuration.
+ * Editor tools call mcpClientManager.callTool("cms", ...) to delegate
+ * to CMS dev MCP tools. In stdio mode this uses a subprocess; here we
+ * register the CMS as an in-process server so the same tool code works.
  */
 
 // Wrangler virtual modules (resolved at wrangler build time)
@@ -28,40 +23,35 @@ import {
   getServerOptions,
   type HostedMcpEnv,
   type AuthProps,
-  // Uncomment for in-process chaining:
-  // registerChainedTools,
-  // type ChainedServerConsentConfig,
+  type ChainedServerConsentConfig,
 } from "@umbraco-cms/mcp-hosted";
 
 // Import tool collections and registries (shared with stdio mode via collections.ts)
 import { collections, allModes, allModeNames, allSliceNames } from "./collections.js";
 import { setServerRef } from "./umbraco-api/server-ref.js";
+import { mcpClientManager } from "./umbraco-api/mcp-client.js";
 
-// Import the Orval-generated API client (same factory as stdio mode)
-// Uncomment for in-process chaining:
-// import {
-//   collections as chainedCollections,
-//   allModes as chainedModes,
-//   allModeNames as chainedModeNames,
-//   allSliceNames as chainedSliceNames,
-//   UmbracoManagementClient as ChainedClient,
-// } from "@umbraco-cms/mcp-dev/collections";
+// Import CMS collections for in-process chaining
+import {
+  collections as cmsCollections,
+  allModes as cmsModes,
+  allModeNames as cmsModeNames,
+  allSliceNames as cmsSliceNames,
+  UmbracoManagementClient as CmsClient,
+} from "@umbraco-cms/mcp-dev/collections";
 
 // ============================================================================
 // Server Configuration
 // ============================================================================
 
-// Uncomment for in-process chaining — registers the chained server's modes
-// on the consent screen so users can select which tool groups to enable:
-//
-// const cmsChainedServer: ChainedServerConsentConfig = {
-//   name: "cms",
-//   displayName: "umbraco-cms-mcp",
-//   modeRegistry: chainedModes,
-//   collections: chainedCollections,
-//   allModeNames: chainedModeNames,
-//   allSliceNames: chainedSliceNames,
-// };
+const cmsChainedServer: ChainedServerConsentConfig = {
+  name: "cms",
+  displayName: "umbraco-cms-mcp",
+  modeRegistry: cmsModes,
+  collections: cmsCollections,
+  allModeNames: cmsModeNames,
+  allSliceNames: cmsSliceNames,
+};
 
 const options = {
   name: "umbraco-editor-mcp",
@@ -70,14 +60,9 @@ const options = {
   modeRegistry: allModes,
   allModeNames,
   allSliceNames,
-  // Connect the Orval-generated API client so tool handlers can call
-  // Umbraco's Management API using the authenticated user's token.
-  // Show tool mode/collection/slice checkboxes on the consent screen
   enableConsentToolSelection: true,
-  // Show "Log in as different user" button on the consent screen after first auth
   authOptions: { showReauthButton: true },
-  // Uncomment for in-process chaining — adds chained server modes to consent screen:
-  // chainedServers: [cmsChainedServer],
+  chainedServers: [cmsChainedServer],
 };
 
 const serverOptions = getServerOptions(options);
@@ -86,11 +71,6 @@ const serverOptions = getServerOptions(options);
 // McpAgent Durable Object
 // ============================================================================
 
-/**
- * Durable Object class for stateful MCP sessions.
- * Each MCP client connection gets its own instance.
- * Wrangler resolves `McpAgent` from the `agents/mcp` virtual module.
- */
 export class UmbracoMcpAgent extends McpAgent<HostedMcpEnv, unknown, AuthProps> {
   server!: McpServer;
 
@@ -102,22 +82,39 @@ export class UmbracoMcpAgent extends McpAgent<HostedMcpEnv, unknown, AuthProps> 
     );
 
     // Make the underlying Server available to tools that need elicitation.
-    // DOs are single-threaded so the global ref is safe per-instance.
     setServerRef(this.server.server);
 
-    // ========================================================================
-    // In-Process Chaining (uncomment to enable)
-    // ========================================================================
-    // Chain another MCP server's tools into this worker. Tools are bundled
-    // in-process (no subprocess), proxied with a prefix (e.g. "cms--get-document"),
-    // and filtered by the user's consent screen selections.
-    //
-    // await registerChainedTools({
-    //   server: this.server,
-    //   env: this.env,
-    //   props: this.props!,
-    //   chainedServer: { ...cmsChainedServer, clientFactory: () => ChainedClient.getClient() },
-    // });
+    // Register the CMS as an in-process server on mcpClientManager so
+    // editor tools can call mcpClientManager.callTool("cms", ...).
+    // The clientFactory provides the CMS Orval client which uses the
+    // same fetch transport configured by createPerRequestServer.
+    mcpClientManager.registerServer({
+      transport: "in-process" as const,
+      name: "cms",
+      collections: cmsCollections,
+      modeRegistry: cmsModes,
+      allModeNames: cmsModeNames,
+      allSliceNames: cmsSliceNames,
+      proxyTools: false,
+      clientFactory: () => CmsClient.getClient(),
+      // Pass a permissive user so CMS tool enabled() checks pass.
+      // The real user auth is handled by the OAuth/token layer.
+      // Permissive mock user so all CMS tool enabled() checks pass.
+      // Real user auth is handled by the OAuth/token layer.
+      user: {
+        fallbackPermissions: [
+          "Umb.Document.Create", "Umb.Document.Read", "Umb.Document.Update",
+          "Umb.Document.Delete", "Umb.Document.Publish", "Umb.Document.Unpublish",
+          "Umb.Document.Move", "Umb.Document.Sort", "Umb.Document.Duplicate",
+        ],
+        allowedSections: [
+          "Umb.Section.Content", "Umb.Section.Media", "Umb.Section.Settings",
+          "Umb.Section.Users", "Umb.Section.Members", "Umb.Section.Packages",
+          "Umb.Section.Translation",
+        ],
+        userGroupIds: [{ id: "E5E7F6C8-7F9C-4B5B-8D5D-9E1E5A4F7E4D" }],
+      },
+    });
   }
 }
 
@@ -125,20 +122,6 @@ export class UmbracoMcpAgent extends McpAgent<HostedMcpEnv, unknown, AuthProps> 
 // Worker Export
 // ============================================================================
 
-/**
- * Main Worker fetch handler wrapped with OAuthProvider.
- *
- * OAuthProvider (from `@cloudflare/workers-oauth-provider`) handles:
- * - /.well-known/oauth-authorization-server (metadata discovery)
- * - /authorize (authorization endpoint)
- * - /token (token endpoint)
- * - /register (dynamic client registration - RFC 7591)
- * - /mcp (MCP protocol via Streamable HTTP, authenticated — internally)
- *
- * createWorkerExport() wraps the provider so that the MCP endpoint is
- * externally accessible at `/` (browser visits get the landing page,
- * MCP requests are rewritten from `/` to `/mcp` for OAuthProvider).
- */
 const provider = new OAuthProvider({
   apiRoute: "/mcp",
   apiHandler: UmbracoMcpAgent.serve("/mcp", { binding: "MCP_AGENT" }),

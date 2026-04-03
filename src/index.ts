@@ -30,8 +30,11 @@ import { mcpClientManager } from "./umbraco-api/mcp-client.js";
 // Import server reference setter (for tools that need server-level capabilities)
 import { setServerRef } from "./umbraco-api/server-ref.js";
 
-// Import MCP server chain configuration
+// Import MCP server chain configuration and register servers
 import { mcpServers } from "./config/mcp-servers.js";
+for (const config of mcpServers) {
+  mcpClientManager.registerServer(config);
+}
 
 // Import registries for tool filtering
 import { allModes, allModeNames, allSliceNames, loadServerConfig, clearConfigCache } from "./config/index.js";
