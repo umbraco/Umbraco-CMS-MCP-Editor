@@ -64,6 +64,26 @@ const allTools = [
   "move-dictionary",
   // Tags
   "list-tags",
+  // Content Health
+  "audit-page-seo",
+  "audit-page-content",
+  "report-empty-fields",
+  "report-short-content",
+  "check-media-alt-text",
+  // Content Reporting
+  "report-stale-content",
+  "report-unpublished",
+  "report-recently-changed",
+  "report-content-by-type",
+  "report-translation-coverage",
+  // Site Structure
+  "report-site-tree-summary",
+  "report-orphan-pages",
+  "report-deep-pages",
+  // Media Health
+  "report-unused-media",
+  "report-large-media",
+  "report-content-references",
 ];
 
 describe("Cross-Collection Workflows", () => {
