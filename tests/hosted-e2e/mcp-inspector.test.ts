@@ -32,6 +32,10 @@ const READ_TOOLS = [
   "list-untranslated",
   "list-dictionary", "search-dictionary", "get-dictionary",
   "list-tags",
+  "audit-page-seo", "audit-page-content", "report-empty-fields", "report-short-content", "check-media-alt-text",
+  "report-stale-content", "report-unpublished", "report-recently-changed", "report-content-by-type", "report-translation-coverage",
+  "report-site-tree-summary", "report-orphan-pages", "report-deep-pages",
+  "report-unused-media", "report-large-media", "report-content-references",
 ];
 
 const WRITE_TOOLS = [
