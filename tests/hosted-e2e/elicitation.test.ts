@@ -20,6 +20,10 @@ const ALL_TOOLS = [
   "search-media", "list-media-children", "get-media", "list-media-types",
   "upload-media", "create-media-folder", "move-media", "delete-media", "restore-media",
   "list-blueprints", "get-blueprint", "create-blueprint",
+  "list-languages", "get-language", "create-language", "update-language", "delete-language",
+  "create-variant", "copy-variant", "list-untranslated",
+  "list-dictionary", "search-dictionary", "get-dictionary", "create-dictionary", "update-dictionary", "move-dictionary",
+  "list-tags",
 ];
 
 test.describe("Elicitation over Streamable HTTP", () => {

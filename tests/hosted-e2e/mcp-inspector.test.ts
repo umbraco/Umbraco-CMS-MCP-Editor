@@ -28,6 +28,10 @@ const READ_TOOLS = [
   "inspect-blocks", "list-versions",
   "search-media", "list-media-children", "get-media", "list-media-types",
   "list-blueprints", "get-blueprint",
+  "list-languages", "get-language",
+  "list-untranslated",
+  "list-dictionary", "search-dictionary", "get-dictionary",
+  "list-tags",
 ];
 
 const WRITE_TOOLS = [
@@ -35,6 +39,9 @@ const WRITE_TOOLS = [
   "publish-page", "unpublish-page", "rollback-page",
   "upload-media", "create-media-folder", "move-media", "delete-media", "restore-media",
   "create-blueprint",
+  "create-language", "update-language", "delete-language",
+  "create-variant", "copy-variant",
+  "create-dictionary", "update-dictionary", "move-dictionary",
 ];
 
 const ALL_TOOLS = [...READ_TOOLS, ...WRITE_TOOLS];
