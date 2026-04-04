@@ -19,11 +19,11 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "copy-variant",
-  description: "Copy all content from one language variant to another as a starting point for translation. Overwrites the target variant's content. You will be asked to confirm.",
+  description: "Copy all content from one language variant to another as a starting point for translation. Overwrites the target variant's content. Creates the target variant if it does not exist. You will be asked to confirm.",
   inputSchema,
   outputSchema,
   slices: ["create"],
-  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   handler: async ({ id, sourceCulture, targetCulture }, extra) => {
     // Step 1: Fetch page details
     const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });

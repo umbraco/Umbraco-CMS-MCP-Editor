@@ -21,7 +21,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "create-dictionary",
-  description: "Create a new dictionary item with translations. Dictionary items are key-value pairs used for UI labels and static text. You will be asked to confirm.",
+  description: "Create a new dictionary item with translations. Dictionary keys typically use dot-notation (e.g. 'Header.Title', 'Buttons.ReadMore'). Use list-languages to find valid ISO codes for translations. You will be asked to confirm.",
   inputSchema,
   outputSchema,
   slices: ["create"],

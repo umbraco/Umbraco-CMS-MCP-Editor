@@ -20,7 +20,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "list-untranslated",
-  description: "Find content pages that are missing a specific language variant. Use this to identify pages that need translation. Call list-languages to find valid culture codes.",
+  description: "Find content pages that are missing a specific language variant. Searches up to 100 pages per call — use parentId to scope to a subtree for larger sites. Use copy-variant to seed translations for found pages. Call list-languages to find valid culture codes.",
   inputSchema,
   outputSchema,
   slices: ["search"],

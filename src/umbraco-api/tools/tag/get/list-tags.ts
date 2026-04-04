@@ -4,8 +4,8 @@ import { mcpClientManager } from "../../../mcp-client.js";
 
 const inputSchema = {
   tagGroup: z.string().optional().describe("Filter tags by group name, or omit to list all tags"),
-  take: z.number().default(50).describe("Number of tags to return"),
-  skip: z.number().default(0).describe("Number of tags to skip for pagination"),
+  take: z.number().optional().default(50).describe("Number of tags to return"),
+  skip: z.number().optional().default(0).describe("Number of tags to skip for pagination"),
 };
 
 const outputSchema = z.object({
@@ -21,7 +21,7 @@ const outputSchema = z.object({
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
-  name: "get-tags",
+  name: "list-tags",
   description: "List tags in use across the site. Optionally filter by tag group. Shows how many content items use each tag.",
   inputSchema,
   outputSchema,

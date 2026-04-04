@@ -45,6 +45,25 @@ const allTools = [
   "list-blueprints",
   "get-blueprint",
   "create-blueprint",
+  // Languages
+  "list-languages",
+  "get-language",
+  "create-language",
+  "update-language",
+  "delete-language",
+  // Translation
+  "create-variant",
+  "copy-variant",
+  "list-untranslated",
+  // Dictionary
+  "list-dictionary",
+  "search-dictionary",
+  "get-dictionary",
+  "create-dictionary",
+  "update-dictionary",
+  "move-dictionary",
+  // Tags
+  "get-tags",
 ];
 
 describe("Write Workflows", () => {

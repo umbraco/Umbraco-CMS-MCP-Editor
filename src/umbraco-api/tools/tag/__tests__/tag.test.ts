@@ -1,7 +1,7 @@
 /**
  * Tag Collection Integration Tests
  *
- * Tests for get-tags.
+ * Tests for list-tags.
  * Runs against a real Umbraco instance via the chained @umbraco-cms/mcp-dev MCP server.
  *
  * Prerequisites:
@@ -16,7 +16,7 @@ import {
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
 
-import getTagsTool from "../get/get-tags.js";
+import listTagsTool from "../get/list-tags.js";
 
 describe("Tag Collection", () => {
   setupTestEnvironment();
@@ -27,7 +27,7 @@ describe("Tag Collection", () => {
 
   beforeAll(async () => {
     try {
-      const result = await getTagsTool.handler({ tagGroup: undefined, take: 50, skip: 0 }, extra);
+      const result = await listTagsTool.handler({ tagGroup: undefined, take: 50, skip: 0 }, extra);
       const data = getStructuredContent(result) as any;
       if (!result.isError && data) {
         cmsAvailable = true;
@@ -42,14 +42,14 @@ describe("Tag Collection", () => {
   }, 60000);
 
   afterAll(() => {
-    // No cleanup needed — get-tags is read-only
+    // No cleanup needed — list-tags is read-only
   }, 10000);
 
-  describe("get-tags", () => {
+  describe("list-tags", () => {
     it("should list all tags across the site", async () => {
       if (!cmsAvailable) return;
 
-      const result = await getTagsTool.handler({ tagGroup: undefined, take: 50, skip: 0 }, extra);
+      const result = await listTagsTool.handler({ tagGroup: undefined, take: 50, skip: 0 }, extra);
 
       expect(result.isError).toBeFalsy();
       const data = getStructuredContent(result) as any;
@@ -74,7 +74,7 @@ describe("Tag Collection", () => {
         return;
       }
 
-      const result = await getTagsTool.handler({ tagGroup: existingTagGroup, take: 50, skip: 0 }, extra);
+      const result = await listTagsTool.handler({ tagGroup: existingTagGroup, take: 50, skip: 0 }, extra);
 
       expect(result.isError).toBeFalsy();
       const data = getStructuredContent(result) as any;
