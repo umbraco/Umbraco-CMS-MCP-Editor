@@ -2,7 +2,7 @@
  * Content Health Collection Integration Tests
  *
  * Tests for audit-page-seo, audit-page-content, report-empty-fields,
- * report-short-content, check-media-alt-text.
+ * report-short-content, report-media-missing-alt.
  * Runs against a real Umbraco instance via the chained @umbraco-cms/mcp-dev MCP server.
  *
  * Prerequisites:
@@ -22,7 +22,7 @@ import auditPageSeoTool from "../get/audit-page-seo.js";
 import auditPageContentTool from "../get/audit-page-content.js";
 import reportEmptyFieldsTool from "../get/report-empty-fields.js";
 import reportShortContentTool from "../get/report-short-content.js";
-import checkMediaAltTextTool from "../get/check-media-alt-text.js";
+import reportMediaMissingAltTool from "../get/report-media-missing-alt.js";
 import listChildrenTool from "../../content/get/list-children.js";
 
 const elicitation = setupElicitationMock(jest.fn as any);
@@ -151,11 +151,11 @@ describe("Content Health Collection", () => {
     }, 30000);
   });
 
-  describe("check-media-alt-text", () => {
+  describe("report-media-missing-alt", () => {
     it("should scan media root and return alt text status fields", async () => {
       if (!cmsAvailable) return;
 
-      const result = await checkMediaAltTextTool.handler(
+      const result = await reportMediaMissingAltTool.handler(
         { parentId: undefined, take: 10, skip: 0 },
         extra,
       );

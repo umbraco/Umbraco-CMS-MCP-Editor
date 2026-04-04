@@ -24,7 +24,7 @@ const ALL_TOOLS = [
   "create-variant", "copy-variant", "list-untranslated",
   "list-dictionary", "search-dictionary", "get-dictionary", "create-dictionary", "update-dictionary", "move-dictionary",
   "list-tags",
-  "audit-page-seo", "audit-page-content", "report-empty-fields", "report-short-content", "check-media-alt-text",
+  "audit-page-seo", "audit-page-content", "report-empty-fields", "report-short-content", "report-media-missing-alt",
   "report-stale-content", "report-unpublished", "report-recently-changed", "report-content-by-type", "report-translation-coverage",
   "report-site-tree-summary", "report-orphan-pages", "report-deep-pages",
   "report-unused-media", "report-large-media", "report-content-references",

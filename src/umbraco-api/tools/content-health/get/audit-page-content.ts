@@ -24,7 +24,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "audit-page-content",
-  description: "Get a page's content body alongside its meta description for alignment analysis. The LLM can assess whether the meta accurately describes the content. Returns the first ~2000 characters of body text.",
+  description: "Retrieve a page's body text alongside its meta description for alignment analysis. Use to identify where the meta description does not reflect the actual content. Returns the first ~2000 characters of body text.",
   inputSchema,
   outputSchema,
   slices: ["read"],

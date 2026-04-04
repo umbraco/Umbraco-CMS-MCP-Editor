@@ -29,8 +29,8 @@ const outputSchema = z.object({
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
-  name: "check-media-alt-text",
-  description: "Scan media items for missing alt text. Returns each image with its alt text status. Use parentId to scope to a specific media folder. Important for accessibility and SEO.",
+  name: "report-media-missing-alt",
+  description: "Find media images missing alt text. Scans direct children of a media folder (or root). Important for accessibility and SEO. Use parentId to scope to a specific folder.",
   inputSchema,
   outputSchema,
   slices: ["read"],

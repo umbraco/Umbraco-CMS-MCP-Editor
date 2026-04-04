@@ -67,7 +67,7 @@ const allTools = [
   "audit-page-content",
   "report-empty-fields",
   "report-short-content",
-  "check-media-alt-text",
+  "report-media-missing-alt",
   // Content Reporting
   "report-stale-content",
   "report-unpublished",

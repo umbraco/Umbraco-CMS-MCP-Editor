@@ -17,7 +17,7 @@ const outputSchema = z.object({
       url: z.string(),
       documentType: z.string(),
       lastModified: z.string(),
-      daysSinceUpdate: z.number(),
+      daysSinceUpdate: z.number().nullable().describe("Days since last update, or null if no update date recorded"),
     })
   ).describe("Pages not updated within the threshold, sorted stalest first"),
   total: z.number().describe("Total number of stale pages found"),
@@ -49,11 +49,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
           url: page.url,
           documentType: page.documentType,
           lastModified: updateDate,
-          daysSinceUpdate: isFinite(days) ? days : -1,
+          daysSinceUpdate: isFinite(days) ? days : null,
         };
       })
-      .filter((item) => item.daysSinceUpdate === -1 || item.daysSinceUpdate >= daysSinceUpdate)
-      .sort((a, b) => b.daysSinceUpdate - a.daysSinceUpdate);
+      .filter((item) => item.daysSinceUpdate === null || item.daysSinceUpdate >= daysSinceUpdate)
+      .sort((a, b) => (b.daysSinceUpdate ?? Infinity) - (a.daysSinceUpdate ?? Infinity));
 
     const total = staleItems.length;
     const paginated = staleItems.slice(skip, skip + take);

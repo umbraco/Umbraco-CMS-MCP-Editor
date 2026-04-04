@@ -4,7 +4,7 @@ import { mcpClientManager } from "../../../mcp-client.js";
 import { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 
 const inputSchema = {
-  maxDepth: z.number().optional().default(4).describe("Pages deeper than this level are reported (default 4)"),
+  depthThreshold: z.number().optional().default(4).describe("Pages deeper than this level are reported (default 4)"),
   parentId: z.string().uuid().optional().describe("Scope to a subtree by parent page ID. Omit to start from root."),
   take: z.number().optional().default(50).describe("Number of results to return after filtering (default 50)"),
   skip: z.number().optional().default(0).describe("Number of results to skip for pagination (default 0)"),
@@ -89,11 +89,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   outputSchema,
   slices: ["read"],
   annotations: { readOnlyHint: true },
-  handler: async ({ maxDepth, parentId, take, skip }) => {
+  handler: async ({ depthThreshold, parentId, take, skip }) => {
     const allDeepPages: DeepPage[] = [];
     const scannedRef = { count: 0 };
 
-    // Walk the full tree and collect ALL pages with depth > maxDepth
+    // Walk the full tree and collect ALL pages with depth > depthThreshold
     // Start at depth 1 for root items (depth 0 means root level, we don't include those in deepPages by default)
     // We collect everything and then filter
     const allPages: (DeepPage & { rawDepth: number })[] = [];
@@ -136,7 +136,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     await walkAll(parentId, startDepth, []);
 
     const deepPages = allPages
-      .filter((p) => p.depth > maxDepth)
+      .filter((p) => p.depth > depthThreshold)
       .sort((a, b) => b.depth - a.depth)
       .map(({ rawDepth: _raw, ...rest }) => rest);
 
@@ -147,7 +147,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       items: paginated,
       total,
       scannedPages: scannedRef.count,
-      threshold: maxDepth,
+      threshold: depthThreshold,
     });
   },
 };

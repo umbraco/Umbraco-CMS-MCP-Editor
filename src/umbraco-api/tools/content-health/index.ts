@@ -3,7 +3,7 @@ import auditPageSeoTool from "./get/audit-page-seo.js";
 import auditPageContentTool from "./get/audit-page-content.js";
 import reportEmptyFieldsTool from "./get/report-empty-fields.js";
 import reportShortContentTool from "./get/report-short-content.js";
-import checkMediaAltTextTool from "./get/check-media-alt-text.js";
+import reportMediaMissingAltTool from "./get/report-media-missing-alt.js";
 
 const collection: ToolCollectionExport = {
   metadata: {
@@ -11,7 +11,7 @@ const collection: ToolCollectionExport = {
     displayName: "Content Health",
     description: "Content quality auditing and SEO analysis",
   },
-  tools: () => [auditPageSeoTool, auditPageContentTool, reportEmptyFieldsTool, reportShortContentTool, checkMediaAltTextTool],
+  tools: () => [auditPageSeoTool, auditPageContentTool, reportEmptyFieldsTool, reportShortContentTool, reportMediaMissingAltTool],
 };
 
 export default collection;

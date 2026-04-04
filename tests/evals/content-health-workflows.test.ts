@@ -70,7 +70,7 @@ const allTools = [
   "audit-page-content",
   "report-empty-fields",
   "report-short-content",
-  "check-media-alt-text",
+  "report-media-missing-alt",
   // Content Reporting
   "report-stale-content",
   "report-unpublished",
@@ -148,9 +148,9 @@ describe("Content Health and Reporting Workflows", () => {
     "editor checks media alt text",
     runScenarioTest({
       prompt:
-        "Use check-media-alt-text to scan the media library for images without alt text.",
-      tools: ["check-media-alt-text", "list-media-children"],
-      requiredTools: ["check-media-alt-text"],
+        "Use report-media-missing-alt to scan the media library for images without alt text.",
+      tools: ["report-media-missing-alt", "list-media-children"],
+      requiredTools: ["report-media-missing-alt"],
       successPattern: /alt|image|media|accessibility|missing/i,
       verbose: true,
     }),
