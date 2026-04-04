@@ -48,12 +48,12 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const itemIds: string[] = items.map((item: any) => item.id);
 
     const urlResult = await mcpClientManager.callTool("cms", "get-media-urls", { id: itemIds });
-    if (urlResult.isError) return createToolResultError(urlResult);
-    const urlData = extractChainedResult(urlResult);
+    const urlData = urlResult.isError ? [] : extractChainedResult(urlResult);
+    const urlItems: any[] = Array.isArray(urlData) ? urlData : (urlData?.items ?? urlData ?? []);
 
     return createToolResult({
       items: items.map((item: any) => {
-        const urlEntry = (urlData ?? []).find((u: any) => u.id === item.id);
+        const urlEntry = urlItems.find?.((u: any) => u.id === item.id);
         const url = urlEntry?.urls?.[0] ?? "";
         return {
           id: item.id,

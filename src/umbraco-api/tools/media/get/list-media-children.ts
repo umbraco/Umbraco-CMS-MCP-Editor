@@ -38,8 +38,10 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     return createToolResult({
       items: (data.items ?? []).map((item: any) => {
-        const alias: string = item.mediaType?.alias ?? item.mediaType ?? "";
-        const isFolder = alias.toLowerCase().includes("folder");
+        const alias: string = typeof item.mediaType === "string"
+          ? item.mediaType
+          : (item.mediaType?.alias ?? item.mediaType?.name ?? "");
+        const isFolder = (alias || "").toLowerCase().includes("folder");
         return {
           id: item.id,
           name: item.variants?.[0]?.name ?? item.name ?? "Unknown",

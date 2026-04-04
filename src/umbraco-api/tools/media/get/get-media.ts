@@ -42,8 +42,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     const media = extractChainedResult(mediaResult);
     const urlData = extractChainedResult(urlResult);
+    const urlItems: any[] = Array.isArray(urlData) ? urlData : (urlData?.items ?? urlData ?? []);
 
-    const urlEntry = (urlData ?? []).find((u: any) => u.id === id);
+    const urlEntry = urlItems.find?.((u: any) => u.id === id);
     const urls: string[] = urlEntry?.urls ?? [];
 
     return createToolResult({
