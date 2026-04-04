@@ -32,6 +32,8 @@ import languageCollection from "./umbraco-api/tools/language/index.js";
 import dictionaryCollection from "./umbraco-api/tools/dictionary/index.js";
 import tagCollection from "./umbraco-api/tools/tag/index.js";
 import contentHealthCollection from "./umbraco-api/tools/content-health/index.js";
+import contentReportingCollection from "./umbraco-api/tools/content-reporting/index.js";
+import siteStructureCollection from "./umbraco-api/tools/site-structure/index.js";
 
 // Import MCP client manager (for chaining to other MCP servers)
 import { mcpClientManager } from "./umbraco-api/mcp-client.js";
@@ -99,6 +101,8 @@ const collections: ToolCollectionExport[] = [
   dictionaryCollection,
   tagCollection,
   contentHealthCollection,
+  contentReportingCollection,
+  siteStructureCollection,
 ];
 let registeredToolCount = 0;
 
