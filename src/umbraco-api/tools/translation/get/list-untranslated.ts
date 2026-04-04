@@ -1,0 +1,73 @@
+import { z } from "zod";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
+import { mcpClientManager } from "../../../mcp-client.js";
+
+const inputSchema = {
+  culture: z.string().describe("The language ISO code to check for (e.g. 'da-DK'). Pages missing this variant will be returned. Call list-languages to find valid culture codes."),
+  parentId: z.string().uuid().optional().describe("Parent page ID to search under. Omit to search root-level pages."),
+  take: z.number().optional().default(20).describe("Number of results to return"),
+  skip: z.number().optional().default(0).describe("Number of results to skip for pagination"),
+};
+
+const outputSchema = z.object({
+  items: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    availableCultures: z.array(z.string()),
+  })).describe("Pages that are missing the specified language variant"),
+  total: z.number().describe("Total number of pages missing the variant (before pagination)"),
+});
+
+const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
+  name: "list-untranslated",
+  description: "Find content pages that are missing a specific language variant. Use this to identify pages that need translation. Call list-languages to find valid culture codes.",
+  inputSchema,
+  outputSchema,
+  slices: ["search"],
+  annotations: { readOnlyHint: true },
+  handler: async ({ culture, parentId, take, skip }) => {
+    // Step 1: Fetch a batch of tree items
+    const toolName = parentId ? "get-tree-document-children" : "get-tree-document-root";
+    const args: Record<string, unknown> = { take: 100, skip: 0 };
+    if (parentId) args.parentId = parentId;
+
+    const treeResult = await mcpClientManager.callTool("cms", toolName, args);
+    if (treeResult.isError) return createToolResultError(treeResult);
+    const treeData = extractChainedResult(treeResult);
+    const treeItems: any[] = treeData.items ?? [];
+
+    // Step 2: For each item, fetch full document to check variants
+    const docResults = await Promise.all(
+      treeItems.map(async (item: any) => {
+        const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: item.id });
+        if (docResult.isError) return null;
+        const doc = extractChainedResult(docResult);
+        return { id: item.id, doc };
+      })
+    );
+
+    // Step 3: Filter to items that do NOT have the specified culture variant
+    const untranslated = docResults
+      .filter((entry): entry is { id: string; doc: any } => entry !== null)
+      .filter(({ doc }) => {
+        const variants: any[] = doc.variants ?? [];
+        return !variants.some((v: any) => v.culture === culture);
+      })
+      .map(({ doc }) => {
+        const variants: any[] = doc.variants ?? [];
+        return {
+          id: doc.id,
+          name: variants[0]?.name ?? doc.name ?? "Unknown",
+          availableCultures: variants.map((v: any) => v.culture).filter(Boolean),
+        };
+      });
+
+    // Step 4: Apply pagination on the filtered results
+    const total = untranslated.length;
+    const paged = untranslated.slice(skip, skip + take);
+
+    return createToolResult({ items: paged, total });
+  },
+};
+
+export default withStandardDecorators(tool);
