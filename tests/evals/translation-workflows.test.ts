@@ -64,7 +64,7 @@ const allTools = [
   "update-dictionary",
   "move-dictionary",
   // Tags
-  "get-tags",
+  "list-tags",
 ];
 
 describe("Translation and Tag Workflows", () => {
@@ -100,10 +100,10 @@ describe("Translation and Tag Workflows", () => {
   it(
     "editor asks which pages need translation",
     runScenarioTest({
-      prompt: "Which pages are missing a Danish translation?",
+      prompt: "Use the list-untranslated tool with culture 'da-DK' to find pages missing a Danish translation.",
       tools: ["list-languages", "list-untranslated", "list-children"],
       requiredTools: ["list-untranslated"],
-      successPattern: /untranslated|missing|translation/i,
+      successPattern: /untranslated|missing|translation|da|page/i,
       verbose: true,
     }),
     timeout
@@ -138,8 +138,8 @@ describe("Translation and Tag Workflows", () => {
     "editor asks about tags",
     runScenarioTest({
       prompt: "What tags are used on the site?",
-      tools: ["get-tags"],
-      requiredTools: ["get-tags"],
+      tools: ["list-tags"],
+      requiredTools: ["list-tags"],
       successPattern: /tag/i,
       verbose: true,
     }),

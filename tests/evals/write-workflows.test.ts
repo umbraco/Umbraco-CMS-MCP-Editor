@@ -63,7 +63,7 @@ const allTools = [
   "update-dictionary",
   "move-dictionary",
   // Tags
-  "get-tags",
+  "list-tags",
 ];
 
 describe("Write Workflows", () => {
