@@ -25,6 +25,10 @@ import versioningCollection from "./umbraco-api/tools/versioning/index.js";
 import mediaCollection from "./umbraco-api/tools/media/index.js";
 import mediaManagementCollection from "./umbraco-api/tools/media-management/index.js";
 import blueprintCollection from "./umbraco-api/tools/blueprint/index.js";
+import languageCollection from "./umbraco-api/tools/language/index.js";
+import translationCollection from "./umbraco-api/tools/translation/index.js";
+import dictionaryCollection from "./umbraco-api/tools/dictionary/index.js";
+import tagCollection from "./umbraco-api/tools/tag/index.js";
 
 export const collections = [
   contentCollection,
@@ -33,6 +37,10 @@ export const collections = [
   mediaCollection,
   mediaManagementCollection,
   blueprintCollection,
+  languageCollection,
+  translationCollection,
+  dictionaryCollection,
+  tagCollection,
 ];
 
 export { allModes, allModeNames } from "./config/mode-registry.js";

@@ -28,6 +28,9 @@ import mediaCollection from "./umbraco-api/tools/media/index.js";
 import mediaManagementCollection from "./umbraco-api/tools/media-management/index.js";
 import blueprintCollection from "./umbraco-api/tools/blueprint/index.js";
 import translationCollection from "./umbraco-api/tools/translation/index.js";
+import languageCollection from "./umbraco-api/tools/language/index.js";
+import dictionaryCollection from "./umbraco-api/tools/dictionary/index.js";
+import tagCollection from "./umbraco-api/tools/tag/index.js";
 
 // Import MCP client manager (for chaining to other MCP servers)
 import { mcpClientManager } from "./umbraco-api/mcp-client.js";
@@ -91,6 +94,9 @@ const collections: ToolCollectionExport[] = [
   mediaManagementCollection,
   blueprintCollection,
   translationCollection,
+  languageCollection,
+  dictionaryCollection,
+  tagCollection,
 ];
 let registeredToolCount = 0;
 
