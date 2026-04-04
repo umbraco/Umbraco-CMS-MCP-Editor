@@ -42,6 +42,18 @@ export const toolModes: ToolModeDefinition[] = [
     description: 'List, view, and create page blueprints (templates)',
     collections: ['blueprint']
   },
+  {
+    name: 'translation',
+    displayName: 'Translation',
+    description: 'Manage languages, content variants, and dictionary translations',
+    collections: ['language', 'translation', 'dictionary']
+  },
+  {
+    name: 'tags',
+    displayName: 'Tags',
+    description: 'Browse tags in use across the site',
+    collections: ['tag']
+  },
 ];
 
 /**
