@@ -217,12 +217,12 @@ describe("Read-Only Workflows", () => {
   );
 
   it(
-    "full tool set: site structure uses list-children not search",
+    "full tool set: site structure uses tree tools",
     runScenarioTest({
       prompt:
-        "Give me the full site tree — all pages and their children.",
+        "Give me the full site tree — use report-site-tree-summary to show the structure.",
       tools: allTools,
-      requiredTools: ["list-children"],
+      requiredTools: ["report-site-tree-summary"],
       successPattern: /page|site|tree|structure|child/i,
       verbose: true,
     }),
