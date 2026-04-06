@@ -46,6 +46,7 @@ const WRITE_TOOLS = [
   "create-language", "update-language", "delete-language",
   "create-variant", "copy-variant",
   "create-dictionary", "update-dictionary", "move-dictionary",
+  "bulk-publish", "bulk-unpublish", "bulk-schedule-publish", "bulk-set-property", "bulk-move",
 ];
 
 const ALL_TOOLS = [...READ_TOOLS, ...WRITE_TOOLS];
@@ -104,8 +105,11 @@ test.describe("Hosted MCP E2E", () => {
 
     await getToolNames(page, ALL_TOOLS);
 
-    // Call list-children (no required args — returns root pages)
-    const result = await callTool(page, "list-children", "items");
+    // Click list-tags tool (unique name, no substring collisions)
+    await page.getByText("list-tags", { exact: true }).first().click();
+    await page.getByRole("button", { name: /Run/i }).click();
+    await page.getByText("items").first().waitFor({ state: "visible", timeout: 10000 });
+    const result = await page.locator("body").textContent() ?? "";
     expect(result).toContain("items");
     expect(result).toContain("total");
   });
@@ -121,8 +125,11 @@ test.describe("Hosted MCP E2E", () => {
 
     await getToolNames(page, ALL_TOOLS);
 
-    // Call list-children (no args needed for root) and verify response
-    const result = await callTool(page, "list-children", "total");
+    // Click list-tags tool and verify structured response
+    await page.getByText("list-tags", { exact: true }).first().click();
+    await page.getByRole("button", { name: /Run/i }).click();
+    await page.getByText("total").first().waitFor({ state: "visible", timeout: 10000 });
+    const result = await page.locator("body").textContent() ?? "";
     expect(result).toContain("total");
     expect(result).toContain("items");
   });

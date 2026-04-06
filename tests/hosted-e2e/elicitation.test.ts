@@ -28,6 +28,7 @@ const ALL_TOOLS = [
   "report-stale-content", "report-unpublished", "report-recently-changed", "report-content-by-type", "report-translation-coverage",
   "report-site-tree-summary", "report-orphan-pages", "report-deep-pages",
   "report-unused-media", "report-large-media", "report-content-references",
+  "bulk-publish", "bulk-unpublish", "bulk-schedule-publish", "bulk-set-property", "bulk-move",
 ];
 
 test.describe("Elicitation over Streamable HTTP", () => {
