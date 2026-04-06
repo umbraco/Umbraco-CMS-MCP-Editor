@@ -48,7 +48,8 @@ All tools return per-item results:
     id: string,
     name: string,
     success: boolean,
-    error?: string,          // Only present on failure
+    previousVersionId?: string, // Version ID before this change (for rollback)
+    error?: string,             // Only present on failure
   }],
   successCount: number,
   failureCount: number,
@@ -56,10 +57,20 @@ All tools return per-item results:
 }
 ```
 
+### Rollback support
+
+Every write tool records each page's current version ID **before** making the change. The `previousVersionId` is included in the per-item results. To undo a bulk operation, the editor asks the LLM to roll back specific pages — the LLM calls the existing `rollback-page` tool with the recorded version IDs. No new rollback tool is needed.
+
+Example flow:
+1. Editor: "Bulk publish these 5 blog posts"
+2. Tool returns: `results: [{ id: "...", name: "Post 1", success: true, previousVersionId: "abc123" }, ...]`
+3. Editor: "Actually, undo the publish on Post 1"
+4. LLM calls: `rollback-page({ id: "...", versionId: "abc123" })`
+
 ### Shared handler pattern
 
 1. Validate `ids.length <= 10`
-2. Fetch all page names in parallel for the confirmation message
+2. Fetch all page details in parallel (names for confirmation + current version IDs for rollback)
 3. Build confirmation message listing every page name
 4. Call `confirmAction(extra, message, { title, defaultValue })`
 5. If confirmed, process items sequentially — stop on first failure
