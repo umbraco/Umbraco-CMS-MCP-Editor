@@ -33,6 +33,7 @@ import contentHealthCollection from "./umbraco-api/tools/content-health/index.js
 import contentReportingCollection from "./umbraco-api/tools/content-reporting/index.js";
 import siteStructureCollection from "./umbraco-api/tools/site-structure/index.js";
 import mediaHealthCollection from "./umbraco-api/tools/media-health/index.js";
+import bulkOperationsCollection from "./umbraco-api/tools/bulk-operations/index.js";
 
 export const collections = [
   contentCollection,
@@ -49,6 +50,7 @@ export const collections = [
   contentReportingCollection,
   siteStructureCollection,
   mediaHealthCollection,
+  bulkOperationsCollection,
 ];
 
 export { allModes, allModeNames } from "./config/mode-registry.js";
