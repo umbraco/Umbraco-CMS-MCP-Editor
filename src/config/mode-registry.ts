@@ -72,6 +72,12 @@ export const toolModes: ToolModeDefinition[] = [
     description: 'Media library health and usage analysis',
     collections: ['media-health']
   },
+  {
+    name: 'bulk-operations',
+    displayName: 'Bulk Operations',
+    description: 'Bulk publish, unpublish, schedule, edit, and move content pages (max 10 per call)',
+    collections: ['bulk-operations']
+  },
 ];
 
 /**
