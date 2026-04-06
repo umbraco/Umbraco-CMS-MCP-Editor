@@ -30,7 +30,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "bulk-move",
-  description: "Move multiple pages to a new parent location (max 10). Shows each page name and target location for confirmation. Restructuring the site tree is hard to undo — review carefully. Each result includes a previousVersionId for rollback.",
+  description: "Move multiple pages to a new parent location (max 10). Shows each page name and target location for confirmation. Restructuring the site tree is hard to undo — review carefully. Note: previousVersionId in results is for content rollback only and cannot undo a move.",
   inputSchema,
   outputSchema,
   slices: ["move"],

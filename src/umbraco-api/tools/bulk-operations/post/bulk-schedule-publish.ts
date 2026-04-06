@@ -11,7 +11,7 @@ import {
 
 const inputSchema = {
   ids: z.array(z.string().uuid()).min(1).max(10).describe("The IDs of the pages to schedule for publishing (max 10)"),
-  publishDate: z.string().describe("The date and time to publish the pages, in ISO 8601 format (e.g. 2026-06-01T09:00:00Z)"),
+  publishDate: z.string().datetime().describe("The future date and time to publish the pages, in ISO 8601 format (e.g. 2026-06-01T09:00:00Z). Must be in the future."),
 };
 
 const outputSchema = z.object({
@@ -57,7 +57,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const message = `Schedule these ${items.length} pages to publish on ${publishDate}?\n${nameList}`;
 
     // 4. Confirm
-    if (!await confirmAction(extra, message, { title: "Confirm bulk schedule publish", defaultValue: true })) {
+    if (!await confirmAction(extra, message, { title: "Confirm bulk schedule publish", defaultValue: false })) {
       return createToolResult({
         message: "Cancelled",
         results: [],

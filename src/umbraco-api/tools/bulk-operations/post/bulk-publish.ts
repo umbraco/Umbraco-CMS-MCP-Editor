@@ -57,7 +57,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const message = `Publish these ${items.length} pages?\n${nameList}`;
 
     // 4. Confirm
-    if (!await confirmAction(extra, message, { title: "Confirm bulk publish", defaultValue: true })) {
+    if (!await confirmAction(extra, message, { title: "Confirm bulk publish", defaultValue: false })) {
       return createToolResult({
         message: "Cancelled",
         results: [],
