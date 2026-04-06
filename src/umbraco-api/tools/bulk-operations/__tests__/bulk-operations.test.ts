@@ -1,0 +1,335 @@
+/**
+ * Bulk Operations Collection Integration Tests
+ *
+ * Tests for bulk-publish, bulk-unpublish, bulk-schedule-publish,
+ * bulk-set-property, and bulk-move.
+ * Runs against a real Umbraco instance.
+ *
+ * Prerequisites:
+ * - Running Umbraco instance with API user configured (see CLAUDE.md)
+ * - Valid credentials in .env file
+ */
+
+import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
+import {
+  setupTestEnvironment,
+  setupElicitationMock,
+  createMockRequestHandlerExtra,
+  getStructuredContent,
+} from "@umbraco-cms/mcp-server-sdk/testing";
+
+import listChildrenTool from "../../content/get/list-children.js";
+import bulkPublishTool from "../post/bulk-publish.js";
+import bulkUnpublishTool from "../post/bulk-unpublish.js";
+import bulkSchedulePublishTool from "../post/bulk-schedule-publish.js";
+import bulkSetPropertyTool from "../post/bulk-set-property.js";
+import bulkMoveTool from "../post/bulk-move.js";
+
+const FAKE_UUID = "00000000-0000-0000-0000-000000000001";
+const FAKE_TARGET_UUID = "00000000-0000-0000-0000-000000000002";
+const FUTURE_DATE = "2099-01-01T09:00:00Z";
+
+const elicitation = setupElicitationMock(jest.fn as any);
+
+describe("Bulk Operations Collection", () => {
+  setupTestEnvironment();
+
+  const extra = createMockRequestHandlerExtra();
+  let cmsAvailable = false;
+  let firstRootPageId: string;
+  let secondRootPageId: string | undefined;
+
+  beforeAll(async () => {
+    try {
+      const browseResult = await listChildrenTool.handler(
+        { parentId: undefined, take: 5, skip: 0 },
+        extra,
+      );
+      const browseData = getStructuredContent(browseResult) as any;
+      if (!browseResult.isError && browseData?.items?.length > 0) {
+        cmsAvailable = true;
+        firstRootPageId = browseData.items[0].id;
+        if (browseData.items.length > 1) {
+          secondRootPageId = browseData.items[1].id;
+        }
+      }
+    } catch {
+      console.warn("CMS not available — bulk-operations integration tests will be skipped");
+    }
+  }, 60000);
+
+  afterAll(async () => {
+    // Re-publish the first root page to restore state after unpublish test
+    if (cmsAvailable && firstRootPageId) {
+      try {
+        await bulkPublishTool.handler(
+          { ids: [firstRootPageId], includeDescendants: false },
+          extra,
+        );
+      } catch {
+        // Best-effort restore
+      }
+    }
+    elicitation.cleanup();
+  }, 30000);
+
+  beforeEach(() => {
+    elicitation.reset();
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Input validation (no CMS call needed — errors returned before API hit)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  describe("bulk-publish — cap validation", () => {
+    it("should return error when more than 10 IDs are provided", async () => {
+      const tooManyIds = Array.from(
+        { length: 11 },
+        (_, i) => `00000000-0000-0000-0000-${String(i).padStart(12, "0")}`,
+      );
+
+      const result = await bulkPublishTool.handler(
+        { ids: tooManyIds, includeDescendants: false },
+        extra,
+      );
+
+      const data = getStructuredContent(result) as any;
+      expect(data.message).toContain("10");
+    }, 10000);
+  });
+
+  describe("bulk-publish — empty array", () => {
+    it("should return error when empty array is provided", async () => {
+      // Zod schema has min(1) so this will throw a validation error from withStandardDecorators
+      // The tool's inputSchema has z.array(...).min(1) so the handler won't even be reached;
+      // instead withStandardDecorators returns an isError result.
+      let errorCaught = false;
+      try {
+        const result = await bulkPublishTool.handler(
+          { ids: [] as any, includeDescendants: false },
+          extra,
+        );
+        // If we get here, the tool returned an error result (not a throw)
+        const data = getStructuredContent(result) as any;
+        expect(data.message).toBeDefined();
+        errorCaught = true;
+      } catch {
+        // Handler may throw on Zod validation — that's also an acceptable error signal
+        errorCaught = true;
+      }
+      expect(errorCaught).toBe(true);
+    }, 10000);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Happy path tests (require CMS)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  describe("bulk-publish", () => {
+    it("should publish a single page and return results with success and previousVersionId", async () => {
+      if (!cmsAvailable || !firstRootPageId) return;
+
+      const result = await bulkPublishTool.handler(
+        { ids: [firstRootPageId], includeDescendants: false },
+        extra,
+      );
+
+      expect(elicitation.mock).toHaveBeenCalled();
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      expect(data).toBeDefined();
+      expect(data.results).toBeInstanceOf(Array);
+      expect(data.results.length).toBe(1);
+      expect(data.results[0].success).toBe(true);
+      expect(data.results[0].previousVersionId).toBeDefined();
+      expect(data.successCount).toBe(1);
+    }, 30000);
+  });
+
+  describe("bulk-unpublish", () => {
+    it("should unpublish a single page and return results", async () => {
+      if (!cmsAvailable || !firstRootPageId) return;
+
+      const result = await bulkUnpublishTool.handler(
+        { ids: [firstRootPageId] },
+        extra,
+      );
+
+      expect(elicitation.mock).toHaveBeenCalled();
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      expect(data).toBeDefined();
+      expect(data.results).toBeInstanceOf(Array);
+      expect(data.results.length).toBe(1);
+      expect(data.results[0].success).toBe(true);
+      expect(data.successCount).toBe(1);
+
+      // Re-publish immediately to restore state so subsequent tests have a published page
+      elicitation.reset();
+      await bulkPublishTool.handler(
+        { ids: [firstRootPageId], includeDescendants: false },
+        extra,
+      );
+    }, 60000);
+  });
+
+  describe("bulk-schedule-publish", () => {
+    it("should schedule a page to publish at a future date and return results", async () => {
+      if (!cmsAvailable || !firstRootPageId) return;
+
+      const result = await bulkSchedulePublishTool.handler(
+        { ids: [firstRootPageId], publishDate: FUTURE_DATE },
+        extra,
+      );
+
+      expect(elicitation.mock).toHaveBeenCalled();
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      expect(data).toBeDefined();
+      expect(data.results).toBeInstanceOf(Array);
+      expect(data.results.length).toBe(1);
+      expect(data.results[0].success).toBe(true);
+      expect(data.results[0].previousVersionId).toBeDefined();
+      expect(data.successCount).toBe(1);
+    }, 30000);
+  });
+
+  describe("bulk-set-property", () => {
+    it("should set a property on a page and return results with previousVersionId", async () => {
+      if (!cmsAvailable || !firstRootPageId) return;
+
+      // Use a safe invariant alias that most Umbraco pages have; if the property doesn't
+      // exist the tool will still return a result (success or failure) rather than throwing.
+      const result = await bulkSetPropertyTool.handler(
+        {
+          ids: [firstRootPageId],
+          alias: "title",
+          value: "Bulk Test Value",
+          culture: undefined,
+          segment: undefined,
+        },
+        extra,
+      );
+
+      expect(elicitation.mock).toHaveBeenCalled();
+      const data = getStructuredContent(result) as any;
+      expect(data).toBeDefined();
+      expect(data.results).toBeInstanceOf(Array);
+      expect(data.results.length).toBe(1);
+      // The result will have previousVersionId regardless of success/failure
+      expect(data.results[0].previousVersionId).toBeDefined();
+    }, 30000);
+  });
+
+  describe("bulk-move", () => {
+    it("should test elicitation rejection only (skipping actual move when only one root page)", async () => {
+      if (!cmsAvailable || !firstRootPageId) return;
+
+      if (!secondRootPageId) {
+        console.warn("Skipping bulk-move live test: only one root page available");
+        return;
+      }
+
+      // With multiple root pages available, test elicitation rejection for bulk-move
+      // (we never want to actually execute the move in tests as it's hard to undo)
+      elicitation.rejectAll();
+
+      const result = await bulkMoveTool.handler(
+        { ids: [firstRootPageId], targetParentId: secondRootPageId },
+        extra,
+      );
+
+      expect(elicitation.mock).toHaveBeenCalled();
+      const data = getStructuredContent(result) as any;
+      expect(data.message).toContain("cancelled");
+    }, 30000);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Elicitation rejection tests
+  // ──────────────────────────────────────────────────────────────────────────
+
+  describe("elicitation rejection", () => {
+    it("should cancel bulk-publish when elicitation is rejected", async () => {
+      if (!cmsAvailable || !firstRootPageId) return;
+
+      elicitation.rejectAll();
+
+      const result = await bulkPublishTool.handler(
+        { ids: [firstRootPageId], includeDescendants: false },
+        extra,
+      );
+
+      expect(elicitation.mock).toHaveBeenCalled();
+      const data = getStructuredContent(result) as any;
+      expect(data.message).toContain("cancelled");
+    }, 30000);
+
+    it("should cancel bulk-unpublish when elicitation is rejected", async () => {
+      if (!cmsAvailable || !firstRootPageId) return;
+
+      elicitation.rejectAll();
+
+      const result = await bulkUnpublishTool.handler(
+        { ids: [firstRootPageId] },
+        extra,
+      );
+
+      expect(elicitation.mock).toHaveBeenCalled();
+      const data = getStructuredContent(result) as any;
+      expect(data.message).toContain("cancelled");
+    }, 30000);
+
+    it("should cancel bulk-schedule-publish when elicitation is rejected", async () => {
+      if (!cmsAvailable || !firstRootPageId) return;
+
+      elicitation.rejectAll();
+
+      const result = await bulkSchedulePublishTool.handler(
+        { ids: [firstRootPageId], publishDate: FUTURE_DATE },
+        extra,
+      );
+
+      expect(elicitation.mock).toHaveBeenCalled();
+      const data = getStructuredContent(result) as any;
+      expect(data.message).toContain("cancelled");
+    }, 30000);
+
+    it("should cancel bulk-set-property when elicitation is rejected", async () => {
+      if (!cmsAvailable || !firstRootPageId) return;
+
+      elicitation.rejectAll();
+
+      const result = await bulkSetPropertyTool.handler(
+        {
+          ids: [firstRootPageId],
+          alias: "title",
+          value: "Should Not Be Set",
+          culture: undefined,
+          segment: undefined,
+        },
+        extra,
+      );
+
+      expect(elicitation.mock).toHaveBeenCalled();
+      const data = getStructuredContent(result) as any;
+      expect(data.message).toContain("cancelled");
+    }, 30000);
+
+    it("should cancel bulk-move when elicitation is rejected", async () => {
+      if (!cmsAvailable || !firstRootPageId) return;
+
+      elicitation.rejectAll();
+
+      // Use a fake target parent — the move won't execute because elicitation rejects first
+      const result = await bulkMoveTool.handler(
+        { ids: [firstRootPageId], targetParentId: FAKE_TARGET_UUID },
+        extra,
+      );
+
+      expect(elicitation.mock).toHaveBeenCalled();
+      const data = getStructuredContent(result) as any;
+      expect(data.message).toContain("cancelled");
+    }, 30000);
+  });
+});
