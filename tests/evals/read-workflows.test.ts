@@ -82,6 +82,12 @@ const allTools = [
   "report-unused-media",
   "report-large-media",
   "report-content-references",
+  // Bulk Operations
+  "bulk-publish",
+  "bulk-unpublish",
+  "bulk-schedule-publish",
+  "bulk-set-property",
+  "bulk-move",
 ];
 
 describe("Read-Only Workflows", () => {

@@ -1,9 +1,8 @@
 /**
- * Translation and Tag Workflow Eval Tests
+ * Bulk Operation Workflow Eval Tests
  *
- * These tests cover language management, content variant creation, dictionary
- * item lookup and editing, and tag retrieval. Write tests mutate shared state
- * so all tests in this file run sequentially (Jest default).
+ * These tests validate bulk content operations where the LLM must first
+ * discover page IDs via list-children and then apply bulk actions.
  *
  * Write operations use elicitation which is auto-accepted by the eval runner.
  */
@@ -93,80 +92,71 @@ const allTools = [
   "bulk-move",
 ];
 
-describe("Translation and Tag Workflows", () => {
+describe("Bulk Operation Workflows", () => {
   setupConsoleMock();
 
   const timeout = getDefaultTimeoutMs();
 
   it(
-    "editor asks what languages the site supports",
-    runScenarioTest({
-      prompt: "What languages does this site support?",
-      tools: ["list-languages", "get-language"],
-      requiredTools: ["list-languages"],
-      successPattern: /language|english/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
-    "editor asks to create a Danish version",
+    "editor bulk publishes pages",
     runScenarioTest({
       prompt:
-        "Create a Danish (da-DK) variant of the homepage. First find the homepage using search-content or list-children. Then call create-variant directly with culture 'da-DK' — do not attempt to add a new language first. If the tool returns an error, report it and say 'Variant creation attempted'.",
+        "Use list-children to find the root pages, then use bulk-publish to publish the first two pages found.",
       tools: allTools,
-      requiredTools: ["create-variant"],
-      successPattern: /variant|danish|da|created|confirm|attempted/i,
+      requiredTools: ["bulk-publish"],
+      successPattern: /publish|bulk|page|confirm/i,
       verbose: true,
     }),
     timeout
   );
 
   it(
-    "editor asks which pages need translation",
-    runScenarioTest({
-      prompt: "Use the list-untranslated tool with culture 'da-DK' to find pages missing a Danish translation.",
-      tools: ["list-languages", "list-untranslated", "list-children"],
-      requiredTools: ["list-untranslated"],
-      successPattern: /untranslated|missing|translation|da|page/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
-    "editor searches dictionary",
-    runScenarioTest({
-      prompt: "Find the dictionary item for 'welcome'",
-      tools: ["search-dictionary", "get-dictionary", "list-dictionary"],
-      requiredTools: ["search-dictionary"],
-      successPattern: /dictionary|welcome|search/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
-    "editor updates dictionary translation",
+    "editor bulk unpublishes pages",
     runScenarioTest({
       prompt:
-        "Add a Danish translation 'Læs mere' for the 'Read more' dictionary item",
+        "Use list-children to find root pages, then use bulk-unpublish on the first page.",
       tools: allTools,
-      requiredTools: ["update-dictionary"],
-      successPattern: /dictionary|updated|translation|confirm/i,
+      requiredTools: ["bulk-unpublish"],
+      successPattern: /unpublish|bulk|offline|confirm/i,
       verbose: true,
     }),
     timeout
   );
 
   it(
-    "editor asks about tags",
+    "editor schedules bulk publish",
     runScenarioTest({
-      prompt: "What tags are used on the site?",
-      tools: ["list-tags"],
-      requiredTools: ["list-tags"],
-      successPattern: /tag/i,
+      prompt:
+        "Use bulk-schedule-publish to schedule the homepage to publish on 2099-01-01T09:00:00Z. First find the homepage with list-children.",
+      tools: allTools,
+      requiredTools: ["bulk-schedule-publish"],
+      successPattern: /schedule|publish|bulk|date|confirm/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "editor sets property on multiple pages",
+    runScenarioTest({
+      prompt:
+        "Use list-children to find root pages, then use bulk-set-property to set the 'title' property to 'Updated' on the first page.",
+      tools: allTools,
+      requiredTools: ["bulk-set-property"],
+      successPattern: /set|property|bulk|title|confirm/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "editor moves pages",
+    runScenarioTest({
+      prompt:
+        "Use list-children to find root pages. Then use list-children again passing the first page's ID to find its children. Use bulk-move to move the first child page you find under the root Home page. You must call bulk-move regardless of the result — if there are no children report the error and say 'bulk-move attempted'.",
+      tools: allTools,
+      requiredTools: ["bulk-move"],
+      successPattern: /move|bulk|page|confirm|attempted/i,
       verbose: true,
     }),
     timeout
