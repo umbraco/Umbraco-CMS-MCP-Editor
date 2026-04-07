@@ -34,6 +34,9 @@ import contentReportingCollection from "./umbraco-api/tools/content-reporting/in
 import siteStructureCollection from "./umbraco-api/tools/site-structure/index.js";
 import mediaHealthCollection from "./umbraco-api/tools/media-health/index.js";
 import bulkOperationsCollection from "./umbraco-api/tools/bulk-operations/index.js";
+import memberCollection from "./umbraco-api/tools/member/index.js";
+import memberGroupCollection from "./umbraco-api/tools/member-group/index.js";
+import memberReportingCollection from "./umbraco-api/tools/member-reporting/index.js";
 
 export const collections = [
   contentCollection,
@@ -51,6 +54,9 @@ export const collections = [
   siteStructureCollection,
   mediaHealthCollection,
   bulkOperationsCollection,
+  memberCollection,
+  memberGroupCollection,
+  memberReportingCollection,
 ];
 
 export { allModes, allModeNames } from "./config/mode-registry.js";
