@@ -8,7 +8,7 @@ const inputSchema = {
   name: z.string().describe("The display name for the new member"),
   password: z.string().describe("The initial password for the new member"),
   memberTypeId: z.string().uuid().describe("The ID of the member type. Call list-member-types first to find a valid ID."),
-  groups: z.array(z.string()).optional().describe("Member groups to assign the member to"),
+  groups: z.array(z.string()).optional().describe("Member group names to assign (use names from list-member-groups, e.g. 'Premium Members')"),
   values: z.array(z.object({
     alias: z.string().describe("The property alias"),
     value: z.any().describe("The property value"),

@@ -21,7 +21,7 @@ const MEMBER_CAP = 500;
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "report-member-count",
-  description: "Get a breakdown of member counts by type and group. Data maps naturally to pie or bar charts.",
+  description: "Returns a breakdown of member counts by type and group. Analyses up to 500 members — results may be incomplete on larger sites. Data maps naturally to pie or bar charts.",
   inputSchema,
   outputSchema,
   slices: ["read"],

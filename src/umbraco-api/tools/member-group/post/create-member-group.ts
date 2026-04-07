@@ -14,7 +14,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "create-member-group",
-  description: "Create a new member group. You will be asked to confirm.",
+  description: "Create a new member group. Groups are referenced by name when assigning members via create-member or update-member. Use list-member-groups to check existing groups first. You will be asked to confirm.",
   inputSchema,
   outputSchema,
   slices: ["create"],

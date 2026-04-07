@@ -27,7 +27,7 @@ const MEMBER_CAP = 500;
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "report-member-activity",
-  description: "Find members who haven't logged in within a given number of days. Default threshold is 90 days. Useful for identifying inactive accounts.",
+  description: "Find members who haven't logged in within a given number of days. Default threshold is 90 days. Members who have never logged in are always included. Analyses up to 500 members. Useful for identifying inactive accounts.",
   inputSchema,
   outputSchema,
   slices: ["read"],
