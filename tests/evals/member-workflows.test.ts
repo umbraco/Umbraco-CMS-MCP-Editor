@@ -1,9 +1,8 @@
 /**
- * Translation and Tag Workflow Eval Tests
+ * Member Workflow Eval Tests
  *
- * These tests cover language management, content variant creation, dictionary
- * item lookup and editing, and tag retrieval. Write tests mutate shared state
- * so all tests in this file run sequentially (Jest default).
+ * These tests cover member search, profile viewing, creation, group listing,
+ * member count reporting, and activity reporting.
  *
  * Write operations use elicitation which is auto-accepted by the eval runner.
  */
@@ -108,80 +107,83 @@ const allTools = [
   "report-member-activity",
 ];
 
-describe("Translation and Tag Workflows", () => {
+describe("Member Workflows", () => {
   setupConsoleMock();
 
   const timeout = getDefaultTimeoutMs();
 
   it(
-    "editor asks what languages the site supports",
-    runScenarioTest({
-      prompt: "What languages does this site support?",
-      tools: ["list-languages", "get-language"],
-      requiredTools: ["list-languages"],
-      successPattern: /language|english/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
-    "editor asks to create a Danish version",
+    "find a member",
     runScenarioTest({
       prompt:
-        "Create a Danish (da-DK) variant of the homepage. First find the homepage using search-content or list-children. Then call create-variant directly with culture 'da-DK' — do not attempt to add a new language first. If the tool returns an error, report it and say 'Variant creation attempted'.",
-      tools: allTools,
-      requiredTools: ["create-variant"],
-      successPattern: /variant|danish|da|created|confirm|attempted/i,
+        "Use search-members to search for members matching 'admin' or 'test'.",
+      tools: ["search-members", "get-member"],
+      requiredTools: ["search-members"],
+      successPattern: /member|search|found|admin|test/i,
       verbose: true,
     }),
     timeout
   );
 
   it(
-    "editor asks which pages need translation",
-    runScenarioTest({
-      prompt: "Use the list-untranslated tool with culture 'da-DK' to find pages missing a Danish translation.",
-      tools: ["list-languages", "list-untranslated", "list-children"],
-      requiredTools: ["list-untranslated"],
-      successPattern: /untranslated|missing|translation|da|page/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
-    "editor searches dictionary",
-    runScenarioTest({
-      prompt: "Find the dictionary item for 'welcome'",
-      tools: ["search-dictionary", "get-dictionary", "list-dictionary"],
-      requiredTools: ["search-dictionary"],
-      successPattern: /dictionary|welcome|search/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
-    "editor updates dictionary translation",
+    "view member profile",
     runScenarioTest({
       prompt:
-        "Add a Danish translation 'Læs mere' for the 'Read more' dictionary item",
+        "Use search-members to find a member matching 'member'. If a result is found, use get-member to show their full profile details. If no members exist, report that the member list is empty.",
       tools: allTools,
-      requiredTools: ["update-dictionary"],
-      successPattern: /dictionary|updated|translation|confirm/i,
+      requiredTools: ["search-members"],
+      successPattern: /member|profile|email|group|empty|no member/i,
       verbose: true,
     }),
     timeout
   );
 
   it(
-    "editor asks about tags",
+    "create member",
     runScenarioTest({
-      prompt: "What tags are used on the site?",
-      tools: ["list-tags"],
-      requiredTools: ["list-tags"],
-      successPattern: /tag/i,
+      prompt:
+        "Use list-member-types to find a valid member type, then use create-member to create a test member with email eval-test@example.com.",
+      tools: allTools,
+      requiredTools: ["create-member"],
+      successPattern: /member|created|confirm/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "member count",
+    runScenarioTest({
+      prompt:
+        "Use report-member-count to show a breakdown of members by type and group.",
+      tools: ["report-member-count", "list-member-groups"],
+      requiredTools: ["report-member-count"],
+      successPattern: /member|count|type|group|total/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "inactive members",
+    runScenarioTest({
+      prompt:
+        "Use report-member-activity with a 90 day threshold to find inactive members.",
+      tools: ["report-member-activity"],
+      requiredTools: ["report-member-activity"],
+      successPattern: /member|inactive|activity|login|day/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "list groups",
+    runScenarioTest({
+      prompt: "What member groups are available?",
+      tools: ["list-member-groups"],
+      requiredTools: ["list-member-groups"],
+      successPattern: /group|member/i,
       verbose: true,
     }),
     timeout

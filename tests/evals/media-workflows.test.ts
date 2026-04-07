@@ -91,6 +91,21 @@ const allTools = [
   "bulk-schedule-publish",
   "bulk-set-property",
   "bulk-move",
+  // Members
+  "search-members",
+  "get-member",
+  "list-member-types",
+  "create-member",
+  "update-member",
+  "delete-member",
+  // Member Groups
+  "list-member-groups",
+  "create-member-group",
+  "delete-member-group",
+  // Member Reporting
+  "report-member-count",
+  "report-members-by-group",
+  "report-member-activity",
 ];
 
 describe("Media and Blueprint Workflows", () => {
