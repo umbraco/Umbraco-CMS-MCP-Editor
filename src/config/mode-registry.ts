@@ -78,6 +78,12 @@ export const toolModes: ToolModeDefinition[] = [
     description: 'Bulk publish, unpublish, schedule, edit, and move content pages (max 10 per call)',
     collections: ['bulk-operations']
   },
+  {
+    name: 'members',
+    displayName: 'Members',
+    description: 'Manage members, member groups, and member reporting',
+    collections: ['member', 'member-group', 'member-reporting']
+  },
 ];
 
 /**
