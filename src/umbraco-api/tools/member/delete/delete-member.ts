@@ -1,0 +1,51 @@
+import { z } from "zod";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { mcpClientManager } from "../../../mcp-client.js";
+
+const inputSchema = {
+  id: z.string().uuid().describe("The ID of the member to permanently delete"),
+};
+
+const outputSchema = z.object({
+  message: z.string(),
+  id: z.string(),
+  name: z.string(),
+  email: z.string(),
+});
+
+const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
+  name: "delete-member",
+  description: "Permanently delete a member. This cannot be undone — there is no recycle bin for members. You will be asked to confirm.",
+  inputSchema,
+  outputSchema,
+  slices: ["delete"],
+  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+  handler: async ({ id }, extra) => {
+    // Step 1: Fetch member details for confirmation
+    const memberResult = await mcpClientManager.callTool("cms", "get-member", { id });
+    if (memberResult.isError) return createToolResultError(memberResult);
+    const member = extractChainedResult(memberResult);
+    const name = member.variants?.[0]?.name ?? member.name ?? "Unknown";
+    const email = member.email ?? "";
+
+    // Step 2: Elicit confirmation with strong warning (default: false)
+    const confirmMessage = `Permanently delete member "${name}" (${email})? This cannot be undone. The member and all their data will be removed.`;
+
+    if (!await confirmAction(extra, confirmMessage, { title: "Confirm delete member", defaultValue: false })) {
+      return createToolResult({ message: "Delete cancelled", id, name, email });
+    }
+
+    // Step 3: Permanently delete the member
+    const deleteResult = await mcpClientManager.callTool("cms", "delete-member", { id });
+    if (deleteResult.isError) return createToolResultError(deleteResult);
+
+    return createToolResult({
+      message: `Permanently deleted member "${name}" (${email})`,
+      id,
+      name,
+      email,
+    });
+  },
+};
+
+export default withStandardDecorators(tool);
