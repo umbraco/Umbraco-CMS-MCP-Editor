@@ -36,6 +36,9 @@ const READ_TOOLS = [
   "report-stale-content", "report-unpublished", "report-recently-changed", "report-content-by-type", "report-translation-coverage",
   "report-site-tree-summary", "report-orphan-pages", "report-deep-pages",
   "report-unused-media", "report-large-media", "report-content-references",
+  "search-members", "get-member", "list-member-types",
+  "list-member-groups",
+  "report-member-count", "report-members-by-group", "report-member-activity",
 ];
 
 const WRITE_TOOLS = [
@@ -47,6 +50,8 @@ const WRITE_TOOLS = [
   "create-variant", "copy-variant",
   "create-dictionary", "update-dictionary", "move-dictionary",
   "bulk-publish", "bulk-unpublish", "bulk-schedule-publish", "bulk-set-property", "bulk-move",
+  "create-member", "update-member", "delete-member",
+  "create-member-group", "delete-member-group",
 ];
 
 const ALL_TOOLS = [...READ_TOOLS, ...WRITE_TOOLS];

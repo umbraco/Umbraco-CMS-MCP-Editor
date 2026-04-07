@@ -29,6 +29,9 @@ const ALL_TOOLS = [
   "report-site-tree-summary", "report-orphan-pages", "report-deep-pages",
   "report-unused-media", "report-large-media", "report-content-references",
   "bulk-publish", "bulk-unpublish", "bulk-schedule-publish", "bulk-set-property", "bulk-move",
+  "search-members", "get-member", "list-member-types", "create-member", "update-member", "delete-member",
+  "list-member-groups", "create-member-group", "delete-member-group",
+  "report-member-count", "report-members-by-group", "report-member-activity",
 ];
 
 test.describe("Elicitation over Streamable HTTP", () => {
