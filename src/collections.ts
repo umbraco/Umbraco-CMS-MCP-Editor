@@ -37,6 +37,8 @@ import bulkOperationsCollection from "./umbraco-api/tools/bulk-operations/index.
 import memberCollection from "./umbraco-api/tools/member/index.js";
 import memberGroupCollection from "./umbraco-api/tools/member-group/index.js";
 import memberReportingCollection from "./umbraco-api/tools/member-reporting/index.js";
+import schedulingCollection from "./umbraco-api/tools/scheduling/index.js";
+import redirectCollection from "./umbraco-api/tools/redirect/index.js";
 
 export const collections = [
   contentCollection,
@@ -57,6 +59,8 @@ export const collections = [
   memberCollection,
   memberGroupCollection,
   memberReportingCollection,
+  schedulingCollection,
+  redirectCollection,
 ];
 
 export { allModes, allModeNames } from "./config/mode-registry.js";
