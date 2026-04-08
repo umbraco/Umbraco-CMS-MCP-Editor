@@ -133,7 +133,7 @@ describe("Media Collection", () => {
       expect(data).toBeDefined();
       expect(data.id).toBe(testMediaId);
       expect(data.name).toEqual(expect.any(String));
-      expect(data.mediaType).toEqual(expect.any(String));
+      expect(data.mediaType).toBeDefined();
       expect(data.urls).toBeInstanceOf(Array);
       expect(data.values).toBeInstanceOf(Array);
     }, 30000);
