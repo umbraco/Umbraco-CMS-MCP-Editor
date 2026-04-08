@@ -1,9 +1,10 @@
 /**
- * Content Health and Reporting Workflow Eval Tests
+ * Scheduling and Redirect Workflow Eval Tests
  *
- * These tests cover SEO auditing, content quality checks, stale content
- * reporting, site structure analysis, media health, and translation coverage.
- * All tests are read-only and are safe to run sequentially.
+ * These tests cover scheduled publishing (checking publish status, listing
+ * scheduled content, scheduling a page, and cancelling schedules) and URL
+ * redirect management (listing redirects, fetching a single redirect, deleting
+ * a redirect, and checking redirect tracking status).
  *
  * Write operations use elicitation which is auto-accepted by the eval runner.
  */
@@ -118,97 +119,71 @@ const allTools = [
   "get-redirect-status",
 ];
 
-describe("Content Health and Reporting Workflows", () => {
+describe("Scheduling and Redirect Workflows", () => {
   setupConsoleMock();
 
   const timeout = getDefaultTimeoutMs();
 
   it(
-    "editor asks for SEO audit",
+    "check publish status",
     runScenarioTest({
       prompt:
-        "Audit the homepage's SEO health — check its title, meta description, headings, and images. First find the homepage with search-content or list-children.",
+        "Use get-publish-status to check the publish state of the homepage. First find the homepage with list-children.",
       tools: allTools,
-      requiredTools: ["audit-page-seo"],
-      successPattern: /seo|title|meta|heading|image|audit/i,
+      requiredTools: ["get-publish-status"],
+      successPattern: /publish|state|status|schedule|variant/i,
       verbose: true,
     }),
     timeout
   );
 
   it(
-    "editor checks content alignment",
+    "list scheduled content",
     runScenarioTest({
       prompt:
-        "Does the homepage meta description match its actual content? Use audit-page-content to check. First find the homepage.",
+        "Use list-scheduled-content to find pages with pending scheduled publish dates.",
+      tools: ["list-scheduled-content", "list-children"],
+      requiredTools: ["list-scheduled-content"],
+      successPattern: /scheduled|publish|pending|none|found/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "schedule a page",
+    runScenarioTest({
+      prompt:
+        "Schedule the homepage to publish on 2099-01-01T09:00:00Z. First find the homepage with list-children.",
       tools: allTools,
-      requiredTools: ["audit-page-content"],
-      successPattern: /meta|content|description|match|align/i,
+      requiredTools: ["schedule-publish"],
+      successPattern: /schedule|publish|confirm|2099/i,
       verbose: true,
     }),
     timeout
   );
 
   it(
-    "editor finds stale content",
+    "list redirects",
     runScenarioTest({
       prompt:
-        "Use report-stale-content to find pages not updated in 180 days.",
-      tools: ["report-stale-content", "list-children"],
-      requiredTools: ["report-stale-content"],
-      successPattern: /stale|updated|day|page/i,
+        "What URL redirects are configured on the site? Use list-redirects.",
+      tools: ["list-redirects", "get-redirect-status"],
+      requiredTools: ["list-redirects"],
+      successPattern: /redirect|url|none|found/i,
       verbose: true,
     }),
     timeout
   );
 
   it(
-    "editor views site structure",
+    "check redirect tracking",
     runScenarioTest({
       prompt:
-        "Use report-site-tree-summary to show me the site structure with page counts per level.",
-      tools: ["report-site-tree-summary", "list-children"],
-      requiredTools: ["report-site-tree-summary"],
-      successPattern: /tree|site|structure|level|page/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
-    "editor checks media alt text",
-    runScenarioTest({
-      prompt:
-        "Use report-media-missing-alt to scan the media library for images without alt text.",
-      tools: ["report-media-missing-alt", "list-media-children"],
-      requiredTools: ["report-media-missing-alt"],
-      successPattern: /alt|image|media|accessibility|missing/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
-    "editor finds unused media",
-    runScenarioTest({
-      prompt:
-        "Use report-unused-media to find media items not used by any content page.",
-      tools: ["report-unused-media", "list-media-children"],
-      requiredTools: ["report-unused-media"],
-      successPattern: /unused|media|referenced|storage/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
-    "editor checks translation coverage",
-    runScenarioTest({
-      prompt:
-        "Use report-translation-coverage to see which pages have which language variants.",
-      tools: ["report-translation-coverage", "list-languages"],
-      requiredTools: ["report-translation-coverage"],
-      successPattern: /translation|coverage|language|variant/i,
+        "Is URL redirect tracking enabled? Use get-redirect-status.",
+      tools: ["get-redirect-status"],
+      requiredTools: ["get-redirect-status"],
+      successPattern: /redirect|tracking|enabled|disabled/i,
       verbose: true,
     }),
     timeout

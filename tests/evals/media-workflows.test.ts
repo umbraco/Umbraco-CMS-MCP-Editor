@@ -106,6 +106,16 @@ const allTools = [
   "report-member-count",
   "report-members-by-group",
   "report-member-activity",
+  // Scheduling
+  "get-publish-status",
+  "list-scheduled-content",
+  "schedule-publish",
+  "cancel-schedule",
+  // Redirects
+  "list-redirects",
+  "get-redirect",
+  "delete-redirect",
+  "get-redirect-status",
 ];
 
 describe("Media and Blueprint Workflows", () => {
