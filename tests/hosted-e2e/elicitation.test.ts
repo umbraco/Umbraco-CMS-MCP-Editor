@@ -32,6 +32,8 @@ const ALL_TOOLS = [
   "search-members", "get-member", "list-member-types", "create-member", "update-member", "delete-member",
   "list-member-groups", "create-member-group", "delete-member-group",
   "report-member-count", "report-members-by-group", "report-member-activity",
+  "get-publish-status", "list-scheduled-content", "schedule-publish", "cancel-schedule",
+  "list-redirects", "get-redirect", "delete-redirect", "get-redirect-status",
 ];
 
 test.describe("Elicitation over Streamable HTTP", () => {

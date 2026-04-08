@@ -39,6 +39,8 @@ const READ_TOOLS = [
   "search-members", "get-member", "list-member-types",
   "list-member-groups",
   "report-member-count", "report-members-by-group", "report-member-activity",
+  "get-publish-status", "list-scheduled-content",
+  "list-redirects", "get-redirect", "get-redirect-status",
 ];
 
 const WRITE_TOOLS = [
@@ -52,6 +54,8 @@ const WRITE_TOOLS = [
   "bulk-publish", "bulk-unpublish", "bulk-schedule-publish", "bulk-set-property", "bulk-move",
   "create-member", "update-member", "delete-member",
   "create-member-group", "delete-member-group",
+  "schedule-publish", "cancel-schedule",
+  "delete-redirect",
 ];
 
 const ALL_TOOLS = [...READ_TOOLS, ...WRITE_TOOLS];
