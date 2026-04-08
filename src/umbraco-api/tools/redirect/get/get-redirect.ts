@@ -17,7 +17,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "get-redirect",
-  description: "View the full details of a URL redirect including when it was created and whether it was automatic.",
+  description: "View the full details of a URL redirect including when it was created and whether it was automatic. Use list-redirects to find redirect IDs.",
   inputSchema,
   outputSchema,
   slices: ["read"],

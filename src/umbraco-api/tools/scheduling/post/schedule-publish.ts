@@ -21,7 +21,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   inputSchema,
   outputSchema,
   slices: ["publish"],
-  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   handler: async ({ id, publishDate, culture }, extra) => {
     const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
     if (docResult.isError) return createToolResultError(docResult);

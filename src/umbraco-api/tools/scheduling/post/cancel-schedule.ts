@@ -19,7 +19,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   inputSchema,
   outputSchema,
   slices: ["publish"],
-  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   handler: async ({ id, culture }, extra) => {
     const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
     if (docResult.isError) return createToolResultError(docResult);
@@ -38,7 +38,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     const hasSchedule = variants.some((v: any) => {
       if (culture && v.culture !== culture) return false;
-      return v.scheduledPublishDate !== null && v.scheduledPublishDate !== undefined;
+      return (v.scheduledPublishDate != null) || (v.scheduledUnpublishDate != null);
     });
 
     if (!hasSchedule) {

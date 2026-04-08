@@ -26,7 +26,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "list-scheduled-content",
-  description: "Find pages with pending scheduled publish or unpublish dates. Scans direct children of a parent (or root). Use parentId to check specific sections of the site.",
+  description: "Find pages with pending scheduled publish or unpublish dates. Scans up to 100 pages in direct children of a parent (or root). Use parentId to scope to a specific section for larger sites.",
   inputSchema,
   outputSchema,
   slices: ["read"],
