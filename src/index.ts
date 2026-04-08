@@ -40,17 +40,9 @@ import memberCollection from "./umbraco-api/tools/member/index.js";
 import memberGroupCollection from "./umbraco-api/tools/member-group/index.js";
 import memberReportingCollection from "./umbraco-api/tools/member-reporting/index.js";
 
-// Import MCP client manager (for chaining to other MCP servers)
+// Import MCP client manager (servers registered at import time via mcp-client.ts)
 import { mcpClientManager } from "./umbraco-api/mcp-client.js";
-
-// Import server reference setter (for tools that need server-level capabilities)
-
-
-// Import MCP server chain configuration and register servers
 import { mcpServers } from "./config/mcp-servers.js";
-for (const config of mcpServers) {
-  mcpClientManager.registerServer(config);
-}
 
 // Import registries for tool filtering
 import { allModes, allModeNames, allSliceNames, loadServerConfig, clearConfigCache } from "./config/index.js";
