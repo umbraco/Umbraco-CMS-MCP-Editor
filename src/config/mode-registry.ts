@@ -84,6 +84,18 @@ export const toolModes: ToolModeDefinition[] = [
     description: 'Manage members, member groups, and member reporting',
     collections: ['member', 'member-group', 'member-reporting']
   },
+  {
+    name: 'scheduling',
+    displayName: 'Scheduling',
+    description: 'View and manage scheduled content publishing',
+    collections: ['scheduling']
+  },
+  {
+    name: 'redirects',
+    displayName: 'Redirects',
+    description: 'View and manage URL redirects',
+    collections: ['redirect']
+  },
 ];
 
 /**
