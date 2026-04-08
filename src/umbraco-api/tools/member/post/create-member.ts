@@ -8,7 +8,8 @@ const inputSchema = {
   name: z.string().describe("The display name for the new member"),
   password: z.string().describe("The initial password for the new member"),
   memberTypeId: z.string().uuid().describe("The ID of the member type. Call list-member-types first to find a valid ID."),
-  groups: z.array(z.string()).optional().describe("Member group names to assign (use names from list-member-groups, e.g. 'Premium Members')"),
+  isApproved: z.boolean().optional().default(true).describe("Whether the member account is approved immediately (default true)"),
+  groups: z.array(z.string().uuid()).optional().describe("Member group IDs to assign. Use list-member-groups to find group IDs."),
   values: z.array(z.object({
     alias: z.string().describe("The property alias"),
     value: z.any().describe("The property value"),
@@ -24,37 +25,38 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "create-member",
-  description: "Create a new member account. Call list-member-types to find a valid member type ID and list-member-groups to see available groups. You will be asked to confirm.",
+  description: "Create a new member account. Call list-member-types to find a valid member type ID and list-member-groups to find group IDs. You will be asked to confirm.",
   inputSchema,
   outputSchema,
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-  handler: async ({ email, username, name, password, memberTypeId, groups, values }, extra) => {
-    // Elicit confirmation
+  handler: async ({ email, username, name, password, memberTypeId, isApproved, groups, values }, extra) => {
     if (!await confirmAction(extra, `Create member "${name}" (${email})?`, { title: "Confirm create member" })) {
       return createToolResult({ message: "Create cancelled", id: "", name, email });
     }
 
-    // Delegate to CMS MCP
-    const createArgs: Record<string, unknown> = {
+    const result = await mcpClientManager.callTool("cms", "create-member", {
       email,
       username,
-      name,
       password,
       memberType: { id: memberTypeId },
-    };
-    if (groups !== undefined) createArgs.groups = groups;
-    if (values !== undefined) createArgs.values = values;
+      isApproved: isApproved ?? true,
+      variants: [{ culture: null, segment: null, name }],
+      values: (values ?? []).map(v => ({
+        alias: v.alias,
+        value: v.value,
+        culture: null,
+        segment: null,
+      })),
+      groups: groups ?? null,
+    });
 
-    const createResult = await mcpClientManager.callTool("cms", "create-member", createArgs);
-    if (createResult.isError) return createToolResultError(createResult);
-
-    const created = extractChainedResult(createResult);
-    const createdId = created?.id ?? "";
+    if (result.isError) return createToolResultError(result);
+    const created = extractChainedResult(result);
 
     return createToolResult({
       message: `Created member "${name}" (${email})`,
-      id: createdId,
+      id: created?.id ?? "",
       name,
       email,
     });

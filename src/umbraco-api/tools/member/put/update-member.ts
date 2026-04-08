@@ -8,7 +8,7 @@ const inputSchema = {
   email: z.string().email().optional().describe("The new email address for the member"),
   isApproved: z.boolean().optional().describe("Whether the member account is approved"),
   isLockedOut: z.boolean().optional().describe("Whether the member account is locked out"),
-  groups: z.array(z.string()).optional().describe("Member group names to assign — replaces existing groups (use names from list-member-groups)"),
+  groups: z.array(z.string().uuid()).optional().describe("Member group IDs to assign — replaces existing groups (use list-member-groups to find IDs)"),
   values: z.array(z.object({
     alias: z.string().describe("The property alias"),
     value: z.any().describe("The new property value"),
