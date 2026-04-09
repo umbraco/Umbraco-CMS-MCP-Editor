@@ -1,11 +1,9 @@
 /**
- * Content Health and Reporting Workflow Eval Tests
+ * Relationships Workflow Eval Tests
  *
- * These tests cover SEO auditing, content quality checks, stale content
- * reporting, site structure analysis, media health, and translation coverage.
- * All tests are read-only and are safe to run sequentially.
- *
- * Write operations use elicitation which is auto-accepted by the eval runner.
+ * Tests covering content relationship discovery, outbound link analysis,
+ * bidirectional relationship mapping, and external URL inventory.
+ * All tests are read-only.
  */
 
 import { describe, it } from "@jest/globals";
@@ -96,7 +94,6 @@ const allTools = [
   "bulk-schedule-publish",
   "bulk-set-property",
   "bulk-move",
-  "bulk-set-block-property",
   // Members
   "search-members",
   "get-member",
@@ -124,97 +121,71 @@ const allTools = [
   "get-redirect-status",
 ];
 
-describe("Content Health and Reporting Workflows", () => {
+describe("Relationships Workflows", () => {
   setupConsoleMock();
 
   const timeout = getDefaultTimeoutMs();
 
   it(
-    "editor asks for SEO audit",
+    "editor views outbound links from a page",
     runScenarioTest({
       prompt:
-        "Audit the homepage's SEO health — check its title, meta description, headings, and images. First find the homepage with search-content or list-children.",
+        "Find the homepage using search-content or list-children, then use report-outbound-links to see what it links to — internal pages, media, and external URLs.",
       tools: allTools,
-      requiredTools: ["audit-page-seo"],
-      successPattern: /seo|title|meta|heading|image|audit/i,
+      requiredTools: ["report-outbound-links"],
+      successPattern: /link|reference|media|external|internal|outbound/i,
       verbose: true,
     }),
     timeout
   );
 
   it(
-    "editor checks content alignment",
+    "editor checks which content is most referenced",
     runScenarioTest({
       prompt:
-        "Does the homepage meta description match its actual content? Use audit-page-content to check. First find the homepage.",
+        "Use report-most-referenced to find the most-referenced content pages on the site. Show me which pages are referenced the most.",
       tools: allTools,
-      requiredTools: ["audit-page-content"],
-      successPattern: /meta|content|description|match|align/i,
+      requiredTools: ["report-most-referenced"],
+      successPattern: /reference|referenced|count|most|critical/i,
       verbose: true,
     }),
     timeout
   );
 
   it(
-    "editor finds stale content",
+    "editor maps all relationships for a page",
     runScenarioTest({
       prompt:
-        "Use report-stale-content to find pages not updated in 180 days.",
-      tools: ["report-stale-content", "list-children"],
-      requiredTools: ["report-stale-content"],
-      successPattern: /stale|updated|day|page/i,
+        "Find the homepage, then use report-relationship-map to show me everything that references it and everything it references.",
+      tools: allTools,
+      requiredTools: ["report-relationship-map"],
+      successPattern: /inbound|outbound|relationship|connection|reference/i,
       verbose: true,
     }),
     timeout
   );
 
   it(
-    "editor views site structure",
+    "editor audits external links across the site",
     runScenarioTest({
       prompt:
-        "Use report-site-tree-summary to show me the site structure with page counts per level.",
-      tools: ["report-site-tree-summary", "list-children"],
-      requiredTools: ["report-site-tree-summary"],
-      successPattern: /tree|site|structure|level|page/i,
+        "Use report-external-links to inventory all external URLs across the site. Group them by domain.",
+      tools: allTools,
+      requiredTools: ["report-external-links"],
+      successPattern: /external|domain|url|link|inventory/i,
       verbose: true,
     }),
     timeout
   );
 
   it(
-    "editor checks media alt text",
+    "editor checks impact before deleting a media item",
     runScenarioTest({
       prompt:
-        "Use report-media-missing-alt to scan the media library for images without alt text.",
-      tools: ["report-media-missing-alt", "list-media-children"],
-      requiredTools: ["report-media-missing-alt"],
-      successPattern: /alt|image|media|accessibility|missing/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
-    "editor finds unused media",
-    runScenarioTest({
-      prompt:
-        "Use report-unused-media to find media items not used by any content page.",
-      tools: ["report-unused-media", "list-media-children"],
-      requiredTools: ["report-unused-media"],
-      successPattern: /unused|media|referenced|storage/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
-    "editor checks translation coverage",
-    runScenarioTest({
-      prompt:
-        "Use report-translation-coverage to see which pages have which language variants.",
-      tools: ["report-translation-coverage", "list-languages"],
-      requiredTools: ["report-translation-coverage"],
-      successPattern: /translation|coverage|language|variant/i,
+        "I want to delete a media item. First use list-media-children to find a media item, then use report-content-references with type 'media' to check if anything references it. Tell me if it's safe to delete.",
+      tools: allTools,
+      requiredTools: ["report-content-references"],
+      successPattern: /reference|safe|delete|used|referenced/i,
       verbose: true,
     }),
     timeout
