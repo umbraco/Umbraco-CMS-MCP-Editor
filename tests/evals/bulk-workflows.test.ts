@@ -90,6 +90,7 @@ const allTools = [
   "bulk-schedule-publish",
   "bulk-set-property",
   "bulk-move",
+  "bulk-set-block-property",
   // Members
   "search-members",
   "get-member",
@@ -182,6 +183,19 @@ describe("Bulk Operation Workflows", () => {
       tools: allTools,
       requiredTools: ["bulk-move"],
       successPattern: /move|bulk|page|confirm|attempted/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "editor bulk updates block properties across pages",
+    runScenarioTest({
+      prompt:
+        "Use list-children to find root pages. Then use inspect-blocks on the first page to discover its block types and property aliases. Then use bulk-set-block-property to update a property on all blocks of that type on the first page. Use the same value that's already there if you need to — the goal is to exercise the tool.",
+      tools: allTools,
+      requiredTools: ["inspect-blocks", "bulk-set-block-property"],
+      successPattern: /block|update|bulk|confirm/i,
       verbose: true,
     }),
     timeout

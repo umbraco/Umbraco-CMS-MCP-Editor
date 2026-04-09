@@ -90,6 +90,7 @@ const allTools = [
   "bulk-schedule-publish",
   "bulk-set-property",
   "bulk-move",
+  "bulk-set-block-property",
   // Members
   "search-members",
   "get-member",
