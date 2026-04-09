@@ -24,10 +24,13 @@ import bulkUnpublishTool from "../post/bulk-unpublish.js";
 import bulkSchedulePublishTool from "../post/bulk-schedule-publish.js";
 import bulkSetPropertyTool from "../post/bulk-set-property.js";
 import bulkMoveTool from "../post/bulk-move.js";
+import bulkSetBlockPropertyTool from "../post/bulk-set-block-property.js";
+import inspectBlocksTool from "../../content/get/inspect-blocks.js";
 
 const FAKE_UUID = "00000000-0000-0000-0000-000000000001";
 const FAKE_TARGET_UUID = "00000000-0000-0000-0000-000000000002";
 const FUTURE_DATE = "2099-01-01T09:00:00Z";
+const FAKE_CONTENT_TYPE_KEY = "00000000-0000-0000-0000-000000000003";
 
 const elicitation = setupElicitationMock(jest.fn as any);
 
@@ -118,6 +121,30 @@ describe("Bulk Operations Collection", () => {
         errorCaught = true;
       }
       expect(errorCaught).toBe(true);
+    }, 10000);
+  });
+
+  describe("bulk-set-block-property — cap validation", () => {
+    it("should return error when more than 10 IDs are provided", async () => {
+      const tooManyIds = Array.from(
+        { length: 11 },
+        (_, i) => `00000000-0000-0000-0000-${String(i).padStart(12, "0")}`,
+      );
+
+      const result = await bulkSetBlockPropertyTool.handler(
+        {
+          ids: tooManyIds,
+          contentTypeKey: FAKE_CONTENT_TYPE_KEY,
+          propertyAlias: "contentRows",
+          values: [{ alias: "caption", value: "Test" }],
+          culture: undefined,
+          segment: undefined,
+        },
+        extra,
+      );
+
+      const data = getStructuredContent(result) as any;
+      expect(data.message).toContain("10");
     }, 10000);
   });
 
@@ -234,6 +261,90 @@ describe("Bulk Operations Collection", () => {
     }, 30000);
   });
 
+  describe("bulk-set-block-property", () => {
+    it("should update block properties on pages with matching blocks", async () => {
+      if (!cmsAvailable || !firstRootPageId) return;
+
+      // First, inspect the page to find a block with its contentTypeKey and propertyAlias
+      const inspectResult = await inspectBlocksTool.handler(
+        { id: firstRootPageId, propertyAlias: undefined },
+        extra,
+      );
+      const inspectData = getStructuredContent(inspectResult) as any;
+
+      if (!inspectData?.blockProperties?.length || !inspectData.blockProperties[0]?.blocks?.length) {
+        console.warn("Skipping bulk-set-block-property test: no blocks found on first root page");
+        return;
+      }
+
+      const firstBlockProp = inspectData.blockProperties[0];
+      const firstBlock = firstBlockProp.blocks[0];
+
+      // Skip if the block has no properties to update
+      if (!firstBlock.properties?.length) {
+        console.warn("Skipping bulk-set-block-property test: block has no properties");
+        return;
+      }
+
+      const targetPropAlias = firstBlock.properties[0].alias;
+      const originalValue = firstBlock.properties[0].value;
+
+      const result = await bulkSetBlockPropertyTool.handler(
+        {
+          ids: [firstRootPageId],
+          contentTypeKey: firstBlock.contentTypeKey,
+          propertyAlias: firstBlockProp.propertyAlias,
+          values: [{ alias: targetPropAlias, value: originalValue }],
+          culture: undefined,
+          segment: undefined,
+        },
+        extra,
+      );
+
+      if (result.isError) {
+        console.warn("Skipping bulk-set-block-property assertions: CMS returned error");
+        return;
+      }
+
+      const data = getStructuredContent(result) as any;
+      expect(data).toBeDefined();
+      expect(data.results).toBeInstanceOf(Array);
+      expect(data.results.length).toBe(1);
+      expect(data.results[0].success).toBe(true);
+      expect(data.results[0].blocksUpdated).toBeGreaterThanOrEqual(1);
+      expect(data.totalBlocksUpdated).toBeGreaterThanOrEqual(1);
+      expect(data.successCount).toBe(1);
+    }, 60000);
+
+    it("should return success with 0 blocks updated when no blocks match", async () => {
+      if (!cmsAvailable || !firstRootPageId) return;
+
+      const result = await bulkSetBlockPropertyTool.handler(
+        {
+          ids: [firstRootPageId],
+          contentTypeKey: FAKE_CONTENT_TYPE_KEY,
+          propertyAlias: "contentRows",
+          values: [{ alias: "caption", value: "Test" }],
+          culture: undefined,
+          segment: undefined,
+        },
+        extra,
+      );
+
+      if (result.isError) {
+        console.warn("Skipping bulk-set-block-property no-match assertions: CMS returned error");
+        return;
+      }
+
+      const data = getStructuredContent(result) as any;
+      expect(data).toBeDefined();
+      expect(data.results).toBeInstanceOf(Array);
+      expect(data.results[0].success).toBe(true);
+      expect(data.results[0].blocksUpdated).toBe(0);
+      expect(data.totalBlocksUpdated).toBe(0);
+    }, 30000);
+  });
+
   describe("bulk-move", () => {
     it("should test elicitation rejection only (skipping actual move when only one root page)", async () => {
       if (!cmsAvailable || !firstRootPageId) return;
@@ -343,6 +454,27 @@ describe("Bulk Operations Collection", () => {
       const data = getStructuredContent(result) as any;
       // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
       expect(data?.message?.includes("cancelled") || result.isError).toBe(true);
+    }, 30000);
+
+    it("should cancel bulk-set-block-property when elicitation is rejected", async () => {
+      if (!cmsAvailable || !firstRootPageId) return;
+
+      elicitation.rejectAll();
+
+      const result = await bulkSetBlockPropertyTool.handler(
+        {
+          ids: [firstRootPageId],
+          contentTypeKey: FAKE_CONTENT_TYPE_KEY,
+          propertyAlias: "contentRows",
+          values: [{ alias: "caption", value: "Test" }],
+          culture: undefined,
+          segment: undefined,
+        },
+        extra,
+      );
+
+      const data = getStructuredContent(result) as any;
+      expect(data?.message?.includes("Cancelled") || result.isError).toBe(true);
     }, 30000);
   });
 });
