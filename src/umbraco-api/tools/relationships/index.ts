@@ -3,6 +3,7 @@ import reportContentReferencesTool from "./get/report-content-references.js";
 import reportOrphanPagesTool from "./get/report-orphan-pages.js";
 import reportUnusedMediaTool from "./get/report-unused-media.js";
 import reportOutboundLinksTool from "./get/report-outbound-links.js";
+import reportMostReferencedTool from "./get/report-most-referenced.js";
 
 const collection: ToolCollectionExport = {
   metadata: {
@@ -15,6 +16,7 @@ const collection: ToolCollectionExport = {
     reportOrphanPagesTool,
     reportUnusedMediaTool,
     reportOutboundLinksTool,
+    reportMostReferencedTool,
   ],
 };
 
