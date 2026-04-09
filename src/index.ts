@@ -41,6 +41,7 @@ import memberGroupCollection from "./umbraco-api/tools/member-group/index.js";
 import memberReportingCollection from "./umbraco-api/tools/member-reporting/index.js";
 import schedulingCollection from "./umbraco-api/tools/scheduling/index.js";
 import redirectCollection from "./umbraco-api/tools/redirect/index.js";
+import relationshipsCollection from "./umbraco-api/tools/relationships/index.js";
 
 // Import MCP client manager (servers registered at import time via mcp-client.ts)
 import { mcpClientManager } from "./umbraco-api/mcp-client.js";
@@ -109,6 +110,7 @@ const collections: ToolCollectionExport[] = [
   memberReportingCollection,
   schedulingCollection,
   redirectCollection,
+  relationshipsCollection,
 ];
 let registeredToolCount = 0;
 

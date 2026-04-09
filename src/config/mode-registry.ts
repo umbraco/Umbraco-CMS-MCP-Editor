@@ -96,6 +96,12 @@ export const toolModes: ToolModeDefinition[] = [
     description: 'View and manage URL redirects',
     collections: ['redirect']
   },
+  {
+    name: 'relationships',
+    displayName: 'Content Relationships',
+    description: 'View inbound/outbound references, relationship mapping, and external link inventory',
+    collections: ['relationships']
+  },
 ];
 
 /**

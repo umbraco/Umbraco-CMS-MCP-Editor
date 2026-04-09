@@ -18,7 +18,7 @@ import {
 } from "@umbraco-cms/mcp-server-sdk/testing";
 
 import reportSiteTreeSummaryTool from "../get/report-site-tree-summary.js";
-import reportOrphanPagesTool from "../get/report-orphan-pages.js";
+import reportOrphanPagesTool from "../../relationships/get/report-orphan-pages.js";
 import reportDeepPagesTool from "../get/report-deep-pages.js";
 
 const elicitation = setupElicitationMock(jest.fn as any);

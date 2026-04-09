@@ -17,9 +17,9 @@ import {
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
 
-import reportUnusedMediaTool from "../get/report-unused-media.js";
+import reportUnusedMediaTool from "../../relationships/get/report-unused-media.js";
 import reportLargeMediaTool from "../get/report-large-media.js";
-import reportContentReferencesTool from "../get/report-content-references.js";
+import reportContentReferencesTool from "../../relationships/get/report-content-references.js";
 import listChildrenTool from "../../content/get/list-children.js";
 import listMediaChildrenTool from "../../media/get/list-media-children.js";
 
