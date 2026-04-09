@@ -50,7 +50,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     return createToolResult({
       id: media.id,
       name: media.variants?.[0]?.name ?? media.name ?? "Unknown",
-      mediaType: media.mediaType?.alias ?? media.mediaType ?? "",
+      mediaType: typeof media.mediaType === "string"
+        ? media.mediaType
+        : (media.mediaType?.alias ?? media.mediaType?.name ?? ""),
       urls,
       values: media.values ?? [],
       variants: media.variants ?? [],

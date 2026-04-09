@@ -1,11 +1,8 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, confirmAction, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
 import {
   validateBulkIds,
-  fetchBulkItemDetails,
-  buildBulkOutput,
-  type BulkOperationOutput,
   type BulkItemDetail,
 } from "../../helpers/bulk-handler.js";
 
@@ -92,8 +89,26 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const validationError = validateBulkIds(ids);
     if (validationError) return createToolResult({ ...validationError, totalBlocksUpdated: 0 } as any);
 
-    // 2. Fetch details + find matching blocks per page
-    const items = await fetchBulkItemDetails(ids);
+    // 2. Fetch details + find matching blocks per page (single fetch per document)
+    const items: BulkItemDetail[] = [];
+    const pageBlocks = new Map<string, BlockMatch[]>();
+
+    for (const id of ids) {
+      const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
+      if (docResult.isError) continue;
+      const doc = extractChainedResult(docResult);
+      const name = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
+
+      const versionResult = await mcpClientManager.callTool("cms", "get-document-version", {
+        documentId: id, take: 1, skip: 0,
+      });
+      const versionData = versionResult.isError ? null : extractChainedResult(versionResult);
+      const currentVersionId = versionData?.items?.[0]?.id ?? "";
+
+      items.push({ id, name, currentVersionId });
+      pageBlocks.set(id, findMatchingBlocks(doc, propertyAlias, contentTypeKey));
+    }
+
     if (items.length === 0) {
       return createToolResult({
         message: "Could not fetch page details",
@@ -103,18 +118,6 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         skippedCount: 0,
         totalBlocksUpdated: 0,
       });
-    }
-
-    // Inspect each page for matching blocks
-    const pageBlocks = new Map<string, BlockMatch[]>();
-    for (const item of items) {
-      const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: item.id });
-      if (docResult.isError) {
-        pageBlocks.set(item.id, []);
-        continue;
-      }
-      const doc = extractChainedResult(docResult);
-      pageBlocks.set(item.id, findMatchingBlocks(doc, propertyAlias, contentTypeKey));
     }
 
     const totalBlocks = Array.from(pageBlocks.values()).reduce((sum, blocks) => sum + blocks.length, 0);
