@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
-import { extractLinksFromValues } from "../../helpers/link-extractor.js";
+import { extractLinksFromValues, resolveOutboundIds } from "../../helpers/link-extractor.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to map relationships for"),
@@ -90,46 +90,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // Outbound references
     const values: any[] = doc.values ?? [];
     const links = extractLinksFromValues(values);
-
-    const internalPages: { id: string; name: string; url: string; documentType: string }[] = [];
-    const media: { id: string; name: string; mediaType: string }[] = [];
-
-    const candidateIds = links.contentIds.filter((cid) => cid !== id.toLowerCase());
-
-    await Promise.all(
-      candidateIds.map(async (refId) => {
-        try {
-          const docRes = await mcpClientManager.callTool("cms", "get-document-by-id", { id: refId });
-          if (!docRes.isError) {
-            const refDoc = extractChainedResult(docRes);
-            const refVariant = refDoc.variants?.[0] ?? {};
-            internalPages.push({
-              id: refId,
-              name: refVariant.name ?? refDoc.name ?? "Unknown",
-              url: refDoc.urls?.[0]?.url ?? "",
-              documentType: refDoc.documentType?.alias ?? "",
-            });
-            return;
-          }
-        } catch {
-          // Not a document
-        }
-
-        try {
-          const mediaRes = await mcpClientManager.callTool("cms", "get-media-by-id", { id: refId });
-          if (!mediaRes.isError) {
-            const refMedia = extractChainedResult(mediaRes);
-            media.push({
-              id: refId,
-              name: refMedia.variants?.[0]?.name ?? refMedia.name ?? "Unknown",
-              mediaType: refMedia.mediaType?.alias ?? refMedia.contentTypeAlias ?? "",
-            });
-          }
-        } catch {
-          // Neither document nor media
-        }
-      })
-    );
+    const { internalPages, media } = await resolveOutboundIds(links.allIds, id);
 
     return createToolResult({
       id,

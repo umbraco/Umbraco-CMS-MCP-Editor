@@ -5,14 +5,15 @@
  * Detects content/media picker UUIDs, rich text links, and external URLs.
  */
 
+import { mcpClientManager } from "../../mcp-client.js";
+import { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
+
 // UUID v4 pattern for detecting picker references
 const UUID_REGEX = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 
 export interface ExtractedLinks {
-  /** UUIDs of referenced content documents */
-  contentIds: string[];
-  /** UUIDs of referenced media items */
-  mediaIds: string[];
+  /** All UUIDs found in property values — may be content or media, callers resolve */
+  allIds: string[];
   /** External URLs found in content */
   externalUrls: { url: string; domain: string }[];
 }
@@ -260,10 +261,68 @@ export function extractLinksFromValues(values: any[]): ExtractedLinks {
 
   const externalUrls = Array.from(externalUrlMap.entries()).map(([url, domain]) => ({ url, domain }));
 
-  // We return all UUIDs as both contentIds and mediaIds — callers resolve which is which
   return {
-    contentIds: Array.from(allUuids),
-    mediaIds: [], // Populated by callers after resolution
+    allIds: Array.from(allUuids),
     externalUrls,
   };
+}
+
+export interface ResolvedOutboundLinks {
+  internalPages: { id: string; name: string; url: string; documentType: string }[];
+  media: { id: string; name: string; mediaType: string }[];
+}
+
+/**
+ * Resolve extracted UUID references into content pages and media items.
+ *
+ * Tries each UUID as a document first, then as media. Filters out the
+ * source page's own ID to avoid self-references.
+ */
+export async function resolveOutboundIds(
+  candidateIds: string[],
+  excludeId?: string,
+): Promise<ResolvedOutboundLinks> {
+  const internalPages: ResolvedOutboundLinks["internalPages"] = [];
+  const media: ResolvedOutboundLinks["media"] = [];
+
+  const filtered = excludeId
+    ? candidateIds.filter((cid) => cid !== excludeId.toLowerCase())
+    : candidateIds;
+
+  await Promise.all(
+    filtered.map(async (refId) => {
+      try {
+        const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: refId });
+        if (!docResult.isError) {
+          const refDoc = extractChainedResult(docResult);
+          const refVariant = refDoc.variants?.[0] ?? {};
+          internalPages.push({
+            id: refId,
+            name: refVariant.name ?? refDoc.name ?? "Unknown",
+            url: refDoc.urls?.[0]?.url ?? "",
+            documentType: refDoc.documentType?.alias ?? "",
+          });
+          return;
+        }
+      } catch {
+        // Not a document — try media
+      }
+
+      try {
+        const mediaResult = await mcpClientManager.callTool("cms", "get-media-by-id", { id: refId });
+        if (!mediaResult.isError) {
+          const refMedia = extractChainedResult(mediaResult);
+          media.push({
+            id: refId,
+            name: refMedia.variants?.[0]?.name ?? refMedia.name ?? "Unknown",
+            mediaType: refMedia.mediaType?.alias ?? refMedia.contentTypeAlias ?? "",
+          });
+        }
+      } catch {
+        // Neither document nor media — skip
+      }
+    })
+  );
+
+  return { internalPages, media };
 }
