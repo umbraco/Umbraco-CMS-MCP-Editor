@@ -1,7 +1,7 @@
 /**
  * Site Structure Collection Integration Tests
  *
- * Tests for report-site-tree-summary, report-orphan-pages, report-deep-pages.
+ * Tests for report-site-tree-summary and report-deep-pages.
  * Runs against a real Umbraco instance via the chained @umbraco-cms/mcp-dev MCP server.
  *
  * Prerequisites:
@@ -18,7 +18,6 @@ import {
 } from "@umbraco-cms/mcp-server-sdk/testing";
 
 import reportSiteTreeSummaryTool from "../get/report-site-tree-summary.js";
-import reportOrphanPagesTool from "../../relationships/get/report-orphan-pages.js";
 import reportDeepPagesTool from "../get/report-deep-pages.js";
 
 const elicitation = setupElicitationMock(jest.fn as any);
@@ -67,24 +66,6 @@ describe("Site Structure Collection", () => {
       expect(data.totalPages).toEqual(expect.any(Number));
       expect(data.pagesPerLevel).toBeDefined();
       expect(data.maxDepthFound).toEqual(expect.any(Number));
-    }, 30000);
-  });
-
-  describe("report-orphan-pages", () => {
-    it("should return structure with items array and scannedPages (may be empty)", async () => {
-      if (!cmsAvailable) return;
-
-      const result = await reportOrphanPagesTool.handler(
-        { parentId: undefined, take: 10, skip: 0 },
-        extra,
-      );
-
-      expect(result.isError).toBeFalsy();
-      const data = getStructuredContent(result) as any;
-      expect(data).toBeDefined();
-      expect(data.items).toBeInstanceOf(Array);
-      expect(data.total).toEqual(expect.any(Number));
-      expect(data.scannedPages).toEqual(expect.any(Number));
     }, 30000);
   });
 
