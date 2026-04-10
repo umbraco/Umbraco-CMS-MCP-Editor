@@ -76,18 +76,20 @@ const allTools = [
   "report-translation-coverage",
   // Site Structure
   "report-site-tree-summary",
-  "report-orphan-pages",
   "report-deep-pages",
   // Media Health
-  "report-unused-media",
   "report-large-media",
+  // Relationships
   "report-content-references",
+  "report-orphan-pages",
+  "report-outbound-links",
   // Bulk Operations
   "bulk-publish",
   "bulk-unpublish",
   "bulk-schedule-publish",
   "bulk-set-property",
   "bulk-move",
+  "bulk-set-block-property",
   // Members
   "search-members",
   "get-member",

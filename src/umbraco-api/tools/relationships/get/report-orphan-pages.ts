@@ -1,8 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { walkContentTree } from "../../helpers/tree-walker.js";
 import { mcpClientManager } from "../../../mcp-client.js";
-import { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 
 const inputSchema = {
   parentId: z.string().uuid().optional().describe("Scope to a subtree by parent page ID. Omit to scan root-level pages."),

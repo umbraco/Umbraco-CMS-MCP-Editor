@@ -1,10 +1,9 @@
 /**
- * Member Workflow Eval Tests
+ * Relationships Workflow Eval Tests
  *
- * These tests cover member search, profile viewing, creation, group listing,
- * member count reporting, and activity reporting.
- *
- * Write operations use elicitation which is auto-accepted by the eval runner.
+ * Tests covering content relationship discovery, outbound link analysis,
+ * bidirectional relationship mapping, and external URL inventory.
+ * All tests are read-only.
  */
 
 import { describe, it } from "@jest/globals";
@@ -91,7 +90,6 @@ const allTools = [
   "bulk-schedule-publish",
   "bulk-set-property",
   "bulk-move",
-  "bulk-set-block-property",
   // Members
   "search-members",
   "get-member",
@@ -119,83 +117,32 @@ const allTools = [
   "get-redirect-status",
 ];
 
-describe("Member Workflows", () => {
+describe("Relationships Workflows", () => {
   setupConsoleMock();
 
   const timeout = getDefaultTimeoutMs();
 
   it(
-    "find a member",
+    "editor views outbound links from a page",
     runScenarioTest({
       prompt:
-        "Use search-members to search for members matching 'admin' or 'test'.",
-      tools: ["search-members", "get-member"],
-      requiredTools: ["search-members"],
-      successPattern: /member|search|found|admin|test/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
-    "view member profile",
-    runScenarioTest({
-      prompt:
-        "Use search-members to find a member matching 'member'. If a result is found, use get-member to show their full profile details. If no members exist, report that the member list is empty.",
+        "Find the homepage using search-content or list-children, then use report-outbound-links to see what it links to — internal pages, media, and external URLs.",
       tools: allTools,
-      requiredTools: ["search-members"],
-      successPattern: /member|profile|email|group|empty|no member/i,
+      requiredTools: ["report-outbound-links"],
+      successPattern: /link|reference|media|external|internal|outbound/i,
       verbose: true,
     }),
     timeout
   );
 
   it(
-    "create member",
+    "editor checks impact before deleting a media item",
     runScenarioTest({
       prompt:
-        "Use list-member-types to find a valid member type, then use create-member to create a test member with email eval-test@example.com.",
+        "I want to delete a media item. First use list-media-children to find a media item, then use report-content-references with type 'media' to check if anything references it. Tell me if it's safe to delete.",
       tools: allTools,
-      requiredTools: ["create-member"],
-      successPattern: /member|created|confirm/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
-    "member count",
-    runScenarioTest({
-      prompt:
-        "Use report-member-count to show a breakdown of members by type and group.",
-      tools: ["report-member-count", "list-member-groups"],
-      requiredTools: ["report-member-count"],
-      successPattern: /member|count|type|group|total/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
-    "inactive members",
-    runScenarioTest({
-      prompt:
-        "Use report-member-activity with a 90 day threshold to find inactive members.",
-      tools: ["report-member-activity"],
-      requiredTools: ["report-member-activity"],
-      successPattern: /member|inactive|activity|login|day/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
-    "list groups",
-    runScenarioTest({
-      prompt: "What member groups are available?",
-      tools: ["list-member-groups"],
-      requiredTools: ["list-member-groups"],
-      successPattern: /group|member/i,
+      requiredTools: ["report-content-references"],
+      successPattern: /reference|safe|delete|used|referenced/i,
       verbose: true,
     }),
     timeout

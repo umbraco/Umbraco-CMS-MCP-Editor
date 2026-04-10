@@ -1,10 +1,16 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with the MCP server template.
+This file provides guidance to Claude Code (claude.ai/code) when working with the Umbraco Editor MCP server.
 
-## Template Overview
+## Project Overview
 
-Starter kit for creating new Umbraco MCP server projects. Copy this folder to start a new project. Not published to npm.
+MCP server that gives AI assistants editorial control over Umbraco CMS content. 75+ tools across 21 collections covering content editing, media management, publishing, translation, bulk operations, members, reporting, and more. Tools delegate to the Umbraco CMS via MCP chaining — this server wraps the lower-level CMS dev tools with editor-friendly interfaces, confirmations, and LLM-optimised responses.
+
+Runs as a local stdio MCP server or as a hosted Cloudflare Worker with OAuth.
+
+## Git Worktrees
+
+This project uses git worktrees for feature work. **Before making any file changes, verify you are in the correct worktree.** Check your current working directory matches the intended worktree path — do not accidentally edit files in the main worktree when you should be in a feature worktree, or vice versa.
 
 ## Commands
 
@@ -16,6 +22,7 @@ npm run inspect        # Run MCP inspector
 npm run test           # Unit tests only
 npm run test:evals     # LLM eval tests (requires Claude Code subscription or ANTHROPIC_API_KEY)
 npm run test:all       # Both unit and eval tests
+npm run test:e2e       # Playwright E2E tests for hosted worker
 ```
 
 **Single test:** `npm test -- --testPathPattern=src/path/__tests__/file.test.ts`
@@ -33,32 +40,59 @@ src/
 │   ├── tools/
 │   │   └── {collection-name}/
 │   │       ├── index.ts       # ToolCollectionExport
-│   │       ├── get/           # GET tools
-│   │       ├── post/          # POST tools
-│   │       ├── put/           # PUT tools
+│   │       ├── get/           # GET tools (read-only)
+│   │       ├── post/          # POST tools (create/action)
+│   │       ├── put/           # PUT tools (update)
 │   │       ├── delete/        # DELETE tools
 │   │       └── __tests__/     # Integration tests
-│   └── mcp-client.ts          # MCP chaining client instance
+│   ├── mcp-client.ts          # MCP chaining client (singleton)
+│   └── helpers/               # Shared helpers (bulk-handler, tree-walker)
 ├── config/
 │   ├── index.ts               # Exports all config
 │   ├── server-config.ts       # Custom config field definitions
-│   ├── slice-registry.ts      # Valid slice names
+│   ├── slice-registry.ts      # Valid slice names for tool filtering
 │   ├── mode-registry.ts       # Mode-to-collection mappings
 │   └── mcp-servers.ts         # Chained MCP server configs
-├── mocks/
-│   ├── server.ts              # MSW server setup
-│   ├── handlers.ts            # API mock handlers
-│   ├── store.ts               # In-memory mock data
-│   └── jest-setup.ts          # Test setup file
+├── worker.ts                  # Cloudflare Worker entry point (hosted deployment)
 ├── testing/                   # Test helpers specific to this project
-└── index.ts                   # Server entry point
+└── index.ts                   # Stdio server entry point
 tests/
 └── evals/
     ├── jest.config.ts         # Separate Jest config for evals
     ├── helpers/
     │   └── e2e-setup.ts       # configureEvals setup (loaded via setupFilesAfterEnv)
     └── *.test.ts              # LLM eval test files
+docs/
+├── specs/                     # Design specs for each phase
+└── plans/                     # Implementation plans for each phase
 ```
+
+## Architecture: MCP Chaining
+
+Tools in this server do **not** call the Umbraco API directly. They delegate to the `@umbraco-cms/mcp-dev` MCP server via chaining:
+
+```
+AI Client → Editor MCP (this server) → CMS Dev MCP (@umbraco-cms/mcp-dev) → Umbraco API
+```
+
+- `mcpClientManager.callTool("cms", "tool-name", { ... })` calls a chained CMS tool
+- `extractChainedResult(result)` unwraps the response
+- In stdio mode, the CMS server runs as a subprocess
+- In hosted mode (worker.ts), the CMS server runs in-process via a client factory
+
+## Tool Collections (21)
+
+| Domain | Collections |
+|--------|------------|
+| Content | `content`, `publishing`, `versioning` |
+| Media | `media`, `media-management`, `media-health` |
+| Structure | `blueprint`, `site-structure`, `tag`, `dictionary`, `redirect` |
+| Translation | `language`, `translation` |
+| Bulk | `bulk-operations` |
+| Members | `member`, `member-group`, `member-reporting` |
+| Health & Reporting | `content-health`, `content-reporting` |
+| Scheduling | `scheduling` |
+| Utilities | `helpers` (not exposed — shared code for bulk-handler, tree-walker) |
 
 ## Configuration
 
@@ -77,38 +111,55 @@ tests/
 
 Custom fields defined in `config/server-config.ts`.
 
-## Registries
+## Modes and Slices
 
-**slice-registry.ts** - Valid slice names for tool categorization:
-- Base slices: `create`, `read`, `update`, `delete`, `list`
-- Extended: `tree`, `search`, `publish`, `move`, `copy`, etc.
-- Tools with empty slices array are categorized as `other`
+**Modes** (`config/mode-registry.ts`) — named groups of collections users enable via `UMBRACO_TOOL_MODES`:
+- `content`, `media`, `blueprints`, `translation`, `tags`, `content-health`, `site-structure`, `media-health`, `bulk-operations`, `members`, `scheduling`, `redirects`
 
-**mode-registry.ts** - Named groups mapping to collections:
-- Example: `example` mode includes `example` collection
-- Users set `UMBRACO_TOOL_MODES=example,content` to enable groups
+**Slices** (`config/slice-registry.ts`) — operation-type categories for fine-grained filtering:
+- Base: `create`, `read`, `update`, `delete`, `list`
+- Extended: `tree`, `search`, `publish`, `version`, `move`
+- Tools with empty slices array are categorised as `other`
 
 ## Tool Conventions
 
 - One file per tool in operation-type subfolder (`get/`, `post/`, etc.)
 - Export default with `withStandardDecorators(tool)`
-- Use Zod schemas from Orval-generated `*.zod.ts` files
-- Set `slices` array for filtering categorization
+- Input/output schemas use Zod — hand-written for clarity, not generated
+- Use `mcpClientManager.callTool("cms", ...)` to call chained CMS tools
+- Use `extractChainedResult(result)` to unwrap chained responses
+- Use `confirmAction(extra, message, { title, defaultValue })` for write operations
+- Set `slices` array for filtering categorisation
 - Set `annotations` for MCP hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`)
+
+## Shared Helpers
+
+**`helpers/bulk-handler.ts`** — shared bulk operation infrastructure:
+- `validateBulkIds(ids)` — enforces 10-item cap
+- `fetchBulkItemDetails(ids)` — fetches page names and version IDs for confirmation/rollback
+- `executeBulkSequentially(items, fn)` — sequential fail-fast execution
+- `buildBulkOutput(verb, results)` — aggregates success/failure/skipped counts
+
+**Block detection** (used by inspect-blocks, edit-block, bulk-set-block-property):
+- `isBlockListOrGridValue(value)` — detects BlockList/BlockGrid content
+- `isRteWithBlocks(value)` — detects Rich Text with embedded blocks
+- `findMatchingBlocks(doc, propertyAlias, contentTypeKey)` — finds blocks by element type
 
 ## Testing
 
 **Integration tests (`__tests__/`):**
-- Run against the real Umbraco instance — no mocking
+- Run against a real Umbraco instance — no mocking
 - Require a running Umbraco instance with an API user configured (see below)
 - Call `setupTestEnvironment()` in describe block
-- Use builder pattern for test data (e.g., `ExampleBuilder`)
-- Test tool handlers directly
+- Use `setupElicitationMock(jest.fn)` for write operations
+- Use `getStructuredContent(result)` to extract typed output
+- CMS-dependent tests return early with `console.warn` if CMS unavailable
 
 **Eval tests (`tests/evals/`):**
 - LLM-based acceptance tests using Claude Agent SDK
 - Require Claude Code subscription or `ANTHROPIC_API_KEY`
 - Use `runScenarioTest` with prompt, tools, requiredTools, successPattern
+- Each eval file has an `allTools` array — new tools must be added to all eval files
 - Separate Jest config at `tests/evals/jest.config.ts`
 - Setup loaded automatically via `setupFilesAfterEnv` (no per-file import needed)
 - Run with `--runInBand` to avoid parallel API calls
@@ -128,23 +179,15 @@ Integration tests require an API user in Umbraco. **You must create this manuall
    UMBRACO_CLIENT_SECRET=1234567890
    ```
 
-## API Client
-
-Uses Orval to generate typed client from OpenAPI spec:
-1. Configure `orval.config.ts` with the Swagger URL
-2. Run `npm run generate`
-3. Client and Zod schemas generated to `src/umbraco-api/api/generated/`
-
-Always pass `CAPTURE_RAW_HTTP_RESPONSE` to API methods when using toolkit helpers.
-
 ## Hosted Worker (`src/worker.ts`)
 
-The template includes a Cloudflare Worker entry point for hosted deployment. Key configuration:
+Cloudflare Worker entry point for hosted deployment:
 
 - `McpAgent.serve("/mcp", { binding: "MCP_AGENT" })` — use `.serve()` for Streamable HTTP (NOT `.mount()` which is SSE)
+- CMS server registered as in-process (not subprocess) via client factory
+- OAuth via `@cloudflare/workers-oauth-provider`
 - `new_sqlite_classes` in `wrangler.toml` migrations (agents library requires SQLite-backed DOs)
 - `.dev.vars` — local secrets including `UMBRACO_SERVER_URL` for self-signed cert workaround
-- Umbraco needs the Worker registered as an authorization_code OpenIdDict client via a C# Composer (backoffice UI only supports client_credentials)
 
 Run locally: `npx wrangler dev --port 8787`
 Test with MCP Inspector in Direct mode: `http://localhost:8787/`

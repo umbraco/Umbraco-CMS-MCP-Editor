@@ -78,18 +78,20 @@ const allTools = [
   "report-translation-coverage",
   // Site Structure
   "report-site-tree-summary",
-  "report-orphan-pages",
   "report-deep-pages",
   // Media Health
-  "report-unused-media",
   "report-large-media",
+  // Relationships
   "report-content-references",
+  "report-orphan-pages",
+  "report-outbound-links",
   // Bulk Operations
   "bulk-publish",
   "bulk-unpublish",
   "bulk-schedule-publish",
   "bulk-set-property",
   "bulk-move",
+  "bulk-set-block-property",
   // Members
   "search-members",
   "get-member",
@@ -184,7 +186,7 @@ describe("Advanced Workflows", () => {
     runScenarioTest({
       prompt:
         "Use report-large-media with a threshold of 500KB to find oversized files in the media library.",
-      tools: ["report-large-media", "report-unused-media", "list-media-children"],
+      tools: ["report-large-media", "list-media-children"],
       requiredTools: ["report-large-media"],
       successPattern: /large|size|media|file|KB|MB/i,
       verbose: true,
