@@ -40,7 +40,7 @@ describe("Redirect Collection", () => {
       }
 
       // Try to grab the first redirect ID for subsequent tests
-      const listResult = await listRedirectsTool.handler({ take: 1, skip: 0, filter: undefined }, extra);
+      const listResult = await listRedirectsTool.handler({ filter: undefined }, extra);
       if (!listResult.isError) {
         const listData = getStructuredContent(listResult) as any;
         if (listData?.items?.length > 0) {
@@ -78,7 +78,7 @@ describe("Redirect Collection", () => {
     it("should list redirects and return structured result (may be empty)", async () => {
       if (!cmsAvailable) return;
 
-      const result = await listRedirectsTool.handler({ take: 10, skip: 0, filter: undefined }, extra);
+      const result = await listRedirectsTool.handler({ filter: undefined }, extra);
 
       expect(result.isError).toBeFalsy();
       const data = getStructuredContent(result) as any;

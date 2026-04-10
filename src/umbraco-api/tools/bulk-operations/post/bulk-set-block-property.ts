@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction, extractChainedResult, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
 import {
   validateBulkIds,
@@ -100,7 +100,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       const name = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
 
       const versionResult = await mcpClientManager.callTool("cms", "get-document-version", {
-        documentId: id, take: 1, skip: 0,
+        documentId: id, cursor: encodeCursor({ s: 0, t: 1 }),
       });
       const versionData = versionResult.isError ? null : extractChainedResult(versionResult);
       const currentVersionId = versionData?.items?.[0]?.id ?? "";

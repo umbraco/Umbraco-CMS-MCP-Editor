@@ -34,7 +34,7 @@ describe("Media Collection", () => {
   beforeAll(async () => {
     try {
       const browseResult = await listMediaChildrenTool.handler(
-        { parentId: undefined, take: 5, skip: 0 },
+        { parentId: undefined },
         extra,
       );
       const browseData = getStructuredContent(browseResult) as any;
@@ -62,7 +62,7 @@ describe("Media Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await listMediaChildrenTool.handler(
-        { parentId: undefined, take: 10, skip: 0 },
+        { parentId: undefined },
         extra,
       );
 
@@ -87,7 +87,7 @@ describe("Media Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await searchMediaTool.handler(
-        { query: "image", parentId: undefined, take: 5, skip: 0 },
+        { query: "image", parentId: undefined },
         extra,
       );
 
@@ -109,7 +109,7 @@ describe("Media Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await searchMediaTool.handler(
-        { query: "xyznonexistentmedia99999", parentId: undefined, take: 5, skip: 0 },
+        { query: "xyznonexistentmedia99999", parentId: undefined },
         extra,
       );
 

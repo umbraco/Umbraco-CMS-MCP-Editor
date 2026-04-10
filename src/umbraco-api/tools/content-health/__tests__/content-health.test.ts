@@ -37,7 +37,7 @@ describe("Content Health Collection", () => {
   beforeAll(async () => {
     try {
       const listResult = await listChildrenTool.handler(
-        { parentId: undefined, take: 5, skip: 0 },
+        { parentId: undefined },
         extra,
       );
       const listData = getStructuredContent(listResult) as any;
@@ -108,7 +108,7 @@ describe("Content Health Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await reportEmptyFieldsTool.handler(
-        { parentId: undefined, take: 10, skip: 0 },
+        { parentId: undefined },
         extra,
       );
 
@@ -133,7 +133,7 @@ describe("Content Health Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await reportShortContentTool.handler(
-        { minWordCount: 100, parentId: undefined, take: 10, skip: 0 },
+        { minWordCount: 100, parentId: undefined },
         extra,
       );
 
@@ -156,7 +156,7 @@ describe("Content Health Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await reportMediaMissingAltTool.handler(
-        { parentId: undefined, take: 10, skip: 0 },
+        { parentId: undefined },
         extra,
       );
 

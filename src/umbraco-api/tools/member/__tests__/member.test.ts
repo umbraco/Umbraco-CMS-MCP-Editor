@@ -45,7 +45,7 @@ describe("Member Collection", () => {
   beforeAll(async () => {
     try {
       const result = await listMemberTypesTool.handler(
-        { take: 5, skip: 0 },
+        {},
         extra,
       );
       const data = getStructuredContent(result) as any;
@@ -80,7 +80,7 @@ describe("Member Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await listMemberTypesTool.handler(
-        { take: 10, skip: 0 },
+        {},
         extra,
       );
 
@@ -103,7 +103,7 @@ describe("Member Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await searchMembersTool.handler(
-        { query: "admin", take: 10, skip: 0 },
+        { query: "admin" },
         extra,
       );
 
@@ -128,7 +128,7 @@ describe("Member Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await searchMembersTool.handler(
-        { query: "xyznonexistent99999zzz", take: 5, skip: 0 },
+        { query: "xyznonexistent99999zzz" },
         extra,
       );
 
@@ -146,7 +146,7 @@ describe("Member Collection", () => {
 
       // First search to find an existing member
       const searchResult = await searchMembersTool.handler(
-        { query: "test", take: 5, skip: 0 },
+        { query: "test" },
         extra,
       );
       const searchData = getStructuredContent(searchResult) as any;
@@ -307,7 +307,7 @@ describe("Member Collection", () => {
 
       // Search for any member to attempt update rejection test
       const searchResult = await searchMembersTool.handler(
-        { query: "test", take: 1, skip: 0 },
+        { query: "test" },
         extra,
       );
       const searchData = getStructuredContent(searchResult) as any;
@@ -341,7 +341,7 @@ describe("Member Collection", () => {
 
       // Search for any member to attempt delete rejection test
       const searchResult = await searchMembersTool.handler(
-        { query: "test", take: 1, skip: 0 },
+        { query: "test" },
         extra,
       );
       const searchData = getStructuredContent(searchResult) as any;

@@ -45,7 +45,7 @@ describe("Bulk Operations Collection", () => {
   beforeAll(async () => {
     try {
       const browseResult = await listChildrenTool.handler(
-        { parentId: undefined, take: 5, skip: 0 },
+        { parentId: undefined },
         extra,
       );
       const browseData = getStructuredContent(browseResult) as any;

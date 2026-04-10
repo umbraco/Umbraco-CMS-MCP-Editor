@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
+import { buildChainedCursor } from "../../helpers/tree-walker.js";
 
 const inputSchema = {
   tagGroup: z.string().optional().describe("Filter tags by group name, or omit to list all tags"),
@@ -28,7 +29,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["list"],
   annotations: { readOnlyHint: true },
   handler: async ({ tagGroup, take, skip }) => {
-    const result = await mcpClientManager.callTool("cms", "get-tags", { tagGroup, take, skip });
+    const result = await mcpClientManager.callTool("cms", "get-tags", { tagGroup, cursor: buildChainedCursor(skip, take) });
 
     if (result.isError) return createToolResultError(result);
     const data = extractChainedResult(result);

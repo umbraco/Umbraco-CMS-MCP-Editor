@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition , extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
+import { buildChainedCursor } from "../../helpers/tree-walker.js";
 
 
 const inputSchema = {
@@ -21,13 +22,13 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "list-document-types",
-  description: "List available document types that can be used to create new pages. Returns the ID, alias, and name of each type. Use this before create-page to find the correct documentTypeId. Returns up to 50 by default — check total to determine if more exist and use skip to paginate.",
+  description: "List available document types that can be used to create new pages. Returns the ID, alias, and name of each type. Use this before create-page to find the correct documentTypeId. Returns up to 50 by default — use nextCursor from the response to fetch more.",
   inputSchema,
   outputSchema,
   slices: ["list"],
   annotations: { readOnlyHint: true },
   handler: async ({ take, skip }) => {
-    const result = await mcpClientManager.callTool("cms", "get-document-type-root", { take, skip });
+    const result = await mcpClientManager.callTool("cms", "get-document-type-root", { cursor: buildChainedCursor(skip, take) });
     if (result.isError) return createToolResultError(result);
     const data = extractChainedResult(result);
 

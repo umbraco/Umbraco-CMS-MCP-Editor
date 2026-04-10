@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
 
 const inputSchema = {
@@ -35,18 +35,16 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   handler: async ({ inactiveDays, take, skip }) => {
     // Fetch all members via paginated calls (capped at 500)
     const allMembers: any[] = [];
-    let fetchSkip = 0;
-    let fetchTotal = Infinity;
+    let cursor: string | undefined = encodeCursor({ s: 0, t: PAGE_SIZE });
 
-    while (allMembers.length < MEMBER_CAP && allMembers.length < fetchTotal) {
-      const result = await mcpClientManager.callTool("cms", "find-member", { take: PAGE_SIZE, skip: fetchSkip });
+    while (allMembers.length < MEMBER_CAP) {
+      const result = await mcpClientManager.callTool("cms", "find-member", { cursor });
       if (result.isError) return createToolResultError(result);
       const data = extractChainedResult(result);
-      fetchTotal = data.total ?? 0;
       const items: any[] = data.items ?? [];
       allMembers.push(...items);
-      if (items.length < PAGE_SIZE) break;
-      fetchSkip += PAGE_SIZE;
+      if (!data.nextCursor || items.length === 0) break;
+      cursor = data.nextCursor;
     }
 
     const now = Date.now();

@@ -17,7 +17,7 @@ import {
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
-import { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
+import { extractChainedResult, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 
 import searchContentTool from "../get/search-content.js";
 import getPageTool from "../get/get-page.js";
@@ -43,7 +43,7 @@ describe("Content Collection", () => {
   beforeAll(async () => {
     try {
       const browseResult = await listChildrenTool.handler(
-        { parentId: undefined, take: 5, skip: 0 },
+        { parentId: undefined },
         extra,
       );
       const browseData = getStructuredContent(browseResult) as any;
@@ -78,7 +78,7 @@ describe("Content Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await listChildrenTool.handler(
-        { parentId: undefined, take: 10, skip: 0 },
+        { parentId: undefined },
         extra,
       );
 
@@ -96,12 +96,109 @@ describe("Content Collection", () => {
     }, 30000);
   });
 
+  describe("cursor pagination", () => {
+    it("should return nextCursor when more pages exist (list-document-types)", async () => {
+      if (!cmsAvailable) return;
+
+      // Request just 1 item — if there are 2+ document types, nextCursor should be present
+      const result = await listDocumentTypesTool.handler(
+        { cursor: encodeCursor({ s: 0, t: 1 }) },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      expect(data).toBeDefined();
+      expect(data.items).toBeInstanceOf(Array);
+      expect(data.items.length).toBe(1);
+
+      if (data.total > 1) {
+        expect(data.nextCursor).toEqual(expect.any(String));
+      }
+    }, 30000);
+
+    it("should fetch second page using nextCursor (list-document-types)", async () => {
+      if (!cmsAvailable) return;
+
+      // First page: 1 item
+      const firstResult = await listDocumentTypesTool.handler(
+        { cursor: encodeCursor({ s: 0, t: 1 }) },
+        extra,
+      );
+      const firstData = getStructuredContent(firstResult) as any;
+
+      if (!firstData?.nextCursor) {
+        console.warn("Skipping second-page test: only 1 document type exists");
+        return;
+      }
+
+      // Second page using nextCursor
+      const secondResult = await listDocumentTypesTool.handler(
+        { cursor: firstData.nextCursor },
+        extra,
+      );
+
+      expect(secondResult.isError).toBeFalsy();
+      const secondData = getStructuredContent(secondResult) as any;
+      expect(secondData).toBeDefined();
+      expect(secondData.items).toBeInstanceOf(Array);
+      expect(secondData.items.length).toBeGreaterThan(0);
+
+      // Verify we got a different item than the first page
+      expect(secondData.items[0].id).not.toBe(firstData.items[0].id);
+    }, 30000);
+
+    it("should not return nextCursor on the last page", async () => {
+      if (!cmsAvailable) return;
+
+      // Request all items in one page
+      const result = await listDocumentTypesTool.handler(
+        { cursor: encodeCursor({ s: 0, t: 1000 }) },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      expect(data).toBeDefined();
+      // When all items fit in one page, nextCursor should be absent
+      expect(data.nextCursor).toBeUndefined();
+    }, 30000);
+
+    it("should return nextCursor when paginating list-children with take=1", async () => {
+      if (!cmsAvailable) return;
+
+      const result = await listChildrenTool.handler(
+        { parentId: undefined, cursor: encodeCursor({ s: 0, t: 1 }) },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      expect(data).toBeDefined();
+      expect(data.items.length).toBeLessThanOrEqual(1);
+
+      if (data.total > 1) {
+        expect(data.nextCursor).toEqual(expect.any(String));
+
+        // Fetch second page
+        const secondResult = await listChildrenTool.handler(
+          { parentId: undefined, cursor: data.nextCursor },
+          extra,
+        );
+        expect(secondResult.isError).toBeFalsy();
+        const secondData = getStructuredContent(secondResult) as any;
+        expect(secondData.items.length).toBeGreaterThan(0);
+        expect(secondData.items[0].id).not.toBe(data.items[0].id);
+      }
+    }, 30000);
+  });
+
   describe("search-content", () => {
     it("should search for content and return results", async () => {
       if (!cmsAvailable) return;
 
       const result = await searchContentTool.handler(
-        { query: "home", take: 5, skip: 0 },
+        { query: "home" },
         extra,
       );
 
@@ -116,7 +213,7 @@ describe("Content Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await searchContentTool.handler(
-        { query: "xyznonexistent99999", take: 5, skip: 0 },
+        { query: "xyznonexistent99999" },
         extra,
       );
 
@@ -162,7 +259,7 @@ describe("Content Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await listDocumentTypesTool.handler(
-        { take: 10, skip: 0 },
+        {},
         extra,
       );
 
@@ -183,13 +280,13 @@ describe("Content Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await listDocumentTypesTool.handler(
-        { take: 2, skip: 0 },
+        {},
         extra,
       );
 
       expect(result.isError).toBeFalsy();
       const data = getStructuredContent(result) as any;
-      expect(data.items.length).toBeLessThanOrEqual(2);
+      expect(data.items.length).toBeGreaterThan(0);
     }, 30000);
   });
 

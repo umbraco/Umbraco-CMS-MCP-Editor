@@ -33,7 +33,7 @@ describe("Versioning Collection", () => {
   beforeAll(async () => {
     try {
       const browseResult = await listChildrenTool.handler(
-        { parentId: undefined, take: 5, skip: 0 },
+        { parentId: undefined },
         extra,
       );
       const browseData = getStructuredContent(browseResult) as any;
@@ -62,7 +62,7 @@ describe("Versioning Collection", () => {
       if (!cmsAvailable || !testPageId) return;
 
       const result = await listVersionsTool.handler(
-        { id: testPageId, skip: 0, take: 10 },
+        { id: testPageId },
         extra,
       );
 
@@ -84,20 +84,20 @@ describe("Versioning Collection", () => {
       if (!cmsAvailable || !testPageId) return;
 
       const result = await listVersionsTool.handler(
-        { id: testPageId, skip: 0, take: 2 },
+        { id: testPageId },
         extra,
       );
 
       expect(result.isError).toBeFalsy();
       const data = getStructuredContent(result) as any;
-      expect(data.versions.length).toBeLessThanOrEqual(2);
+      expect(data.versions.length).toBeGreaterThan(0);
     }, 30000);
 
     it("should return error for non-existent page", async () => {
       if (!cmsAvailable) return;
 
       const result = await listVersionsTool.handler(
-        { id: "00000000-0000-0000-0000-000000000000", skip: 0, take: 10 },
+        { id: "00000000-0000-0000-0000-000000000000" },
         extra,
       );
 
@@ -110,7 +110,7 @@ describe("Versioning Collection", () => {
       if (!cmsAvailable || !testPageId) return;
 
       const versionsResult = await listVersionsTool.handler(
-        { id: testPageId, skip: 0, take: 10 },
+        { id: testPageId },
         extra,
       );
       const versionsData = getStructuredContent(versionsResult) as any;
@@ -142,7 +142,7 @@ describe("Versioning Collection", () => {
       if (!cmsAvailable || !testPageId) return;
 
       const versionsResult = await listVersionsTool.handler(
-        { id: testPageId, skip: 0, take: 5 },
+        { id: testPageId },
         extra,
       );
       const versionsData = getStructuredContent(versionsResult) as any;

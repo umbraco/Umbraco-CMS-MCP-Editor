@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
+import { buildChainedCursor } from "../../helpers/tree-walker.js";
 
 const inputSchema = {
   groupName: z.string().describe("The name of the member group to filter by. Use list-member-groups to find valid group names."),
@@ -32,8 +33,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // If not, we fall back to fetching all members and filtering client-side.
     const result = await mcpClientManager.callTool("cms", "find-member", {
       memberGroupName: groupName,
-      take,
-      skip,
+      cursor: buildChainedCursor(skip, take),
     });
     if (result.isError) return createToolResultError(result);
     const data = extractChainedResult(result);

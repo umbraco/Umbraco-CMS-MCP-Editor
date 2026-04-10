@@ -70,7 +70,7 @@ describe("Member Reporting Collection", () => {
 
       // Find a group name from list-member-groups
       const groupsResult = await listMemberGroupsTool.handler(
-        { take: 10, skip: 0 },
+        {},
         extra,
       );
       const groupsData = getStructuredContent(groupsResult) as any;
@@ -83,7 +83,7 @@ describe("Member Reporting Collection", () => {
       const groupName = groupsData.items[0].name;
 
       const result = await reportMembersByGroupTool.handler(
-        { groupName, take: 10, skip: 0 },
+        { groupName },
         extra,
       );
 
@@ -110,7 +110,7 @@ describe("Member Reporting Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await reportMemberActivityTool.handler(
-        { inactiveDays: 90, take: 10, skip: 0 },
+        { inactiveDays: 90 },
         extra,
       );
 

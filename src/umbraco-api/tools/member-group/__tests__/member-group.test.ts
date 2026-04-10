@@ -35,7 +35,7 @@ describe("Member Group Collection", () => {
   beforeAll(async () => {
     try {
       const result = await listMemberGroupsTool.handler(
-        { take: 5, skip: 0 },
+        {},
         extra,
       );
       const data = getStructuredContent(result) as any;
@@ -67,7 +67,7 @@ describe("Member Group Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await listMemberGroupsTool.handler(
-        { take: 10, skip: 0 },
+        {},
         extra,
       );
 
@@ -153,7 +153,7 @@ describe("Member Group Collection", () => {
 
       // List groups to find an existing one to attempt rejection test
       const listResult = await listMemberGroupsTool.handler(
-        { take: 1, skip: 0 },
+        {},
         extra,
       );
       const listData = getStructuredContent(listResult) as any;

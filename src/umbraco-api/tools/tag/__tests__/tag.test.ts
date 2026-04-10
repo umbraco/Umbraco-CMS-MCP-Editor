@@ -27,7 +27,7 @@ describe("Tag Collection", () => {
 
   beforeAll(async () => {
     try {
-      const result = await listTagsTool.handler({ tagGroup: undefined, take: 50, skip: 0 }, extra);
+      const result = await listTagsTool.handler({ tagGroup: undefined }, extra);
       const data = getStructuredContent(result) as any;
       if (!result.isError && data) {
         cmsAvailable = true;
@@ -49,7 +49,7 @@ describe("Tag Collection", () => {
     it("should list all tags across the site", async () => {
       if (!cmsAvailable) return;
 
-      const result = await listTagsTool.handler({ tagGroup: undefined, take: 50, skip: 0 }, extra);
+      const result = await listTagsTool.handler({ tagGroup: undefined }, extra);
 
       expect(result.isError).toBeFalsy();
       const data = getStructuredContent(result) as any;
@@ -74,7 +74,7 @@ describe("Tag Collection", () => {
         return;
       }
 
-      const result = await listTagsTool.handler({ tagGroup: existingTagGroup, take: 50, skip: 0 }, extra);
+      const result = await listTagsTool.handler({ tagGroup: existingTagGroup }, extra);
 
       expect(result.isError).toBeFalsy();
       const data = getStructuredContent(result) as any;

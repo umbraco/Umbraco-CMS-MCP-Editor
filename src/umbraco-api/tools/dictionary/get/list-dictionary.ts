@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
+import { buildChainedCursor } from "../../helpers/tree-walker.js";
 
 const inputSchema = {
   parentId: z.string().uuid().optional().describe("UUID of the parent dictionary item, or omit to list root-level entries"),
@@ -28,8 +29,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   annotations: { readOnlyHint: true },
   handler: async ({ parentId, take, skip }) => {
     const result = parentId
-      ? await mcpClientManager.callTool("cms", "get-dictionary-children", { parentId, take, skip })
-      : await mcpClientManager.callTool("cms", "get-dictionary-root", { take, skip });
+      ? await mcpClientManager.callTool("cms", "get-dictionary-children", { parentId, cursor: buildChainedCursor(skip, take) })
+      : await mcpClientManager.callTool("cms", "get-dictionary-root", { cursor: buildChainedCursor(skip, take) });
 
     if (result.isError) return createToolResultError(result);
     const data = extractChainedResult(result);

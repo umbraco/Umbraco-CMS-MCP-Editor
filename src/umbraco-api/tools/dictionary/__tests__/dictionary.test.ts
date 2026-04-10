@@ -40,7 +40,7 @@ describe("Dictionary Collection", () => {
 
   beforeAll(async () => {
     try {
-      const result = await listDictionaryTool.handler({ parentId: undefined, take: 50, skip: 0 }, extra);
+      const result = await listDictionaryTool.handler({ parentId: undefined }, extra);
       const data = getStructuredContent(result) as any;
       if (!result.isError && data) {
         cmsAvailable = true;
@@ -73,7 +73,7 @@ describe("Dictionary Collection", () => {
     it("should browse root dictionary entries", async () => {
       if (!cmsAvailable) return;
 
-      const result = await listDictionaryTool.handler({ parentId: undefined, take: 50, skip: 0 }, extra);
+      const result = await listDictionaryTool.handler({ parentId: undefined }, extra);
 
       expect(result.isError).toBeFalsy();
       const data = getStructuredContent(result) as any;

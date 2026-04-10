@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
 
 const inputSchema = {
@@ -28,7 +28,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   handler: async ({ culture, parentId, take, skip }) => {
     // Step 1: Fetch a batch of tree items
     const toolName = parentId ? "get-tree-document-children" : "get-tree-document-root";
-    const args: Record<string, unknown> = { take: 100, skip: 0 };
+    const args: Record<string, unknown> = { cursor: encodeCursor({ s: 0, t: 100 }) };
     if (parentId) args.parentId = parentId;
 
     const treeResult = await mcpClientManager.callTool("cms", toolName, args);

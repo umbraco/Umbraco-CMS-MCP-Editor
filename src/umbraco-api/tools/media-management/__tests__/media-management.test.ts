@@ -37,7 +37,7 @@ describe("Media Management Collection", () => {
   beforeAll(async () => {
     try {
       const browseResult = await listMediaChildrenTool.handler(
-        { parentId: undefined, take: 5, skip: 0 },
+        { parentId: undefined },
         extra,
       );
       const browseData = getStructuredContent(browseResult) as any;
