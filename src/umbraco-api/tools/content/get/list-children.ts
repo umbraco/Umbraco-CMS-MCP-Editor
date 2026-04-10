@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition , extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
+import { buildChainedCursor } from "../../helpers/tree-walker.js";
 
 
 const inputSchema = {
@@ -23,7 +24,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   annotations: { readOnlyHint: true },
   handler: async ({ parentId, take, skip }) => {
     const toolName = parentId ? "get-document-children" : "get-document-root";
-    const args: Record<string, unknown> = { take, skip };
+    const args: Record<string, unknown> = { cursor: buildChainedCursor(skip, take) };
     if (parentId) args.parentId = parentId;
     const result = await mcpClientManager.callTool("cms", toolName, args);
     if (result.isError) return createToolResultError(result);

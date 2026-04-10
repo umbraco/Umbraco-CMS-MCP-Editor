@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
+import { buildChainedCursor } from "../../helpers/tree-walker.js";
 
 const inputSchema = {
   parentId: z.string().uuid().optional().describe("The ID of a blueprint folder to list children of. If omitted, lists root-level blueprints."),
@@ -29,7 +30,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       ? "get-document-blueprint-children"
       : "get-document-blueprint-root";
 
-    const args: Record<string, unknown> = { take, skip };
+    const args: Record<string, unknown> = { cursor: buildChainedCursor(skip, take) };
     if (parentId) args.parentId = parentId;
 
     const result = await mcpClientManager.callTool("cms", toolName, args);

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
+import { buildChainedCursor } from "../../helpers/tree-walker.js";
 
 const inputSchema = {
   query: z.string().describe("Filter term to search for media items by name"),
@@ -32,8 +33,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const searchResult = await mcpClientManager.callTool("cms", "get-collection-media", {
       id: parentId,
       filter: query,
-      take,
-      skip,
+      cursor: buildChainedCursor(skip, take),
     });
     if (searchResult.isError) return createToolResultError(searchResult);
     const searchData = extractChainedResult(searchResult);

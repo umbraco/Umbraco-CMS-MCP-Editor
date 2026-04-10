@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition , extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
+import { buildChainedCursor } from "../../helpers/tree-walker.js";
 
 
 const inputSchema = {
@@ -38,8 +39,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // Fetch version history
     const versionResult = await mcpClientManager.callTool("cms", "get-document-version", {
       documentId: id,
-      skip,
-      take,
+      cursor: buildChainedCursor(skip, take),
     });
     if (versionResult.isError) return createToolResultError(versionResult);
     const versionData = extractChainedResult(versionResult);

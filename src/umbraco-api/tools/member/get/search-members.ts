@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
+import { buildChainedCursor } from "../../helpers/tree-walker.js";
 
 const inputSchema = {
   query: z.string().describe("Search term to find members by name or email address"),
@@ -28,7 +29,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["search"],
   annotations: { readOnlyHint: true },
   handler: async ({ query, take, skip }) => {
-    const result = await mcpClientManager.callTool("cms", "find-member", { filter: query, take, skip });
+    const result = await mcpClientManager.callTool("cms", "find-member", { filter: query, cursor: buildChainedCursor(skip, take) });
     if (result.isError) return createToolResultError(result);
     const data = extractChainedResult(result);
     return createToolResult({

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
+import { buildChainedCursor } from "../../helpers/tree-walker.js";
 
 const inputSchema = {
   parentId: z.string().uuid().optional().describe("UUID of the parent folder, or omit to list root-level items"),
@@ -30,8 +31,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   annotations: { readOnlyHint: true },
   handler: async ({ parentId, take, skip }) => {
     const result = parentId
-      ? await mcpClientManager.callTool("cms", "get-media-children", { parentId, take, skip })
-      : await mcpClientManager.callTool("cms", "get-media-root", { take, skip });
+      ? await mcpClientManager.callTool("cms", "get-media-children", { parentId, cursor: buildChainedCursor(skip, take) })
+      : await mcpClientManager.callTool("cms", "get-media-root", { cursor: buildChainedCursor(skip, take) });
 
     if (result.isError) return createToolResultError(result);
     const data = extractChainedResult(result);
