@@ -2,7 +2,7 @@
  * Relationships Collection Integration Tests
  *
  * Tests for migrated tools (report-content-references, report-orphan-pages)
- * and new tools (report-outbound-links, report-relationship-map).
+ * and new tool (report-outbound-links).
  * Runs against a real Umbraco instance via the chained @umbraco-cms/mcp-dev MCP server.
  */
 
@@ -17,7 +17,6 @@ import {
 import reportContentReferencesTool from "../get/report-content-references.js";
 import reportOrphanPagesTool from "../get/report-orphan-pages.js";
 import reportOutboundLinksTool from "../get/report-outbound-links.js";
-import reportRelationshipMapTool from "../get/report-relationship-map.js";
 import listChildrenTool from "../../content/get/list-children.js";
 import listMediaChildrenTool from "../../media/get/list-media-children.js";
 
@@ -140,26 +139,4 @@ describe("Relationships Collection", () => {
     }, 60000);
   });
 
-  describe("report-relationship-map", () => {
-    it("should return inbound and outbound sections", async () => {
-      if (!cmsAvailable || !testPageId) return;
-
-      const result = await reportRelationshipMapTool.handler(
-        { id: testPageId },
-        extra,
-      );
-
-      expect(result.isError).toBeFalsy();
-      const data = getStructuredContent(result) as any;
-      expect(data).toBeDefined();
-      expect(data.id).toBe(testPageId);
-      expect(data.inbound).toBeInstanceOf(Array);
-      expect(data.outbound).toBeDefined();
-      expect(data.outbound.internalPages).toBeInstanceOf(Array);
-      expect(data.outbound.media).toBeInstanceOf(Array);
-      expect(data.outbound.externalUrls).toBeInstanceOf(Array);
-      expect(data.summary).toBeDefined();
-      expect(data.summary.totalConnections).toEqual(expect.any(Number));
-    }, 60000);
-  });
 });

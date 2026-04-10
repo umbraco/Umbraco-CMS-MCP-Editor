@@ -86,7 +86,6 @@ const allTools = [
   "report-content-references",
   "report-orphan-pages",
   "report-outbound-links",
-  "report-relationship-map",
   // Bulk Operations
   "bulk-publish",
   "bulk-unpublish",

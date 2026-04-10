@@ -84,7 +84,6 @@ const allTools = [
   "report-content-references",
   "report-orphan-pages",
   "report-outbound-links",
-  "report-relationship-map",
   // Bulk Operations
   "bulk-publish",
   "bulk-unpublish",
@@ -131,19 +130,6 @@ describe("Relationships Workflows", () => {
       tools: allTools,
       requiredTools: ["report-outbound-links"],
       successPattern: /link|reference|media|external|internal|outbound/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
-    "editor maps all relationships for a page",
-    runScenarioTest({
-      prompt:
-        "Find the homepage, then use report-relationship-map to show me everything that references it and everything it references.",
-      tools: allTools,
-      requiredTools: ["report-relationship-map"],
-      successPattern: /inbound|outbound|relationship|connection|reference/i,
       verbose: true,
     }),
     timeout
