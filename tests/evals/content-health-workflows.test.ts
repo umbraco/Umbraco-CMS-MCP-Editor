@@ -85,7 +85,6 @@ const allTools = [
   // Relationships
   "report-content-references",
   "report-orphan-pages",
-  "report-unused-media",
   "report-outbound-links",
   "report-relationship-map",
   // Bulk Operations
@@ -187,19 +186,6 @@ describe("Content Health and Reporting Workflows", () => {
       tools: ["report-media-missing-alt", "list-media-children"],
       requiredTools: ["report-media-missing-alt"],
       successPattern: /alt|image|media|accessibility|missing/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
-    "editor finds unused media",
-    runScenarioTest({
-      prompt:
-        "Use report-unused-media to find media items not used by any content page.",
-      tools: ["report-unused-media", "list-media-children"],
-      requiredTools: ["report-unused-media"],
-      successPattern: /unused|media|referenced|storage/i,
       verbose: true,
     }),
     timeout

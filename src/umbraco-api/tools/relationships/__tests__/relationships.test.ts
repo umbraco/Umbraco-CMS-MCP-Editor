@@ -1,7 +1,7 @@
 /**
  * Relationships Collection Integration Tests
  *
- * Tests for migrated tools (report-content-references, report-orphan-pages, report-unused-media)
+ * Tests for migrated tools (report-content-references, report-orphan-pages)
  * and new tools (report-outbound-links, report-relationship-map).
  * Runs against a real Umbraco instance via the chained @umbraco-cms/mcp-dev MCP server.
  */
@@ -16,7 +16,6 @@ import {
 
 import reportContentReferencesTool from "../get/report-content-references.js";
 import reportOrphanPagesTool from "../get/report-orphan-pages.js";
-import reportUnusedMediaTool from "../get/report-unused-media.js";
 import reportOutboundLinksTool from "../get/report-outbound-links.js";
 import reportRelationshipMapTool from "../get/report-relationship-map.js";
 import listChildrenTool from "../../content/get/list-children.js";
@@ -115,24 +114,6 @@ describe("Relationships Collection", () => {
       expect(data.items).toBeInstanceOf(Array);
       expect(data.scannedPages).toEqual(expect.any(Number));
       expect(data.total).toEqual(expect.any(Number));
-    }, 60000);
-  });
-
-  describe("report-unused-media", () => {
-    it("should return items with totalFileSize and scannedItems", async () => {
-      if (!cmsAvailable) return;
-
-      const result = await reportUnusedMediaTool.handler(
-        { parentId: undefined, take: 10, skip: 0 },
-        extra,
-      );
-
-      expect(result.isError).toBeFalsy();
-      const data = getStructuredContent(result) as any;
-      expect(data).toBeDefined();
-      expect(data.items).toBeInstanceOf(Array);
-      expect(data.totalFileSize).toEqual(expect.any(Number));
-      expect(data.scannedItems).toEqual(expect.any(Number));
     }, 60000);
   });
 

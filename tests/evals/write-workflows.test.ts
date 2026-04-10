@@ -84,7 +84,6 @@ const allTools = [
   // Relationships
   "report-content-references",
   "report-orphan-pages",
-  "report-unused-media",
   "report-outbound-links",
   "report-relationship-map",
   // Bulk Operations

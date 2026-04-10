@@ -84,7 +84,6 @@ const allTools = [
   // Relationships
   "report-content-references",
   "report-orphan-pages",
-  "report-unused-media",
   "report-outbound-links",
   "report-relationship-map",
   // Bulk Operations
@@ -188,7 +187,7 @@ describe("Advanced Workflows", () => {
     runScenarioTest({
       prompt:
         "Use report-large-media with a threshold of 500KB to find oversized files in the media library.",
-      tools: ["report-large-media", "report-unused-media", "list-media-children"],
+      tools: ["report-large-media", "list-media-children"],
       requiredTools: ["report-large-media"],
       successPattern: /large|size|media|file|KB|MB/i,
       verbose: true,
