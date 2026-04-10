@@ -7,7 +7,7 @@
  */
 
 import { mcpClientManager } from "../../mcp-client.js";
-import { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
+import { extractChainedResult, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 
 export interface TreeWalkOptions {
   /** Scope to a subtree (omit for root) */
@@ -39,13 +39,23 @@ export async function walkContentTree(
 ): Promise<WalkedPage[]> {
   const { parentId, scanLimit = 100 } = options;
 
-  const treeResult = parentId
-    ? await mcpClientManager.callTool("cms", "get-tree-document-children", { parentId, take: scanLimit, skip: 0 })
-    : await mcpClientManager.callTool("cms", "get-tree-document-root", { take: scanLimit, skip: 0 });
+  const toolName = parentId ? "get-tree-document-children" : "get-tree-document-root";
+  const baseArgs: Record<string, unknown> = {};
+  if (parentId) baseArgs.parentId = parentId;
 
-  if (treeResult.isError) return [];
-  const treeData = extractChainedResult(treeResult);
-  const treeItems: any[] = treeData?.items ?? [];
+  const treeItems: any[] = [];
+  let cursor: string | undefined = encodeCursor({ s: 0, t: Math.min(scanLimit, 100) });
+
+  while (treeItems.length < scanLimit) {
+    const callArgs: Record<string, unknown> = { ...baseArgs };
+    if (cursor) callArgs.cursor = cursor;
+    const treeResult = await mcpClientManager.callTool("cms", toolName, callArgs);
+    if (treeResult.isError) break;
+    const treeData = extractChainedResult(treeResult);
+    treeItems.push(...(treeData?.items ?? []));
+    if (!treeData?.nextCursor) break;
+    cursor = treeData.nextCursor;
+  }
 
   const enriched = await Promise.all(
     treeItems.map(async (item: any): Promise<WalkedPage | null> => {
@@ -82,13 +92,32 @@ export async function walkMediaTree(
 ): Promise<any[]> {
   const { parentId, scanLimit = 100 } = options;
 
-  const result = parentId
-    ? await mcpClientManager.callTool("cms", "get-media-children", { parentId, take: scanLimit, skip: 0 })
-    : await mcpClientManager.callTool("cms", "get-media-root", { take: scanLimit, skip: 0 });
+  const toolName = parentId ? "get-media-children" : "get-media-root";
+  const baseArgs: Record<string, unknown> = {};
+  if (parentId) baseArgs.parentId = parentId;
 
-  if (result.isError) return [];
-  const data = extractChainedResult(result);
-  return data?.items ?? [];
+  const allItems: any[] = [];
+  let cursor: string | undefined = encodeCursor({ s: 0, t: Math.min(scanLimit, 100) });
+
+  while (allItems.length < scanLimit) {
+    const callArgs: Record<string, unknown> = { ...baseArgs };
+    if (cursor) callArgs.cursor = cursor;
+    const result = await mcpClientManager.callTool("cms", toolName, callArgs);
+    if (result.isError) break;
+    const data = extractChainedResult(result);
+    allItems.push(...(data?.items ?? []));
+    if (!data?.nextCursor) break;
+    cursor = data.nextCursor;
+  }
+
+  return allItems;
+}
+
+/**
+ * Build cursor argument for a chained CMS call from handler skip/take values.
+ */
+export function buildChainedCursor(skip: number, take: number): string {
+  return encodeCursor({ s: skip, t: take });
 }
 
 /**
