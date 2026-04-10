@@ -128,7 +128,7 @@ describe("Bulk Operation Workflows", () => {
     "editor bulk publishes pages",
     runScenarioTest({
       prompt:
-        "Use list-children to find the root pages, then use bulk-publish to publish the first two pages found.",
+        "Use list-children to find the root pages, then use bulk-publish to publish them. Even if only one page is found, still call bulk-publish with that single page ID.",
       tools: allTools,
       requiredTools: ["bulk-publish"],
       successPattern: /publish|bulk|page|confirm/i,

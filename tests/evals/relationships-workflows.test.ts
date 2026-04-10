@@ -139,7 +139,7 @@ describe("Relationships Workflows", () => {
     "editor checks impact before deleting a media item",
     runScenarioTest({
       prompt:
-        "I want to delete a media item. First use list-media-children to find a media item, then use report-content-references with type 'media' to check if anything references it. Tell me if it's safe to delete.",
+        "I want to delete a media item. First use list-media-children to find a media item, then you MUST call report-content-references with that media item's ID and type 'media' to check if anything references it. Tell me if it's safe to delete.",
       tools: allTools,
       requiredTools: ["report-content-references"],
       successPattern: /reference|safe|delete|used|referenced/i,
