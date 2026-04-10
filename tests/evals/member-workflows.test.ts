@@ -41,6 +41,7 @@ const allTools = [
   "move-media",
   "delete-media",
   "restore-media",
+  "bulk-move-media",
   // Blueprints
   "list-blueprints",
   "get-blueprint",
