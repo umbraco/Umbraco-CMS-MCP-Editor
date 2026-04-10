@@ -1,10 +1,10 @@
 # Cursor Pagination Upgrade
 
-Upgrade `@umbraco-cms/mcp-dev` to 17.3.0 and `@umbraco-cms/mcp-server-sdk` / `@umbraco-cms/mcp-hosted` to 17.0.0-beta.11. These versions introduce cursor-based pagination across all MCP tool interfaces.
+Upgrade `@umbraco-cms/mcp-dev` to 17.3.1 and `@umbraco-cms/mcp-server-sdk` / `@umbraco-cms/mcp-hosted` to 17.0.0-beta.12. These versions introduce cursor-based pagination across all MCP tool interfaces.
 
 ## Background
 
-`mcp-dev@17.3.0` applies `withCursorPagination` to every tool that has `skip`/`take` parameters at server registration time. This means:
+`mcp-dev@17.3.1` applies `withCursorPagination` to every tool that has `skip`/`take` parameters at server registration time. This means:
 
 - CMS tools now accept an optional `cursor` string instead of `skip`/`take`
 - Responses include `nextCursor` (string or null) indicating whether more pages exist
@@ -23,9 +23,9 @@ Internally, tool handler code may still use `skip`/`take` — the `withCursorPag
 
 | Package | Current | Target |
 |---------|---------|--------|
-| `@umbraco-cms/mcp-dev` | ^17.2.2 | ^17.3.0 |
-| `@umbraco-cms/mcp-server-sdk` | ^17.0.0-beta.9 | ^17.0.0-beta.11 |
-| `@umbraco-cms/mcp-hosted` | ^17.0.0-beta.9 | ^17.0.0-beta.11 |
+| `@umbraco-cms/mcp-dev` | ^17.2.2 | ^17.3.1 |
+| `@umbraco-cms/mcp-server-sdk` | ^17.0.0-beta.9 | ^17.0.0-beta.12 |
+| `@umbraco-cms/mcp-hosted` | ^17.0.0-beta.9 | ^17.0.0-beta.12 |
 
 ## Changes Required
 
@@ -156,6 +156,6 @@ For report tools (no skip/take, client-side pagination): these return complete r
 
 ## Risks
 
-- **SDK beta version**: `mcp-server-sdk@17.0.0-beta.11` is pre-release. API could shift, but `withCursorPagination` is stable (already used in production by `mcp-dev@17.3.0`).
+- **SDK beta version**: `mcp-server-sdk@17.0.0-beta.12` is pre-release. API could shift, but `withCursorPagination` is stable (already used in production by `mcp-dev@17.3.1`).
 - **Chained call compatibility**: If any CMS tool doesn't follow the cursor pattern, calls will fail. Mitigated by the fact that `mcp-dev` applies the decorator uniformly.
 - **Page size defaults**: CMS tools may have different default page sizes than what we used with hardcoded `take` values. Using `encodeCursor` with explicit sizes preserves current behaviour.

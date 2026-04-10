@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Upgrade mcp-dev to 17.3.0, mcp-server-sdk and mcp-hosted to 17.0.0-beta.11, and convert all pagination from skip/take to cursor-based at every MCP boundary.
+**Goal:** Upgrade mcp-dev to 17.3.1, mcp-server-sdk and mcp-hosted to 17.0.0-beta.12, and convert all pagination from skip/take to cursor-based at every MCP boundary.
 
 **Architecture:** The `withCursorPagination` decorator wraps tools at registration time, translating opaque cursor strings to skip/take internally. Our tool handlers keep their skip/take parameters — the decorator handles the MCP interface translation. Chained CMS calls must switch to cursor because the CMS tools are also wrapped with the same decorator.
 
@@ -59,9 +59,9 @@
 In `package.json`, update the three dependencies:
 
 ```json
-"@umbraco-cms/mcp-dev": "^17.3.0",
-"@umbraco-cms/mcp-hosted": "^17.0.0-beta.11",
-"@umbraco-cms/mcp-server-sdk": "^17.0.0-beta.11",
+"@umbraco-cms/mcp-dev": "^17.3.1",
+"@umbraco-cms/mcp-hosted": "^17.0.0-beta.12",
+"@umbraco-cms/mcp-server-sdk": "^17.0.0-beta.12",
 ```
 
 - [ ] **Step 2: Install dependencies**
@@ -78,7 +78,7 @@ Expected: May show errors — that's fine, we're just confirming the SDK exports
 
 ```bash
 git add package.json package-lock.json
-git commit -m "chore: upgrade mcp-dev to 17.3.0, mcp-server-sdk and mcp-hosted to beta.11"
+git commit -m "chore: upgrade mcp-dev to 17.3.1, mcp-server-sdk and mcp-hosted to beta.12"
 ```
 
 ---
