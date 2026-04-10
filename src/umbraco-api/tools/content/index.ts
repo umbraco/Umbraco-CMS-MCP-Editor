@@ -7,6 +7,7 @@ import inspectBlocksTool from "./get/inspect-blocks.js";
 import createPageTool from "./post/create-page.js";
 import editPageTool from "./put/edit-page.js";
 import editBlockTool from "./put/edit-block.js";
+import restorePageTool from "./put/restore-page.js";
 import deletePageTool from "./delete/delete-page.js";
 
 const collection: ToolCollectionExport = {
@@ -15,7 +16,7 @@ const collection: ToolCollectionExport = {
     displayName: "Content",
     description: "Search, browse, and manage content pages",
   },
-  tools: () => [searchContentTool, getPageTool, listChildrenTool, listDocumentTypesTool, inspectBlocksTool, createPageTool, editPageTool, editBlockTool, deletePageTool],
+  tools: () => [searchContentTool, getPageTool, listChildrenTool, listDocumentTypesTool, inspectBlocksTool, createPageTool, editPageTool, editBlockTool, restorePageTool, deletePageTool],
 };
 
 export default collection;
