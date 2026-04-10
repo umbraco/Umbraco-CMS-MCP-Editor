@@ -85,9 +85,7 @@ const allTools = [
   "report-orphan-pages",
   "report-unused-media",
   "report-outbound-links",
-  "report-most-referenced",
   "report-relationship-map",
-  "report-external-links",
   // Bulk Operations
   "bulk-publish",
   "bulk-unpublish",
@@ -140,19 +138,6 @@ describe("Relationships Workflows", () => {
   );
 
   it(
-    "editor checks which content is most referenced",
-    runScenarioTest({
-      prompt:
-        "Use report-most-referenced to find the most-referenced content pages on the site. Show me which pages are referenced the most.",
-      tools: allTools,
-      requiredTools: ["report-most-referenced"],
-      successPattern: /reference|referenced|count|most|critical/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
     "editor maps all relationships for a page",
     runScenarioTest({
       prompt:
@@ -160,19 +145,6 @@ describe("Relationships Workflows", () => {
       tools: allTools,
       requiredTools: ["report-relationship-map"],
       successPattern: /inbound|outbound|relationship|connection|reference/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  it(
-    "editor audits external links across the site",
-    runScenarioTest({
-      prompt:
-        "Use report-external-links to inventory all external URLs across the site. Group them by domain.",
-      tools: allTools,
-      requiredTools: ["report-external-links"],
-      successPattern: /external|domain|url|link|inventory/i,
       verbose: true,
     }),
     timeout

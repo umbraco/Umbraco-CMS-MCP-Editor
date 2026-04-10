@@ -6,7 +6,7 @@ A new `relationships` collection that gives AI assistants full visibility into h
 
 ## Approach
 
-Create a dedicated `relationships` collection containing 4 new tools plus 3 migrated tools from existing collections. This consolidates all relationship data into a single discoverable collection.
+Create a dedicated `relationships` collection containing 2 new single-page tools plus 3 migrated tools from existing collections. This consolidates all relationship data into a single discoverable collection. Global/tree-scanning relationship tools (report-most-referenced, report-external-links) were descoped — the CMS API requires per-item calls making full-site scanning impractical.
 
 ## Tool Inventory
 
@@ -20,7 +20,7 @@ Create a dedicated `relationships` collection containing 4 new tools plus 3 migr
 
 These tools move without functional changes — same names, same inputs/outputs, same CMS delegation.
 
-### New Tools (4)
+### New Tools (2)
 
 #### `report-outbound-links`
 
@@ -40,29 +40,6 @@ summary: { internalPageCount, mediaCount, externalUrlCount, totalLinks }
 **CMS delegation:** `get-document-by-id` to fetch page content, then local parsing of property values.
 
 **Implementation:** Iterate all properties on the document. Detect UUID-based references (content pickers, media pickers). Parse rich text HTML for `<a href>` and `<img src>`. Extract external URLs and classify as internal vs external. Resolve internal content/media IDs to names via CMS calls.
-
----
-
-#### `report-most-referenced`
-
-**Purpose:** Rank content or media by inbound reference count across a subtree — surfaces the most critical items that would have the biggest impact if changed or deleted.
-
-**Input:**
-- `parentId` (uuid, optional) — scope to subtree, defaults to root
-- `take` (number, optional, default 20) — results to return
-- `skip` (number, optional, default 0) — pagination offset
-- `type` (enum: "document" | "media" | "all", optional, default "document") — what to scan
-
-**Output:**
-```
-items: [{ id, name, url, documentType, referenceCount }]
-total: number
-scannedItems: number
-```
-
-**CMS delegation:** Tree walk via `get-tree-document-root`/`get-tree-document-children` (or media equivalents), then `get-document-by-id-referenced-by` or `get-media-by-id-referenced-by` for each item.
-
-**Performance:** Capped at 100 items scanned per call, consistent with existing reporting tools.
 
 ---
 
@@ -92,42 +69,27 @@ summary:
 
 ---
 
-#### `report-external-links`
+## Descoped Tools
 
-**Purpose:** Inventory all external URLs across a subtree, grouped by domain. Useful for auditing third-party dependencies, finding outdated links, or understanding external integration points.
+The following tools were descoped because the CMS API requires per-item calls for reference data, making full-site scanning impractical (hundreds of API calls for a moderately sized site):
 
-**Input:**
-- `parentId` (uuid, optional) — scope to subtree, defaults to root
-- `take` (number, optional, default 50) — domains to return
-- `skip` (number, optional, default 0) — pagination offset
+- **`report-most-referenced`** — rank content/media by inbound reference count across a subtree
+- **`report-external-links`** — inventory all external URLs across a subtree, grouped by domain
 
-**Output:**
-```
-byDomain: [{
-  domain: string
-  urls: [{ url, foundOn: [{ pageId, pageName, pageUrl }] }]
-  urlCount: number
-}]
-totalUrls: number
-totalDomains: number
-scannedPages: number
-```
-
-**CMS delegation:** Tree walk via `get-tree-document-root`/`get-tree-document-children`, `get-document-by-id` for each page, then local URL extraction.
-
-**Performance:** Capped at 100 pages scanned per call.
+These could be revisited if the CMS adds batch reference endpoints.
 
 ---
 
 ## Shared Link Extraction Helper
 
-A new helper at `src/umbraco-api/tools/helpers/link-extractor.ts` shared by `report-outbound-links`, `report-relationship-map`, and `report-external-links`.
+A new helper at `src/umbraco-api/tools/helpers/link-extractor.ts` shared by `report-outbound-links` and `report-relationship-map`.
 
 **Responsibilities:**
 - Detect UUID-based references in property values (content pickers, media pickers, block list/grid content)
 - Parse rich text HTML for `<a href>` and `<img src>` tags
 - Extract external URLs and classify internal vs external
-- Return a structured `ExtractedLinks` object: `{ contentIds: string[], mediaIds: string[], externalUrls: { url, domain }[] }`
+- Return a structured `ExtractedLinks` object: `{ allIds: string[], externalUrls: { url, domain }[] }`
+- Resolve extracted UUIDs into content pages and media items via `resolveOutboundIds()`
 
 **What it does NOT do:**
 - Validate whether links are alive (no HTTP checks)
@@ -140,9 +102,7 @@ src/umbraco-api/tools/relationships/
 ├── index.ts                         # ToolCollectionExport
 ├── get/
 │   ├── report-outbound-links.ts
-│   ├── report-most-referenced.ts
 │   ├── report-relationship-map.ts
-│   ├── report-external-links.ts
 │   ├── report-content-references.ts  # moved from media-health
 │   ├── report-orphan-pages.ts        # moved from site-structure
 │   └── report-unused-media.ts        # moved from media-health

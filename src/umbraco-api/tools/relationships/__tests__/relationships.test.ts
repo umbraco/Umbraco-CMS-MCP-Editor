@@ -2,7 +2,7 @@
  * Relationships Collection Integration Tests
  *
  * Tests for migrated tools (report-content-references, report-orphan-pages, report-unused-media)
- * and new tools (report-outbound-links, report-most-referenced, report-relationship-map, report-external-links).
+ * and new tools (report-outbound-links, report-relationship-map).
  * Runs against a real Umbraco instance via the chained @umbraco-cms/mcp-dev MCP server.
  */
 
@@ -18,9 +18,7 @@ import reportContentReferencesTool from "../get/report-content-references.js";
 import reportOrphanPagesTool from "../get/report-orphan-pages.js";
 import reportUnusedMediaTool from "../get/report-unused-media.js";
 import reportOutboundLinksTool from "../get/report-outbound-links.js";
-import reportMostReferencedTool from "../get/report-most-referenced.js";
 import reportRelationshipMapTool from "../get/report-relationship-map.js";
-import reportExternalLinksTool from "../get/report-external-links.js";
 import listChildrenTool from "../../content/get/list-children.js";
 import listMediaChildrenTool from "../../media/get/list-media-children.js";
 
@@ -161,29 +159,6 @@ describe("Relationships Collection", () => {
     }, 60000);
   });
 
-  describe("report-most-referenced", () => {
-    it("should return items sorted by referenceCount", async () => {
-      if (!cmsAvailable) return;
-
-      const result = await reportMostReferencedTool.handler(
-        { parentId: undefined, take: 10, skip: 0, type: "document" },
-        extra,
-      );
-
-      expect(result.isError).toBeFalsy();
-      const data = getStructuredContent(result) as any;
-      expect(data).toBeDefined();
-      expect(data.items).toBeInstanceOf(Array);
-      expect(data.scannedItems).toEqual(expect.any(Number));
-      expect(data.total).toEqual(expect.any(Number));
-
-      // Verify descending sort
-      if (data.items.length > 1) {
-        expect(data.items[0].referenceCount).toBeGreaterThanOrEqual(data.items[1].referenceCount);
-      }
-    }, 60000);
-  });
-
   describe("report-relationship-map", () => {
     it("should return inbound and outbound sections", async () => {
       if (!cmsAvailable || !testPageId) return;
@@ -204,31 +179,6 @@ describe("Relationships Collection", () => {
       expect(data.outbound.externalUrls).toBeInstanceOf(Array);
       expect(data.summary).toBeDefined();
       expect(data.summary.totalConnections).toEqual(expect.any(Number));
-    }, 60000);
-  });
-
-  describe("report-external-links", () => {
-    it("should return byDomain array with URL grouping", async () => {
-      if (!cmsAvailable) return;
-
-      const result = await reportExternalLinksTool.handler(
-        { parentId: undefined, take: 10, skip: 0 },
-        extra,
-      );
-
-      expect(result.isError).toBeFalsy();
-      const data = getStructuredContent(result) as any;
-      expect(data).toBeDefined();
-      expect(data.byDomain).toBeInstanceOf(Array);
-      expect(data.totalUrls).toEqual(expect.any(Number));
-      expect(data.totalDomains).toEqual(expect.any(Number));
-      expect(data.scannedPages).toEqual(expect.any(Number));
-
-      if (data.byDomain.length > 0) {
-        expect(data.byDomain[0]).toHaveProperty("domain");
-        expect(data.byDomain[0]).toHaveProperty("urls");
-        expect(data.byDomain[0]).toHaveProperty("urlCount");
-      }
     }, 60000);
   });
 });
