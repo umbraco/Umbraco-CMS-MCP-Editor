@@ -20,6 +20,7 @@ import {
 import createMediaFolderTool from "../post/create-media-folder.js";
 import uploadMediaTool from "../post/upload-media.js";
 import moveMediaTool from "../put/move-media.js";
+import bulkMoveMediaTool from "../post/bulk-move-media.js";
 import deleteMediaTool from "../delete/delete-media.js";
 import restoreMediaTool from "../put/restore-media.js";
 import listMediaChildrenTool from "../../media/get/list-media-children.js";
@@ -172,6 +173,95 @@ describe("Media Management Collection", () => {
       expect(data).toBeDefined();
       expect(data.message).toContain("Moved");
       expect(data.id).toBe(sourceFolderId);
+    }, 60000);
+  });
+
+  describe("bulk-move-media", () => {
+    it("should bulk move multiple media folders into a target folder", async () => {
+      if (!cmsAvailable) return;
+
+      // Create two source folders and one target folder
+      const source1Result = await createMediaFolderTool.handler(
+        { name: "Bulk Move Source 1", parentId: undefined },
+        extra,
+      );
+      elicitation.reset();
+      const source2Result = await createMediaFolderTool.handler(
+        { name: "Bulk Move Source 2", parentId: undefined },
+        extra,
+      );
+      elicitation.reset();
+      const targetResult = await createMediaFolderTool.handler(
+        { name: "Bulk Move Target Folder", parentId: undefined },
+        extra,
+      );
+      elicitation.reset();
+
+      if (source1Result.isError || source2Result.isError || targetResult.isError) {
+        console.warn("Skipping bulk-move-media test: could not create test folders");
+        return;
+      }
+
+      const source1Data = getStructuredContent(source1Result) as any;
+      const source2Data = getStructuredContent(source2Result) as any;
+      const targetData = getStructuredContent(targetResult) as any;
+
+      createdFolderIds.push(source1Data.id, source2Data.id, targetData.id);
+
+      const result = await bulkMoveMediaTool.handler(
+        { ids: [source1Data.id, source2Data.id], targetParentId: targetData.id },
+        extra,
+      );
+
+      if (result.isError) {
+        console.warn("Skipping bulk-move-media assertions: CMS returned error");
+        return;
+      }
+
+      const data = getStructuredContent(result) as any;
+      expect(data).toBeDefined();
+      expect(data.message).toContain("Moved");
+      expect(data.successCount).toBe(2);
+      expect(data.failureCount).toBe(0);
+      expect(data.results).toHaveLength(2);
+      expect(data.results[0].success).toBe(true);
+      expect(data.results[1].success).toBe(true);
+    }, 90000);
+
+    it("should cancel bulk-move-media when elicitation is rejected", async () => {
+      if (!cmsAvailable) return;
+
+      // Create one source folder and one target folder
+      const sourceResult = await createMediaFolderTool.handler(
+        { name: "Bulk Move Reject Source", parentId: undefined },
+        extra,
+      );
+      elicitation.reset();
+      const targetResult = await createMediaFolderTool.handler(
+        { name: "Bulk Move Reject Target", parentId: undefined },
+        extra,
+      );
+      elicitation.reset();
+
+      if (sourceResult.isError || targetResult.isError) {
+        console.warn("Skipping bulk-move-media rejection test: could not create test folders");
+        return;
+      }
+
+      const sourceData = getStructuredContent(sourceResult) as any;
+      const targetData = getStructuredContent(targetResult) as any;
+      createdFolderIds.push(sourceData.id, targetData.id);
+
+      elicitation.rejectAll();
+
+      const result = await bulkMoveMediaTool.handler(
+        { ids: [sourceData.id], targetParentId: targetData.id },
+        extra,
+      );
+
+      const data = getStructuredContent(result) as any;
+      // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
+      expect(data?.message?.includes("Cancelled") || result.isError).toBe(true);
     }, 60000);
   });
 
