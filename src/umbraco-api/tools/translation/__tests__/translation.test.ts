@@ -39,7 +39,7 @@ describe("Translation Collection", () => {
   beforeAll(async () => {
     try {
       // Check CMS availability and language configuration
-      const langResult = await listLanguagesTool.handler({ take: 50, skip: 0 }, extra);
+      const langResult = await listLanguagesTool.handler({}, extra);
       const langData = getStructuredContent(langResult) as any;
       if (langResult.isError || !langData) {
         console.warn("CMS not available — translation integration tests will be skipped");
@@ -62,7 +62,7 @@ describe("Translation Collection", () => {
       secondaryCulture = secondaryLang.isoCode;
 
       // Find a test page
-      const pagesResult = await listChildrenTool.handler({ parentId: undefined, take: 5, skip: 0 }, extra);
+      const pagesResult = await listChildrenTool.handler({ parentId: undefined }, extra);
       const pagesData = getStructuredContent(pagesResult) as any;
       if (!pagesResult.isError && pagesData?.items?.length > 0) {
         testPageId = pagesData.items[0].id;
@@ -88,7 +88,7 @@ describe("Translation Collection", () => {
       }
 
       const result = await listUntranslatedTool.handler(
-        { culture: secondaryCulture, parentId: undefined, take: 20, skip: 0 },
+        { culture: secondaryCulture, parentId: undefined },
         extra,
       );
 

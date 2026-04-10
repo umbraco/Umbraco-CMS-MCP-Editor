@@ -33,8 +33,8 @@ describe("Relationships Collection", () => {
   beforeAll(async () => {
     try {
       const [pageResult, mediaResult] = await Promise.all([
-        listChildrenTool.handler({ parentId: undefined, take: 5, skip: 0 }, extra),
-        listMediaChildrenTool.handler({ parentId: undefined, take: 5, skip: 0 }, extra),
+        listChildrenTool.handler({ parentId: undefined }, extra),
+        listMediaChildrenTool.handler({ parentId: undefined }, extra),
       ]);
 
       const pageData = getStructuredContent(pageResult) as any;
@@ -103,7 +103,7 @@ describe("Relationships Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await reportOrphanPagesTool.handler(
-        { parentId: undefined, take: 10, skip: 0 },
+        { parentId: undefined },
         extra,
       );
 

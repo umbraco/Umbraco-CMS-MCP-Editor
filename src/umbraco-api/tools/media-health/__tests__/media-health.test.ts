@@ -31,7 +31,7 @@ describe("Media Health Collection", () => {
   beforeAll(async () => {
     try {
       const mediaResult = await listMediaChildrenTool.handler(
-        { parentId: undefined, take: 5, skip: 0 },
+        { parentId: undefined },
         extra,
       );
 
@@ -58,7 +58,7 @@ describe("Media Health Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await reportLargeMediaTool.handler(
-        { minSizeKb: 1, parentId: undefined, take: 10, skip: 0 },
+        { minSizeKb: 1, parentId: undefined },
         extra,
       );
 

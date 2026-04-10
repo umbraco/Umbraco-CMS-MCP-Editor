@@ -35,7 +35,7 @@ describe("Content Reporting Collection", () => {
   beforeAll(async () => {
     try {
       const result = await reportRecentlyChangedTool.handler(
-        { daysBack: 3650, parentId: undefined, take: 1, skip: 0 },
+        { daysBack: 3650, parentId: undefined },
         extra,
       );
       if (!result.isError) {
@@ -59,7 +59,7 @@ describe("Content Reporting Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await reportStaleContentTool.handler(
-        { daysSinceUpdate: 1, parentId: undefined, take: 10, skip: 0 },
+        { daysSinceUpdate: 1, parentId: undefined },
         extra,
       );
 
@@ -82,7 +82,7 @@ describe("Content Reporting Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await reportUnpublishedTool.handler(
-        { parentId: undefined, take: 10, skip: 0 },
+        { parentId: undefined },
         extra,
       );
 
@@ -105,7 +105,7 @@ describe("Content Reporting Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await reportRecentlyChangedTool.handler(
-        { daysBack: 3650, parentId: undefined, take: 10, skip: 0 },
+        { daysBack: 3650, parentId: undefined },
         extra,
       );
 
@@ -154,7 +154,7 @@ describe("Content Reporting Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await reportTranslationCoverageTool.handler(
-        { parentId: undefined, take: 10, skip: 0 },
+        { parentId: undefined },
         extra,
       );
 

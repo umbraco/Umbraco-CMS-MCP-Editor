@@ -36,7 +36,7 @@ describe("Blueprint Collection", () => {
   beforeAll(async () => {
     try {
       const pageResult = await listChildrenTool.handler(
-        { parentId: undefined, take: 5, skip: 0 },
+        { parentId: undefined },
         extra,
       );
       const pageData = getStructuredContent(pageResult) as any;
@@ -54,7 +54,7 @@ describe("Blueprint Collection", () => {
     if (cmsAvailable) {
       try {
         const blueprintResult = await listBlueprintsTool.handler(
-          { parentId: undefined, take: 5, skip: 0 },
+          { parentId: undefined },
           extra,
         );
         const blueprintData = getStructuredContent(blueprintResult) as any;
@@ -88,7 +88,7 @@ describe("Blueprint Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await listBlueprintsTool.handler(
-        { parentId: undefined, take: 20, skip: 0 },
+        { parentId: undefined },
         extra,
       );
 

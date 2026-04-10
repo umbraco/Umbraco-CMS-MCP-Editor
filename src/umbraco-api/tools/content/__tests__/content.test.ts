@@ -43,7 +43,7 @@ describe("Content Collection", () => {
   beforeAll(async () => {
     try {
       const browseResult = await listChildrenTool.handler(
-        { parentId: undefined, take: 5, skip: 0 },
+        { parentId: undefined },
         extra,
       );
       const browseData = getStructuredContent(browseResult) as any;
@@ -78,7 +78,7 @@ describe("Content Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await listChildrenTool.handler(
-        { parentId: undefined, take: 10, skip: 0 },
+        { parentId: undefined },
         extra,
       );
 
@@ -101,7 +101,7 @@ describe("Content Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await searchContentTool.handler(
-        { query: "home", take: 5, skip: 0 },
+        { query: "home" },
         extra,
       );
 
@@ -116,7 +116,7 @@ describe("Content Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await searchContentTool.handler(
-        { query: "xyznonexistent99999", take: 5, skip: 0 },
+        { query: "xyznonexistent99999" },
         extra,
       );
 
@@ -162,7 +162,7 @@ describe("Content Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await listDocumentTypesTool.handler(
-        { take: 10, skip: 0 },
+        {},
         extra,
       );
 
@@ -183,13 +183,13 @@ describe("Content Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await listDocumentTypesTool.handler(
-        { take: 2, skip: 0 },
+        {},
         extra,
       );
 
       expect(result.isError).toBeFalsy();
       const data = getStructuredContent(result) as any;
-      expect(data.items.length).toBeLessThanOrEqual(2);
+      expect(data.items.length).toBeGreaterThan(0);
     }, 30000);
   });
 

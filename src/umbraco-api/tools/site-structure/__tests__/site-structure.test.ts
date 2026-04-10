@@ -74,7 +74,7 @@ describe("Site Structure Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await reportDeepPagesTool.handler(
-        { depthThreshold: 4, parentId: undefined, take: 10, skip: 0 },
+        { depthThreshold: 4, parentId: undefined },
         extra,
       );
 

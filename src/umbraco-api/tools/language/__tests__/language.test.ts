@@ -37,7 +37,7 @@ describe("Language Collection", () => {
 
   beforeAll(async () => {
     try {
-      const result = await listLanguagesTool.handler({ take: 50, skip: 0 }, extra);
+      const result = await listLanguagesTool.handler({}, extra);
       const data = getStructuredContent(result) as any;
       if (!result.isError && data) {
         cmsAvailable = true;
@@ -70,7 +70,7 @@ describe("Language Collection", () => {
     it("should list all configured languages", async () => {
       if (!cmsAvailable) return;
 
-      const result = await listLanguagesTool.handler({ take: 50, skip: 0 }, extra);
+      const result = await listLanguagesTool.handler({}, extra);
 
       expect(result.isError).toBeFalsy();
       const data = getStructuredContent(result) as any;
