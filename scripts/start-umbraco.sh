@@ -43,5 +43,10 @@ dotnet run 2>&1 | while IFS= read -r line; do
         echo "==> Updated UMBRACO_BASE_URL in .env"
       fi
     fi
+
+    # Ensure API user exists (runs in background, retries until Umbraco is ready)
+    (
+      NODE_TLS_REJECT_UNAUTHORIZED=0 node "$SCRIPT_DIR/create-api-user.mjs" "https://localhost:$PORT" 2>&1 | sed 's/^/==> [api-user] /'
+    ) &
   fi
 done
