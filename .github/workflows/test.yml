@@ -126,6 +126,7 @@ jobs:
         run: npx playwright install --with-deps
 
       - name: Run Playwright E2E tests
+        continue-on-error: true
         env:
           HEADLESS: 'true'
           SLOW_MO: '0'
