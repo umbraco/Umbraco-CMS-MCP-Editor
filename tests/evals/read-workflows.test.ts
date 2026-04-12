@@ -23,6 +23,7 @@ const allTools = [
   "edit-page",
   "edit-block",
   "delete-page",
+  "restore-page",
   // Publishing
   "publish-page",
   "unpublish-page",

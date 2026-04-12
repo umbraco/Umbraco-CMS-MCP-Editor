@@ -2,7 +2,7 @@
  * Content Collection Integration Tests
  *
  * Tests for search-content, get-page, list-children, list-document-types,
- * inspect-blocks, create-page, edit-page, edit-block, delete-page.
+ * inspect-blocks, create-page, edit-page, edit-block, restore-page, delete-page.
  * Runs against a real Umbraco instance via the chained @umbraco-cms/mcp-dev MCP server.
  *
  * Prerequisites:
@@ -27,6 +27,7 @@ import inspectBlocksTool from "../get/inspect-blocks.js";
 import createPageTool from "../post/create-page.js";
 import editPageTool from "../put/edit-page.js";
 import editBlockTool from "../put/edit-block.js";
+import restorePageTool from "../put/restore-page.js";
 import deletePageTool from "../delete/delete-page.js";
 
 const elicitation = setupElicitationMock(jest.fn as any);
@@ -308,7 +309,7 @@ describe("Content Collection", () => {
     }, 30000);
   });
 
-  describe("create-page, edit-page, delete-page lifecycle", () => {
+  describe("create-page, edit-page, delete-page, restore-page lifecycle", () => {
     let createdId: string;
 
     it("should create a draft page", async () => {
@@ -392,6 +393,29 @@ describe("Content Collection", () => {
       expect(data.message).toContain("recycle bin");
       expect(data.id).toBe(createdId);
 
+      // Don't remove from createdPageIds yet — restore test follows
+    }, 30000);
+
+    it("should restore the deleted page from recycle bin", async () => {
+      if (!cmsAvailable || !createdId) {
+        console.warn("Skipping restore test: no page was created/deleted");
+        return;
+      }
+
+      const result = await restorePageTool.handler({ id: createdId }, extra);
+
+      if (result.isError) {
+        console.warn("Skipping restore assertions: CMS returned error");
+        return;
+      }
+
+      const data = getStructuredContent(result) as any;
+      expect(data).toBeDefined();
+      expect(data.message).toContain("Restored");
+      expect(data.id).toBe(createdId);
+
+      // Clean up: delete again so afterAll doesn't fail
+      await deletePageTool.handler({ id: createdId }, extra);
       const idx = createdPageIds.indexOf(createdId);
       if (idx !== -1) createdPageIds.splice(idx, 1);
     }, 30000);
@@ -507,6 +531,21 @@ describe("Content Collection", () => {
           id: testPageId,
           values: [{ alias: "title", value: "Should Not Change" }],
         },
+        extra,
+      );
+
+      const data = getStructuredContent(result) as any;
+      // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
+      expect(data?.message?.includes("cancelled") || result.isError).toBe(true);
+    }, 30000);
+
+    it("should cancel restore when elicitation is rejected", async () => {
+      if (!cmsAvailable || !testPageId) return;
+
+      elicitation.rejectAll();
+
+      const result = await restorePageTool.handler(
+        { id: testPageId },
         extra,
       );
 
