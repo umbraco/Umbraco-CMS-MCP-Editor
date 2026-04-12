@@ -90,8 +90,8 @@ test.describe("Hosted MCP E2E", () => {
 
     const oauthPage = await connectInspector(page, workerUrl, inspector.url);
     await handleOAuthFlow(page, oauthPage, undefined, {
-      email: "admin@test.com",
-      password: "SecurePass1234",
+      email: process.env.UMBRACO_ADMIN_EMAIL ?? "admin@test.com",
+      password: process.env.UMBRACO_ADMIN_PASSWORD ?? "SecurePass1234",
     });
 
     const tools = await getToolNames(page, ALL_TOOLS);
@@ -108,8 +108,8 @@ test.describe("Hosted MCP E2E", () => {
 
     const oauthPage = await connectInspector(page, workerUrl, inspector.url);
     await handleOAuthFlow(page, oauthPage, undefined, {
-      email: "admin@test.com",
-      password: "SecurePass1234",
+      email: process.env.UMBRACO_ADMIN_EMAIL ?? "admin@test.com",
+      password: process.env.UMBRACO_ADMIN_PASSWORD ?? "SecurePass1234",
     });
 
     await getToolNames(page, ALL_TOOLS);
@@ -128,8 +128,8 @@ test.describe("Hosted MCP E2E", () => {
 
     const oauthPage = await connectInspector(page, workerUrl, inspector.url);
     await handleOAuthFlow(page, oauthPage, undefined, {
-      email: "admin@test.com",
-      password: "SecurePass1234",
+      email: process.env.UMBRACO_ADMIN_EMAIL ?? "admin@test.com",
+      password: process.env.UMBRACO_ADMIN_PASSWORD ?? "SecurePass1234",
     });
 
     await getToolNames(page, ALL_TOOLS);
