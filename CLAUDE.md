@@ -8,9 +8,31 @@ MCP server that gives AI assistants editorial control over Umbraco CMS content. 
 
 Runs as a local stdio MCP server or as a hosted Cloudflare Worker with OAuth.
 
+## Gitflow
+
+- `dev` — integration branch, all feature branches merge here
+- `main` — release branch, only merged from `dev`
+- Feature branches: `feature/<name>` (auto-prefixed by worktree hook)
+
 ## Git Worktrees
 
-This project uses git worktrees for feature work. **Before making any file changes, verify you are in the correct worktree.** Check your current working directory matches the intended worktree path — do not accidentally edit files in the main worktree when you should be in a feature worktree, or vice versa.
+This project uses git worktrees for feature work. Use `EnterWorktree` to create or enter a worktree — hooks in `.claude/settings.json` handle everything automatically:
+
+- `.env` is copied from the main repo (API credentials)
+- A new SQL Server database is created (`umbraco-mcp-editor-<slug>`)
+- `demo-site/appsettings.local.json` is written with the worktree database connection string
+- `demo-site/Properties/launchSettings.json` is rewritten to use a dynamic port (port 0)
+- `npm install` runs automatically
+
+First `dotnet run` in a new worktree triggers Umbraco unattended install in the new database.
+
+**Running the demo site in a worktree:**
+
+`npm run start:umbraco` — starts Umbraco on a random available port. The port is written to `.demo-site-port` and `UMBRACO_BASE_URL` in `.env` is updated automatically.
+
+**Cleanup:**
+
+Use `ExitWorktree` with remove action, or the `/cleanup` skill. The hook drops the worktree database and removes the worktree directory.
 
 ## Commands
 
