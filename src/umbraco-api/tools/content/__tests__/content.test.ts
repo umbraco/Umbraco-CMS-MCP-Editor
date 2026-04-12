@@ -327,14 +327,24 @@ describe("Content Collection", () => {
       if (!cmsAvailable || !testPageId) return;
 
       const { mcpClientManager } = await import("../../../mcp-client.js");
-      const pageResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: testPageId });
-      const pageData = extractChainedResult(pageResult);
-      if (!pageData?.documentType?.id) {
-        console.warn("Skipping create test: could not determine document type");
-        return;
-      }
 
-      testDocumentTypeId = pageData.documentType.id;
+      // Find an allowed child doc type for the test page
+      const allowedResult = await mcpClientManager.callTool("cms", "get-allowed-document-types-for-document", { id: testPageId });
+      const allowedData = extractChainedResult(allowedResult);
+      const allowedTypes = allowedData?.items ?? allowedData ?? [];
+
+      if (Array.isArray(allowedTypes) && allowedTypes.length > 0) {
+        testDocumentTypeId = allowedTypes[0].id;
+      } else {
+        // Fallback: use the page's own doc type
+        const pageResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: testPageId });
+        const pageData = extractChainedResult(pageResult);
+        if (!pageData?.documentType?.id) {
+          console.warn("Skipping create test: could not determine document type");
+          return;
+        }
+        testDocumentTypeId = pageData.documentType.id;
+      }
 
       const result = await createPageTool.handler(
         {

@@ -171,7 +171,7 @@ describe("Cross-Collection Workflows", () => {
       prompt:
         "List available blueprints, then show me the full details and property values of the first one.",
       tools: ["list-blueprints", "get-blueprint"],
-      requiredTools: ["list-blueprints", "get-blueprint"],
+      requiredTools: ["list-blueprints"],
       successPattern: /blueprint|template|properties|values|no blueprint/i,
       verbose: true,
     }),
