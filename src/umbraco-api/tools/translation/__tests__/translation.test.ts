@@ -13,10 +13,11 @@
 import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
-  setupElicitationMock,
+
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
+import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 
 import listLanguagesTool from "../../language/get/list-languages.js";
 import listChildrenTool from "../../content/get/list-children.js";
@@ -24,7 +25,7 @@ import listUntranslatedTool from "../get/list-untranslated.js";
 import createVariantTool from "../post/create-variant.js";
 import copyVariantTool from "../post/copy-variant.js";
 
-const elicitation = setupElicitationMock(jest.fn as any);
+const elicitation = setupEditorElicitation(jest.fn as any);
 
 describe("Translation Collection", () => {
   setupTestEnvironment();

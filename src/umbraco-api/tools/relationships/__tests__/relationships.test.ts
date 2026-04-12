@@ -9,10 +9,11 @@
 import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
-  setupElicitationMock,
+
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
+import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 
 import reportContentReferencesTool from "../get/report-content-references.js";
 import reportOrphanPagesTool from "../get/report-orphan-pages.js";
@@ -20,7 +21,7 @@ import reportOutboundLinksTool from "../get/report-outbound-links.js";
 import listChildrenTool from "../../content/get/list-children.js";
 import listMediaChildrenTool from "../../media/get/list-media-children.js";
 
-const elicitation = setupElicitationMock(jest.fn as any);
+const elicitation = setupEditorElicitation(jest.fn as any);
 
 describe("Relationships Collection", () => {
   setupTestEnvironment();

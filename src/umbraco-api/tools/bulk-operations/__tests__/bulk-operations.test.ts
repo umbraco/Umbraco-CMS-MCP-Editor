@@ -13,10 +13,11 @@
 import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
-  setupElicitationMock,
+
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
+import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 
 import listChildrenTool from "../../content/get/list-children.js";
 import bulkPublishTool from "../post/bulk-publish.js";
@@ -32,7 +33,7 @@ const FAKE_TARGET_UUID = "00000000-0000-0000-0000-000000000002";
 const FUTURE_DATE = "2099-01-01T09:00:00Z";
 const FAKE_CONTENT_TYPE_KEY = "00000000-0000-0000-0000-000000000003";
 
-const elicitation = setupElicitationMock(jest.fn as any);
+const elicitation = setupEditorElicitation(jest.fn as any);
 
 describe("Bulk Operations Collection", () => {
   setupTestEnvironment();

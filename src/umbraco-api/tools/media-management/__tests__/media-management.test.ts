@@ -12,10 +12,11 @@
 import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
-  setupElicitationMock,
+
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
+import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 
 import createMediaFolderTool from "../post/create-media-folder.js";
 import uploadMediaTool from "../post/upload-media.js";
@@ -25,7 +26,7 @@ import deleteMediaTool from "../delete/delete-media.js";
 import restoreMediaTool from "../put/restore-media.js";
 import listMediaChildrenTool from "../../media/get/list-media-children.js";
 
-const elicitation = setupElicitationMock(jest.fn as any);
+const elicitation = setupEditorElicitation(jest.fn as any);
 
 describe("Media Management Collection", () => {
   setupTestEnvironment();

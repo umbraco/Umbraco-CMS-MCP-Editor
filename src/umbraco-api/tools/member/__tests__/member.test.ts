@@ -13,10 +13,11 @@
 import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
-  setupElicitationMock,
+
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
+import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 
 import searchMembersTool from "../get/search-members.js";
 import getMemberTool from "../get/get-member.js";
@@ -32,7 +33,7 @@ const TEST_MEMBER_PASSWORD = "TestPass123!";
 const TEST_MEMBER_UPDATED_NAME = "Integration Test Member Updated";
 const NON_EXISTENT_UUID = "00000000-0000-0000-0000-000000000000";
 
-const elicitation = setupElicitationMock(jest.fn as any);
+const elicitation = setupEditorElicitation(jest.fn as any);
 
 describe("Member Collection", () => {
   setupTestEnvironment();

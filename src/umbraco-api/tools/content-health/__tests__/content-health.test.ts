@@ -13,10 +13,11 @@
 import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
-  setupElicitationMock,
+
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
+import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 
 import auditPageSeoTool from "../get/audit-page-seo.js";
 import auditPageContentTool from "../get/audit-page-content.js";
@@ -25,7 +26,7 @@ import reportShortContentTool from "../get/report-short-content.js";
 import reportMediaMissingAltTool from "../get/report-media-missing-alt.js";
 import listChildrenTool from "../../content/get/list-children.js";
 
-const elicitation = setupElicitationMock(jest.fn as any);
+const elicitation = setupEditorElicitation(jest.fn as any);
 
 describe("Content Health Collection", () => {
   setupTestEnvironment();

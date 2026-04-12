@@ -12,10 +12,10 @@
 import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
-  setupElicitationMock,
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
+import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 
 import listMemberGroupsTool from "../get/list-member-groups.js";
 import createMemberGroupTool from "../post/create-member-group.js";
@@ -23,7 +23,7 @@ import deleteMemberGroupTool from "../delete/delete-member-group.js";
 
 const TEST_GROUP_NAME = "Test Integration Group";
 
-const elicitation = setupElicitationMock(jest.fn as any);
+const elicitation = setupEditorElicitation(jest.fn as any);
 
 describe("Member Group Collection", () => {
   setupTestEnvironment();

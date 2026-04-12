@@ -13,10 +13,11 @@
 import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
-  setupElicitationMock,
+
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
+import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 import { extractChainedResult, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 
 import searchContentTool from "../get/search-content.js";
@@ -30,7 +31,7 @@ import editBlockTool from "../put/edit-block.js";
 import restorePageTool from "../put/restore-page.js";
 import deletePageTool from "../delete/delete-page.js";
 
-const elicitation = setupElicitationMock(jest.fn as any);
+const elicitation = setupEditorElicitation(jest.fn as any);
 
 describe("Content Collection", () => {
   setupTestEnvironment();

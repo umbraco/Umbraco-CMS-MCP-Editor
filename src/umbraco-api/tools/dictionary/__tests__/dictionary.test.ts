@@ -13,10 +13,11 @@
 import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
-  setupElicitationMock,
+
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
+import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 
 import listDictionaryTool from "../get/list-dictionary.js";
 import searchDictionaryTool from "../get/search-dictionary.js";
@@ -27,7 +28,7 @@ import moveDictionaryTool from "../put/move-dictionary.js";
 
 const TEST_DICTIONARY_NAME = "mcp-integration-test-item";
 
-const elicitation = setupElicitationMock(jest.fn as any);
+const elicitation = setupEditorElicitation(jest.fn as any);
 
 describe("Dictionary Collection", () => {
   setupTestEnvironment();

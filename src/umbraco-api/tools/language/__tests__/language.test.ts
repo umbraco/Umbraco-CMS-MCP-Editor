@@ -12,10 +12,11 @@
 import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
-  setupElicitationMock,
+
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
+import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 
 import listLanguagesTool from "../get/list-languages.js";
 import getLanguageTool from "../get/get-language.js";
@@ -25,7 +26,7 @@ import deleteLanguageTool from "../delete/delete-language.js";
 
 const TEST_LANGUAGE_ISO = "nb-NO";
 
-const elicitation = setupElicitationMock(jest.fn as any);
+const elicitation = setupEditorElicitation(jest.fn as any);
 
 describe("Language Collection", () => {
   setupTestEnvironment();

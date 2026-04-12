@@ -12,10 +12,11 @@
 import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
-  setupElicitationMock,
+
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
+import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 import { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 
 import publishPageTool from "../post/publish-page.js";
@@ -24,7 +25,7 @@ import listChildrenTool from "../../content/get/list-children.js";
 import createPageTool from "../../content/post/create-page.js";
 import deletePageTool from "../../content/delete/delete-page.js";
 
-const elicitation = setupElicitationMock(jest.fn as any);
+const elicitation = setupEditorElicitation(jest.fn as any);
 
 describe("Publishing Collection", () => {
   setupTestEnvironment();

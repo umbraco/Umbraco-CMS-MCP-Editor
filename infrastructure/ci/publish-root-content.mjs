@@ -19,7 +19,8 @@ const CLIENT_ID = "umbraco-back-office-mcp";
 const CLIENT_SECRET = "1234567890";
 
 const TOKEN_PATH = "/umbraco/management/api/v1/security/back-office/token";
-const DOCUMENT_ROOT_PATH = "/umbraco/management/api/v1/document";
+const TREE_ROOT_PATH = "/umbraco/management/api/v1/tree/document/root";
+const DOCUMENT_PATH = "/umbraco/management/api/v1/document";
 
 async function getToken() {
   const res = await fetch(`${BASE_URL}${TOKEN_PATH}`, {
@@ -42,24 +43,24 @@ async function getToken() {
 }
 
 async function listRootDocuments(token) {
-  // List root-level children (no parent filter)
-  const url = `${BASE_URL}${DOCUMENT_ROOT_PATH}?skip=0&take=100`;
+  const url = `${BASE_URL}${TREE_ROOT_PATH}?skip=0&take=100`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(10_000),
   });
 
   if (!res.ok) {
-    throw new Error(`List documents failed: HTTP ${res.status}`);
+    throw new Error(`List root documents failed: HTTP ${res.status}`);
   }
 
   const data = await res.json();
   return data.items || [];
 }
 
-async function publishDocument(token, id) {
-  const url = `${BASE_URL}${DOCUMENT_ROOT_PATH}/${id}/publish`;
-  const res = await fetch(url, {
+async function publishDocumentWithDescendants(token, id) {
+  // First publish the root document itself
+  const pubUrl = `${BASE_URL}${DOCUMENT_PATH}/${id}/publish`;
+  const pubRes = await fetch(pubUrl, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -71,12 +72,10 @@ async function publishDocument(token, id) {
     signal: AbortSignal.timeout(10_000),
   });
 
-  return res.ok;
-}
+  if (!pubRes.ok) return false;
 
-async function publishDocumentWithDescendants(token, id) {
-  // Try publishing with descendants first
-  const url = `${BASE_URL}${DOCUMENT_ROOT_PATH}/${id}/publish-with-descendants`;
+  // Then publish descendants (async operation)
+  const url = `${BASE_URL}${DOCUMENT_PATH}/${id}/publish-with-descendants`;
   const res = await fetch(url, {
     method: "PUT",
     headers: {
@@ -90,10 +89,26 @@ async function publishDocumentWithDescendants(token, id) {
     signal: AbortSignal.timeout(30_000),
   });
 
-  if (res.ok) return true;
+  if (!res.ok) return true; // Root was published, descendants failed — still OK
 
-  // Fall back to single-page publish
-  return publishDocument(token, id);
+  // Poll for async task completion
+  const data = await res.json();
+  if (data.taskId) {
+    const resultUrl = `${BASE_URL}${DOCUMENT_PATH}/${id}/publish-with-descendants/result/${data.taskId}`;
+    for (let i = 0; i < 30; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      const pollRes = await fetch(resultUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (pollRes.ok) {
+        const pollData = await pollRes.json();
+        if (pollData.isComplete) return true;
+      }
+    }
+  }
+
+  return true;
 }
 
 async function main() {
@@ -110,7 +125,7 @@ async function main() {
   console.log(`Found ${documents.length} root document(s)`);
 
   for (const doc of documents) {
-    const name = doc.variants?.[0]?.name || doc.id;
+    const name = doc.name || doc.id;
     const ok = await publishDocumentWithDescendants(token, doc.id);
     console.log(`  ${ok ? "✓" : "✗"} ${name} (${doc.id})`);
   }

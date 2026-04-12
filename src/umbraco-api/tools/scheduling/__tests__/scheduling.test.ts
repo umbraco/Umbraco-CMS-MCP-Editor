@@ -12,10 +12,11 @@
 import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
-  setupElicitationMock,
+
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
+import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 
 import listChildrenTool from "../../content/get/list-children.js";
 import getPublishStatusTool from "../get/get-publish-status.js";
@@ -23,7 +24,7 @@ import listScheduledContentTool from "../get/list-scheduled-content.js";
 import schedulePublishTool from "../post/schedule-publish.js";
 import cancelScheduleTool from "../post/cancel-schedule.js";
 
-const elicitation = setupElicitationMock(jest.fn as any);
+const elicitation = setupEditorElicitation(jest.fn as any);
 
 describe("Scheduling Collection", () => {
   setupTestEnvironment();

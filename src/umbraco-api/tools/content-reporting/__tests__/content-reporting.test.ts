@@ -13,10 +13,11 @@
 import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
-  setupElicitationMock,
+
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
+import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 
 import reportStaleContentTool from "../get/report-stale-content.js";
 import reportUnpublishedTool from "../get/report-unpublished.js";
@@ -24,7 +25,7 @@ import reportRecentlyChangedTool from "../get/report-recently-changed.js";
 import reportContentByTypeTool from "../get/report-content-by-type.js";
 import reportTranslationCoverageTool from "../get/report-translation-coverage.js";
 
-const elicitation = setupElicitationMock(jest.fn as any);
+const elicitation = setupEditorElicitation(jest.fn as any);
 
 describe("Content Reporting Collection", () => {
   setupTestEnvironment();

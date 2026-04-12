@@ -12,16 +12,17 @@
 import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
-  setupElicitationMock,
+
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
+import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 
 import listVersionsTool from "../get/list-versions.js";
 import rollbackPageTool from "../post/rollback-page.js";
 import listChildrenTool from "../../content/get/list-children.js";
 
-const elicitation = setupElicitationMock(jest.fn as any);
+const elicitation = setupEditorElicitation(jest.fn as any);
 
 describe("Versioning Collection", () => {
   setupTestEnvironment();

@@ -12,17 +12,18 @@
 import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
-  setupElicitationMock,
+
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
+import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 
 import listRedirectsTool from "../get/list-redirects.js";
 import getRedirectTool from "../get/get-redirect.js";
 import getRedirectStatusTool from "../get/get-redirect-status.js";
 import deleteRedirectTool from "../delete/delete-redirect.js";
 
-const elicitation = setupElicitationMock(jest.fn as any);
+const elicitation = setupEditorElicitation(jest.fn as any);
 
 describe("Redirect Collection", () => {
   setupTestEnvironment();
