@@ -63,14 +63,14 @@ mkdir -p "$(dirname "$WORKTREE_PATH")"
 # Check if branch already exists locally
 if git -C "$PROJECT_DIR" rev-parse --verify "$BRANCH_NAME" >/dev/null 2>&1; then
   echo "Using existing local branch: $BRANCH_NAME" >&2
-  git -C "$PROJECT_DIR" worktree add "$WORKTREE_PATH" "$BRANCH_NAME"
+  git -C "$PROJECT_DIR" worktree add "$WORKTREE_PATH" "$BRANCH_NAME" >&2
 # Check if branch exists on remote
 elif git -C "$PROJECT_DIR" rev-parse --verify "origin/$BRANCH_NAME" >/dev/null 2>&1; then
   echo "Tracking remote branch: origin/$BRANCH_NAME" >&2
-  git -C "$PROJECT_DIR" worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME" --track "origin/$BRANCH_NAME"
+  git -C "$PROJECT_DIR" worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME" --track "origin/$BRANCH_NAME" >&2
 else
   echo "Creating new branch: $BRANCH_NAME from $BASE_BRANCH" >&2
-  git -C "$PROJECT_DIR" worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME" "$BASE_BRANCH"
+  git -C "$PROJECT_DIR" worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME" "$BASE_BRANCH" >&2
 fi
 
 # --- Copy .env ---
@@ -88,7 +88,7 @@ if [ -d "$PROJECT_DIR/demo-site" ]; then
     --exclude='umbraco/Data/*.sqlite*' \
     --exclude='umbraco/Logs/' \
     --exclude='appsettings.local.json' \
-    "$PROJECT_DIR/demo-site/" "$WORKTREE_PATH/demo-site/"
+    "$PROJECT_DIR/demo-site/" "$WORKTREE_PATH/demo-site/" >&2
   echo "Copied demo-site (excluding build artifacts and data)" >&2
 fi
 
@@ -147,7 +147,7 @@ fi
 # --- Run npm install ---
 echo "Running npm install in worktree..." >&2
 cd "$WORKTREE_PATH"
-npm install --silent 2>&1 | tail -1 >&2 || {
+npm install --silent >&2 2>&1 || {
   echo "Warning: npm install failed" >&2
 }
 
