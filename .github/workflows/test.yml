@@ -110,6 +110,9 @@ jobs:
       - name: Create API user
         run: node infrastructure/ci/create-api-user.mjs http://localhost:56472 admin@admin.com 1234567890
 
+      - name: Publish root content
+        run: node infrastructure/ci/publish-root-content.mjs http://localhost:56472
+
       - name: Run tests
         id: unit-integration
         run: npm test -- --no-coverage --forceExit
@@ -230,6 +233,9 @@ jobs:
 
       - name: Create API user
         run: node infrastructure/ci/create-api-user.mjs http://localhost:56472 admin@admin.com 1234567890
+
+      - name: Publish root content
+        run: node infrastructure/ci/publish-root-content.mjs http://localhost:56472
 
       - name: Run eval tests
         run: npm run test:evals
