@@ -1,5 +1,5 @@
 # Files to copy into new worktrees
-# Uses gitignore syntax — processed by git ls-files --others --ignored --exclude-from
+# Processed by the worktree-create.sh script
 
 # Environment config (API credentials for MCP tools)
 .env

@@ -73,18 +73,23 @@ else
   git -C "$PROJECT_DIR" worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME" "$BASE_BRANCH"
 fi
 
-# --- Copy .worktreeinclude files ---
-if [ -f "$PROJECT_DIR/.worktreeinclude" ]; then
-  cd "$PROJECT_DIR"
-  # Find untracked/ignored files matching .worktreeinclude patterns and copy them
-  git ls-files --others --ignored --exclude-from=.worktreeinclude 2>/dev/null | while read -r file; do
-    if [ -f "$file" ]; then
-      target_dir="$WORKTREE_PATH/$(dirname "$file")"
-      mkdir -p "$target_dir"
-      cp "$file" "$WORKTREE_PATH/$file"
-      echo "Copied: $file" >&2
-    fi
-  done
+# --- Copy .env ---
+if [ -f "$PROJECT_DIR/.env" ]; then
+  cp "$PROJECT_DIR/.env" "$WORKTREE_PATH/.env"
+  echo "Copied: .env" >&2
+fi
+
+# --- Copy demo-site (gitignored, so not in worktree by default) ---
+if [ -d "$PROJECT_DIR/demo-site" ]; then
+  echo "Copying demo-site to worktree..." >&2
+  rsync -a \
+    --exclude='bin/' \
+    --exclude='obj/' \
+    --exclude='umbraco/Data/*.sqlite*' \
+    --exclude='umbraco/Logs/' \
+    --exclude='appsettings.local.json' \
+    "$PROJECT_DIR/demo-site/" "$WORKTREE_PATH/demo-site/"
+  echo "Copied demo-site (excluding build artifacts and data)" >&2
 fi
 
 # --- Create SQL Server database ---
