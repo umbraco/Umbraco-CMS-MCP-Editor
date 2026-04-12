@@ -328,20 +328,26 @@ describe("Content Collection", () => {
 
       const { mcpClientManager } = await import("../../../mcp-client.js");
 
-      // Find an allowed child doc type for the test page
-      const allowedResult = await mcpClientManager.callTool("cms", "get-allowed-document-types-for-document", { id: testPageId });
-      const allowedData = extractChainedResult(allowedResult);
-      const allowedTypes = allowedData?.items ?? allowedData ?? [];
+      // Find an allowed child doc type by examining existing children
+      const childrenResult = await listChildrenTool.handler({ parentId: testPageId }, extra);
+      const childrenData = getStructuredContent(childrenResult) as any;
 
-      if (Array.isArray(allowedTypes) && allowedTypes.length > 0) {
-        testDocumentTypeId = allowedTypes[0].id;
-      } else {
+      if (childrenData?.items?.length > 0) {
+        // Use the doc type of an existing child — guaranteed to be allowed
+        const childId = childrenData.items[0].id;
+        const childResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: childId });
+        const childData = extractChainedResult(childResult);
+        if (childData?.documentType?.id) {
+          testDocumentTypeId = childData.documentType.id;
+        }
+      }
+
+      if (!testDocumentTypeId) {
         // Fallback: use the page's own doc type
         const pageResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: testPageId });
         const pageData = extractChainedResult(pageResult);
         if (!pageData?.documentType?.id) {
-          console.warn("Skipping create test: could not determine document type");
-          return;
+          throw new Error("Could not determine any document type for create test");
         }
         testDocumentTypeId = pageData.documentType.id;
       }
@@ -356,10 +362,7 @@ describe("Content Collection", () => {
         extra,
       );
 
-      if (result.isError) {
-        console.warn("Skipping create test: doc type restrictions prevent creating test page");
-        return;
-      }
+      expect(result.isError).toBeFalsy();
 
       const data = getStructuredContent(result) as any;
       expect(data).toBeDefined();
