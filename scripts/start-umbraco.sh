@@ -27,9 +27,9 @@ cd "$SITE_DIR"
 # Run dotnet and capture output to detect the bound port
 dotnet run 2>&1 | while IFS= read -r line; do
   echo "$line"
-  # Capture the HTTPS port from "Now listening on: https://localhost:XXXXX"
-  if [[ "$line" =~ "Now listening on: https://localhost:"([0-9]+) ]]; then
-    PORT="${BASH_REMATCH[1]}"
+  # Capture the HTTPS port from "Now listening on: https://localhost:XXXXX" or "https://127.0.0.1:XXXXX"
+  PORT=$(echo "$line" | sed -n 's/.*Now listening on: https:\/\/[^:]*:\([0-9]*\).*/\1/p')
+  if [ -n "$PORT" ]; then
     echo "$PORT" > "$PORT_FILE"
     echo ""
     echo "==> Umbraco available at: https://localhost:$PORT"

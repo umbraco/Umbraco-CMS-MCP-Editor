@@ -128,9 +128,9 @@ LAUNCH_SETTINGS="$WORKTREE_PATH/demo-site/Properties/launchSettings.json"
 if [ -f "$LAUNCH_SETTINGS" ]; then
   # Use jq to rewrite the applicationUrl to port 0
   jq '
-    .profiles["Umbraco.Web.UI"].applicationUrl = "https://localhost:0;http://localhost:0" |
+    .profiles["Umbraco.Web.UI"].applicationUrl = "https://127.0.0.1:0;http://127.0.0.1:0" |
     .iisSettings.iisExpress.sslPort = 0 |
-    .iisSettings.iisExpress.applicationUrl = "http://localhost:0"
+    .iisSettings.iisExpress.applicationUrl = "http://127.0.0.1:0"
   ' "$LAUNCH_SETTINGS" > "$LAUNCH_SETTINGS.tmp" && mv "$LAUNCH_SETTINGS.tmp" "$LAUNCH_SETTINGS"
   echo "Rewrote launchSettings.json to use dynamic port" >&2
 fi
