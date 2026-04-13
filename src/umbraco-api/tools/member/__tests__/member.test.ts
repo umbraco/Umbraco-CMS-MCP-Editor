@@ -145,12 +145,16 @@ describe("Member Collection", () => {
     it("should get a member by ID with full profile", async () => {
       if (!cmsAvailable) return;
 
-      // First search to find an existing member
-      const searchResult = await searchMembersTool.handler(
-        { query: "test" },
-        extra,
-      );
-      const searchData = getStructuredContent(searchResult) as any;
+      // First search to find an existing member — try multiple queries
+      let searchData: any = null;
+      for (const query of ["test", "admin", "a"]) {
+        const searchResult = await searchMembersTool.handler({ query }, extra);
+        const data = getStructuredContent(searchResult) as any;
+        if (data?.items?.length > 0) {
+          searchData = data;
+          break;
+        }
+      }
 
       if (!searchData?.items?.length) {
         console.warn("Skipping get-member test: no members found via search");
@@ -209,7 +213,28 @@ describe("Member Collection", () => {
       );
 
       if (result.isError) {
-        console.warn("Skipping create-member test: creation failed (possible duplicate or permission issue)");
+        // Creation failed — try to find existing member by searching
+        console.warn("create-member failed, searching for existing members to use");
+        try {
+          const searchResult = await searchMembersTool.handler({ query: TEST_MEMBER_USERNAME }, extra);
+          const searchData = getStructuredContent(searchResult) as any;
+          if (searchData?.items?.length > 0) {
+            createdMemberId = searchData.items[0].id;
+            console.warn(`Found existing member ${createdMemberId} — using for subsequent tests`);
+            return;
+          }
+          // Fallback: search with broader query
+          const broadSearch = await searchMembersTool.handler({ query: "test" }, extra);
+          const broadData = getStructuredContent(broadSearch) as any;
+          if (broadData?.items?.length > 0) {
+            createdMemberId = broadData.items[0].id;
+            console.warn(`Using existing member ${createdMemberId} for subsequent tests`);
+            return;
+          }
+        } catch {
+          // Could not find fallback
+        }
+        console.warn("Could not find or create member — subsequent tests will skip");
         return;
       }
 

@@ -123,8 +123,22 @@ describe("Language Collection", () => {
       );
 
       if (result.isError) {
-        // Language may already exist on this Umbraco instance
-        console.warn(`Skipping create test: ${getStructuredContent(result)}`);
+        // Language may already exist — check if it does and use it
+        console.warn(`create-language failed, checking if language already exists: ${getStructuredContent(result)}`);
+        try {
+          const existingResult = await getLanguageTool.handler({ isoCode: TEST_LANGUAGE_ISO }, extra);
+          if (!existingResult.isError) {
+            const existingData = getStructuredContent(existingResult) as any;
+            if (existingData?.isoCode === TEST_LANGUAGE_ISO) {
+              console.warn(`Language ${TEST_LANGUAGE_ISO} already exists — using it for subsequent tests`);
+              createdIsoCode = TEST_LANGUAGE_ISO;
+              return;
+            }
+          }
+        } catch {
+          // Could not verify — skip
+        }
+        console.warn("Could not find or create language — subsequent tests will skip");
         return;
       }
 
