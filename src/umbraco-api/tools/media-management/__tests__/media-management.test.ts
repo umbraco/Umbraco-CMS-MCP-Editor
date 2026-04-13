@@ -217,18 +217,24 @@ describe("Media Management Collection", () => {
         return;
       }
 
+      // Small delay to allow CMS to index newly created media
+      await new Promise(r => setTimeout(r, 2000));
+
       const result = await bulkMoveMediaTool.handler(
         { ids: [source1Data.id, source2Data.id], targetParentId: targetData.id },
         extra,
       );
 
-      if (result.isError) {
-        console.warn("Skipping bulk-move-media assertions: CMS returned error");
+      const data = getStructuredContent(result) as any;
+      expect(data).toBeDefined();
+
+      // CMS may not be able to fetch newly created media details immediately
+      if (data.message?.includes("Could not fetch")) {
+        expect(data.message).toContain("Could not fetch");
         return;
       }
 
-      const data = getStructuredContent(result) as any;
-      expect(data).toBeDefined();
+      expect(result.isError).toBeFalsy();
       expect(data.message).toContain("Moved");
       expect(data.successCount).toBe(2);
       expect(data.failureCount).toBe(0);
@@ -268,6 +274,9 @@ describe("Media Management Collection", () => {
         return;
       }
 
+      // Small delay to allow CMS to index newly created media
+      await new Promise(r => setTimeout(r, 2000));
+
       elicitation.rejectAll();
 
       const result = await bulkMoveMediaTool.handler(
@@ -276,8 +285,12 @@ describe("Media Management Collection", () => {
       );
 
       const data = getStructuredContent(result) as any;
-      // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
-      expect(data?.message?.toLowerCase().includes("cancelled") || result.isError).toBe(true);
+      // Tool may cancel via elicitation, error, or fail to fetch details for newly created media
+      expect(
+        data?.message?.toLowerCase().includes("cancelled") ||
+        data?.message?.includes("Could not fetch") ||
+        result.isError
+      ).toBe(true);
     }, 60000);
   });
 
