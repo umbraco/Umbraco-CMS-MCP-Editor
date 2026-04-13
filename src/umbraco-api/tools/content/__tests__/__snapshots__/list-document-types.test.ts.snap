@@ -1,0 +1,100 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`list-document-types should accept cursor parameter 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "items": [
+      {
+        "alias": "unknown",
+        "description": undefined,
+        "icon": undefined,
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "Compositions",
+      },
+      {
+        "alias": "unknown",
+        "description": undefined,
+        "icon": undefined,
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "Elements",
+      },
+      {
+        "alias": "unknown",
+        "description": undefined,
+        "icon": undefined,
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "Pages",
+      },
+    ],
+    "nextCursor": undefined,
+    "total": 3,
+  },
+}
+`;
+
+exports[`list-document-types should list available document types 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "items": [
+      {
+        "alias": "unknown",
+        "description": undefined,
+        "icon": undefined,
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "Compositions",
+      },
+      {
+        "alias": "unknown",
+        "description": undefined,
+        "icon": undefined,
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "Elements",
+      },
+      {
+        "alias": "unknown",
+        "description": undefined,
+        "icon": undefined,
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "Pages",
+      },
+    ],
+    "nextCursor": undefined,
+    "total": 3,
+  },
+}
+`;
+
+exports[`list-document-types should return no nextCursor when all results fit 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "items": [
+      {
+        "alias": "unknown",
+        "description": undefined,
+        "icon": undefined,
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "Compositions",
+      },
+      {
+        "alias": "unknown",
+        "description": undefined,
+        "icon": undefined,
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "Elements",
+      },
+      {
+        "alias": "unknown",
+        "description": undefined,
+        "icon": undefined,
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "Pages",
+      },
+    ],
+    "nextCursor": undefined,
+    "total": 3,
+  },
+}
+`;

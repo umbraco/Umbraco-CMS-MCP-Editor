@@ -1,0 +1,28 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`search-content should return empty results for nonsense query 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "items": [],
+    "nextCursor": undefined,
+    "total": 0,
+  },
+}
+`;
+
+exports[`search-content should search for content and return results 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "items": [
+      {
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "Home",
+      },
+    ],
+    "nextCursor": undefined,
+    "total": 1,
+  },
+}
+`;

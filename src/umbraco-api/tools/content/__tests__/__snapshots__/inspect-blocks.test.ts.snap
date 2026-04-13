@@ -1,0 +1,289 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`inspect-blocks should return block structure for a page 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "blockProperties": [
+      {
+        "blocks": [
+          {
+            "contentKey": "88b3cd1e-0bd7-47fd-9081-ab4832c84241",
+            "contentTypeAlias": undefined,
+            "contentTypeKey": "17db13ba-bbd9-4a44-b28f-986301156754",
+            "properties": [
+              {
+                "alias": "icon",
+                "value": [
+                  {
+                    "crops": [],
+                    "focalPoint": null,
+                    "key": "1181c745-d10f-407a-8247-08f30dfe7e5c",
+                    "mediaKey": "6921a6b4-3a02-4354-83bf-344074c4d00d",
+                    "mediaTypeAlias": "umbracoMediaVectorGraphics",
+                  },
+                ],
+              },
+              {
+                "alias": "link",
+                "value": [
+                  {
+                    "icon": "icon-link",
+                    "name": "View this package repository on GitHub",
+                    "published": true,
+                    "queryString": null,
+                    "target": "_blank",
+                    "trashed": false,
+                    "type": "external",
+                    "unique": null,
+                    "url": "https://github.com/prjseal",
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            "contentKey": "ea8a8fee-444b-461b-8b07-de267ccbe9ef",
+            "contentTypeAlias": undefined,
+            "contentTypeKey": "17db13ba-bbd9-4a44-b28f-986301156754",
+            "properties": [
+              {
+                "alias": "icon",
+                "value": [
+                  {
+                    "crops": [],
+                    "focalPoint": null,
+                    "key": "5bdeb205-44e0-4aea-ba6e-ff153871a6b5",
+                    "mediaKey": "7639bb90-3ba4-4765-bec5-655bc3485c06",
+                    "mediaTypeAlias": "umbracoMediaVectorGraphics",
+                  },
+                ],
+              },
+              {
+                "alias": "link",
+                "value": [
+                  {
+                    "icon": "icon-link",
+                    "name": "View this in the Umbraco Marketplace",
+                    "published": true,
+                    "queryString": null,
+                    "target": "_blank",
+                    "trashed": false,
+                    "type": "external",
+                    "unique": null,
+                    "url": "https://marketplace.umbraco.com/package/clean",
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            "contentKey": "8fc94595-272b-475a-b4f8-0b8da018f720",
+            "contentTypeAlias": undefined,
+            "contentTypeKey": "17db13ba-bbd9-4a44-b28f-986301156754",
+            "properties": [
+              {
+                "alias": "icon",
+                "value": [
+                  {
+                    "crops": [],
+                    "focalPoint": null,
+                    "key": "15c2a6a4-ec0f-4913-8478-0d8733757129",
+                    "mediaKey": "c08eb6e5-fbb7-4e57-b9b3-d35a9b088069",
+                    "mediaTypeAlias": "umbracoMediaVectorGraphics",
+                  },
+                ],
+              },
+              {
+                "alias": "link",
+                "value": [
+                  {
+                    "icon": "icon-link",
+                    "name": "Follow me on twitter",
+                    "published": true,
+                    "queryString": null,
+                    "target": "_blank",
+                    "trashed": false,
+                    "type": "external",
+                    "unique": null,
+                    "url": "https://twitter.com/codesharepaul",
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            "contentKey": "f5a40b08-daf1-412f-bc57-f768498be386",
+            "contentTypeAlias": undefined,
+            "contentTypeKey": "17db13ba-bbd9-4a44-b28f-986301156754",
+            "properties": [
+              {
+                "alias": "icon",
+                "value": [
+                  {
+                    "crops": [],
+                    "focalPoint": null,
+                    "key": "d549757b-95b1-4d20-89d8-51a30e6d5d6a",
+                    "mediaKey": "48bc7fab-611a-410d-a9eb-1cf82d811711",
+                    "mediaTypeAlias": "umbracoMediaVectorGraphics",
+                  },
+                ],
+              },
+              {
+                "alias": "link",
+                "value": [
+                  {
+                    "icon": "icon-link",
+                    "name": "Read my blog codeshare.co.uk",
+                    "published": true,
+                    "queryString": null,
+                    "target": "_blank",
+                    "trashed": false,
+                    "type": "external",
+                    "unique": null,
+                    "url": "https://codeshare.co.uk",
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            "contentKey": "4342c4bf-5050-4a32-8b3e-6dbc2156afc2",
+            "contentTypeAlias": undefined,
+            "contentTypeKey": "17db13ba-bbd9-4a44-b28f-986301156754",
+            "properties": [
+              {
+                "alias": "icon",
+                "value": [
+                  {
+                    "crops": [],
+                    "focalPoint": null,
+                    "key": "8b0ed1d2-4d52-4410-931d-0fde4aea9081",
+                    "mediaKey": "87163027-204d-44bd-a74c-c1363368d92f",
+                    "mediaTypeAlias": "umbracoMediaVectorGraphics",
+                  },
+                ],
+              },
+              {
+                "alias": "link",
+                "value": [
+                  {
+                    "icon": "icon-link",
+                    "name": "Join the Umbraco discord server",
+                    "published": true,
+                    "queryString": null,
+                    "target": "_blank",
+                    "trashed": false,
+                    "type": "external",
+                    "unique": null,
+                    "url": "https://discord.gg/umbraco",
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            "contentKey": "f0190005-f618-485f-a210-5d873e4c9227",
+            "contentTypeAlias": undefined,
+            "contentTypeKey": "17db13ba-bbd9-4a44-b28f-986301156754",
+            "properties": [
+              {
+                "alias": "icon",
+                "value": [
+                  {
+                    "crops": [],
+                    "focalPoint": null,
+                    "key": "34db3054-84f8-4a8a-8b47-e5bc188d3730",
+                    "mediaKey": "fbdf1674-1658-4449-8029-0b11bf7f20ab",
+                    "mediaTypeAlias": "umbracoMediaVectorGraphics",
+                  },
+                ],
+              },
+              {
+                "alias": "link",
+                "value": [
+                  {
+                    "icon": "icon-link",
+                    "name": "You can buy me a coffee on PayPal if you would like to",
+                    "published": true,
+                    "queryString": null,
+                    "target": "_blank",
+                    "trashed": false,
+                    "type": "external",
+                    "unique": null,
+                    "url": "https://codeshare.co.uk/coffee",
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            "contentKey": "853ba3c4-9bf1-4997-a49e-d9ebca703142",
+            "contentTypeAlias": undefined,
+            "contentTypeKey": "17db13ba-bbd9-4a44-b28f-986301156754",
+            "properties": [
+              {
+                "alias": "icon",
+                "value": [
+                  {
+                    "crops": [],
+                    "focalPoint": null,
+                    "key": "197f6b38-0249-4142-8de7-c2b10c8edeae",
+                    "mediaKey": "d6e58148-8678-4bc4-8cdb-5366ae75065f",
+                    "mediaTypeAlias": "umbracoMediaVectorGraphics",
+                  },
+                ],
+              },
+              {
+                "alias": "link",
+                "value": [
+                  {
+                    "icon": "icon-link",
+                    "name": "Follow me on Mastodon",
+                    "published": true,
+                    "queryString": null,
+                    "target": "_blank",
+                    "trashed": false,
+                    "type": "external",
+                    "unique": null,
+                    "url": "https://umbracocommunity.social/@CodeSharePaul",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        "editorAlias": "Umbraco.BlockList",
+        "propertyAlias": "socialIconLinks",
+      },
+      {
+        "blocks": [
+          {
+            "contentKey": "bfc949ab-5489-4586-89f3-0c6c93f2d619",
+            "contentTypeAlias": undefined,
+            "contentTypeKey": "60085a63-b77b-4509-9df4-bcb75db2755f",
+            "properties": [
+              {
+                "alias": "articleList",
+                "value": "31523089-f648-4883-9087-ef9a0b83129f",
+              },
+              {
+                "alias": "pageSize",
+                "value": 3,
+              },
+              {
+                "alias": "showPagination",
+                "value": false,
+              },
+            ],
+          },
+        ],
+        "editorAlias": "Umbraco.BlockList",
+        "propertyAlias": "contentRows",
+      },
+    ],
+    "id": "00000000-0000-0000-0000-000000000000",
+    "name": "Home",
+  },
+}
+`;
