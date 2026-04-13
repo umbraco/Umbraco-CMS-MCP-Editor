@@ -173,9 +173,10 @@ Custom fields defined in `config/server-config.ts`.
 - Run against a real Umbraco instance — no mocking
 - Require a running Umbraco instance with an API user configured (see below)
 - Call `setupTestEnvironment()` in describe block
-- Use `setupElicitationMock(jest.fn)` for write operations
+- Use `setupEditorElicitation(jest.fn)` from `src/testing/setup-elicitation.ts` for write operations (NOT `setupElicitationMock` from the SDK — it doesn't set the server ref needed by `confirmAction`)
 - Use `getStructuredContent(result)` to extract typed output
-- CMS-dependent tests return early with `console.warn` if CMS unavailable
+- Tests must create their own state — never skip because data doesn't exist. If a create fails, search for existing items as fallback
+- **Always run tests locally first** (`npm test`) and verify they pass before pushing to CI. Fix failures locally, don't rely on CI for iteration
 
 **Eval tests (`tests/evals/`):**
 - LLM-based acceptance tests using Claude Agent SDK
