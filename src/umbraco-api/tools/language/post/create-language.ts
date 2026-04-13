@@ -4,6 +4,7 @@ import { mcpClientManager } from "../../../mcp-client.js";
 
 const inputSchema = {
   isoCode: z.string().describe("ISO language code to add (e.g. fr-FR)"),
+  name: z.string().optional().describe("Display name for the language (e.g. 'French'). Defaults to the ISO code if not provided."),
   isDefault: z.boolean().optional().describe("Whether this language should be the default"),
   isMandatory: z.boolean().optional().describe("Whether this language should be mandatory"),
   fallbackIsoCode: z.string().optional().describe("ISO code of the fallback language"),
@@ -22,12 +23,14 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   outputSchema,
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-  handler: async ({ isoCode, isDefault, isMandatory, fallbackIsoCode }, extra) => {
-    if (!await confirmAction(extra, `Add language "${isoCode}" to the site?`, { title: "Confirm create language" })) {
-      return createToolResult({ message: "Create cancelled", isoCode, name: isoCode });
+  handler: async ({ isoCode, name: displayName, isDefault, isMandatory, fallbackIsoCode }, extra) => {
+    const langName = displayName || isoCode;
+
+    if (!await confirmAction(extra, `Add language "${langName}" (${isoCode}) to the site?`, { title: "Confirm create language" })) {
+      return createToolResult({ message: "Create cancelled", isoCode, name: langName });
     }
 
-    const result = await mcpClientManager.callTool("cms", "create-language", { isoCode, isDefault, isMandatory, fallbackIsoCode });
+    const result = await mcpClientManager.callTool("cms", "create-language", { name: langName, isoCode, isDefault, isMandatory, fallbackIsoCode });
     if (result.isError) return createToolResultError(result);
     const data = extractChainedResult(result);
 

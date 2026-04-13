@@ -118,7 +118,7 @@ describe("Language Collection", () => {
       if (!cmsAvailable) return;
 
       const result = await createLanguageTool.handler(
-        { isoCode: TEST_LANGUAGE_ISO, isDefault: false, isMandatory: false, fallbackIsoCode: undefined },
+        { isoCode: TEST_LANGUAGE_ISO, name: "Norwegian Bokmål", isDefault: false, isMandatory: false, fallbackIsoCode: undefined },
         extra,
       );
 
@@ -201,7 +201,7 @@ describe("Language Collection", () => {
       elicitation.rejectAll();
 
       const result = await createLanguageTool.handler(
-        { isoCode: "fr-FR", isDefault: false, isMandatory: false, fallbackIsoCode: undefined },
+        { isoCode: "fr-FR", name: "French (France)", isDefault: false, isMandatory: false, fallbackIsoCode: undefined },
         extra,
       );
 

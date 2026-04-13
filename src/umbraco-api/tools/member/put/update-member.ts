@@ -43,15 +43,15 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     }
 
     // Step 3: Delegate to CMS MCP
-    const updateArgs: Record<string, unknown> = { id };
-    if (name !== undefined) updateArgs.name = name;
-    if (email !== undefined) updateArgs.email = email;
-    if (isApproved !== undefined) updateArgs.isApproved = isApproved;
-    if (isLockedOut !== undefined) updateArgs.isLockedOut = isLockedOut;
-    if (groups !== undefined) updateArgs.groups = groups;
-    if (values !== undefined) updateArgs.values = values;
+    const data: Record<string, unknown> = {};
+    if (name !== undefined) data.name = name;
+    if (email !== undefined) data.email = email;
+    if (isApproved !== undefined) data.isApproved = isApproved;
+    if (isLockedOut !== undefined) data.isLockedOut = isLockedOut;
+    if (groups !== undefined) data.groups = groups;
+    if (values !== undefined) data.values = values;
 
-    const updateResult = await mcpClientManager.callTool("cms", "update-member", updateArgs);
+    const updateResult = await mcpClientManager.callTool("cms", "update-member", { id, data });
     if (updateResult.isError) return createToolResultError(updateResult);
 
     return createToolResult({

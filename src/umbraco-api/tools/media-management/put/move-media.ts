@@ -43,7 +43,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // Step 3: Delegate to CMS
     const moveResult = await mcpClientManager.callTool("cms", "move-media", {
       id,
-      target: { id: targetParentId },
+      data: { target: { id: targetParentId } },
     });
     if (moveResult.isError) return createToolResultError(moveResult);
 
