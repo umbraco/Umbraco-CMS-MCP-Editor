@@ -69,12 +69,12 @@ describe("Tag Collection", () => {
     }, 30000);
 
     it("should filter tags by group", async () => {
-      if (!cmsAvailable || !existingTagGroup) {
-        console.warn("Skipping tag group filter test: no tags with a group found on this site");
-        return;
-      }
+      if (!cmsAvailable) return;
 
-      const result = await listTagsTool.handler({ tagGroup: existingTagGroup }, extra);
+      // Use an existing tag group if available, otherwise test with a known group name
+      const groupToTest = existingTagGroup || "default";
+
+      const result = await listTagsTool.handler({ tagGroup: groupToTest }, extra);
 
       expect(result.isError).toBeFalsy();
       const data = getStructuredContent(result) as any;
@@ -84,7 +84,7 @@ describe("Tag Collection", () => {
 
       // All returned tags should belong to the requested group
       for (const tag of data.items) {
-        expect(tag.group).toBe(existingTagGroup);
+        expect(tag.group).toBe(groupToTest);
       }
     }, 30000);
   });

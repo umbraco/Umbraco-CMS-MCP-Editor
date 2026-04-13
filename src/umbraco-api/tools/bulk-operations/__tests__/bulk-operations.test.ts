@@ -20,6 +20,9 @@ import {
 import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 
 import listChildrenTool from "../../content/get/list-children.js";
+import listDocumentTypesTool from "../../content/get/list-document-types.js";
+import createPageTool from "../../content/post/create-page.js";
+import deletePageTool from "../../content/delete/delete-page.js";
 import bulkPublishTool from "../post/bulk-publish.js";
 import bulkUnpublishTool from "../post/bulk-unpublish.js";
 import bulkSchedulePublishTool from "../post/bulk-schedule-publish.js";
@@ -42,6 +45,7 @@ describe("Bulk Operations Collection", () => {
   let cmsAvailable = false;
   let firstRootPageId: string;
   let secondRootPageId: string | undefined;
+  let createdSecondRootPageId: string | undefined;
 
   beforeAll(async () => {
     try {
@@ -55,6 +59,33 @@ describe("Bulk Operations Collection", () => {
         firstRootPageId = browseData.items[0].id;
         if (browseData.items.length > 1) {
           secondRootPageId = browseData.items[1].id;
+        }
+      }
+
+      // If only one root page, create a second one for bulk-move test
+      if (cmsAvailable && !secondRootPageId) {
+        // Find a document type that can be created at root
+        const { mcpClientManager } = await import("../../../mcp-client.js");
+        const { extractChainedResult } = await import("@umbraco-cms/mcp-server-sdk");
+
+        // Get the doc type of the first root page to use as a template
+        const pageResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: firstRootPageId });
+        if (!pageResult.isError) {
+          const pageData = extractChainedResult(pageResult);
+          const docTypeId = pageData?.documentType?.id;
+          if (docTypeId) {
+            const createResult = await createPageTool.handler(
+              { name: "Bulk Move Test Page", documentTypeId: docTypeId, parentId: undefined, values: undefined },
+              extra,
+            );
+            if (!createResult.isError) {
+              const createData = getStructuredContent(createResult) as any;
+              if (createData?.id) {
+                secondRootPageId = createData.id;
+                createdSecondRootPageId = createData.id;
+              }
+            }
+          }
         }
       }
     } catch {
@@ -72,6 +103,14 @@ describe("Bulk Operations Collection", () => {
         );
       } catch {
         // Best-effort restore
+      }
+    }
+    // Clean up second root page if we created it
+    if (createdSecondRootPageId) {
+      try {
+        await deletePageTool.handler({ id: createdSecondRootPageId }, extra);
+      } catch {
+        // Best-effort cleanup
       }
     }
     elicitation.cleanup();

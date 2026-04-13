@@ -170,15 +170,35 @@ describe("Member Group Collection", () => {
         extra,
       );
       const listData = getStructuredContent(listResult) as any;
-      if (!listData?.items?.length) {
-        console.warn("Skipping delete rejection test: no member groups found");
+      let targetGroupId: string | undefined;
+
+      if (listData?.items?.length) {
+        targetGroupId = listData.items[0].id;
+      } else {
+        // No groups exist (lifecycle test deleted its group) — create one for this test
+        elicitation.reset();
+        const createResult = await createMemberGroupTool.handler(
+          { name: "Delete Rejection Test Group" },
+          extra,
+        );
+        if (!createResult.isError) {
+          const createData = getStructuredContent(createResult) as any;
+          targetGroupId = createData?.id;
+          // Track for cleanup
+          if (targetGroupId) createdGroupId = targetGroupId;
+        }
+        elicitation.reset();
+      }
+
+      if (!targetGroupId) {
+        console.warn("Skipping delete rejection test: could not find or create member group");
         return;
       }
 
       elicitation.rejectAll();
 
       const result = await deleteMemberGroupTool.handler(
-        { id: listData.items[0].id },
+        { id: targetGroupId },
         extra,
       );
 

@@ -56,6 +56,40 @@ describe("Member Collection", () => {
           testMemberTypeId = data.items[0].id;
         }
       }
+
+      // Pre-create a member so search/get tests have data to work with
+      if (cmsAvailable && testMemberTypeId) {
+        const createResult = await createMemberTool.handler(
+          {
+            email: TEST_MEMBER_EMAIL,
+            username: TEST_MEMBER_USERNAME,
+            name: TEST_MEMBER_NAME,
+            password: TEST_MEMBER_PASSWORD,
+            memberTypeId: testMemberTypeId,
+            isApproved: true,
+            groups: undefined,
+            values: undefined,
+          },
+          extra,
+        );
+        if (!createResult.isError) {
+          const createData = getStructuredContent(createResult) as any;
+          if (createData?.id) {
+            createdMemberId = createData.id;
+          }
+        } else {
+          // Member may already exist — try to find it
+          // Allow indexing delay then search
+          await new Promise(r => setTimeout(r, 2000));
+          const searchResult = await searchMembersTool.handler({ query: TEST_MEMBER_USERNAME }, extra);
+          const searchData = getStructuredContent(searchResult) as any;
+          if (searchData?.items?.length > 0) {
+            createdMemberId = searchData.items[0].id;
+          }
+        }
+        // Allow search indexing to catch up after create
+        await new Promise(r => setTimeout(r, 2000));
+      }
     } catch {
       console.warn("CMS not available — member integration tests will be skipped");
     }
@@ -157,6 +191,24 @@ describe("Member Collection", () => {
       }
 
       if (!searchData?.items?.length) {
+        // Fallback: use the member created in beforeAll
+        if (createdMemberId) {
+          const directResult = await getMemberTool.handler({ id: createdMemberId }, extra);
+          expect(directResult.isError).toBeFalsy();
+          const directData = getStructuredContent(directResult) as any;
+          expect(directData).toBeDefined();
+          expect(directData.id).toBe(createdMemberId);
+          expect(directData).toHaveProperty("name");
+          expect(directData).toHaveProperty("email");
+          expect(directData).toHaveProperty("username");
+          expect(directData).toHaveProperty("memberType");
+          expect(directData).toHaveProperty("isApproved");
+          expect(directData).toHaveProperty("isLockedOut");
+          expect(directData).toHaveProperty("isTwoFactorEnabled");
+          expect(directData.groups).toBeInstanceOf(Array);
+          expect(directData.values).toBeInstanceOf(Array);
+          return;
+        }
         console.warn("Skipping get-member test: no members found via search");
         return;
       }
@@ -196,6 +248,21 @@ describe("Member Collection", () => {
       if (!cmsAvailable || !testMemberTypeId) {
         console.warn("Skipping create-member test: no member type available");
         return;
+      }
+
+      // If the member was already created in beforeAll, verify it exists
+      if (createdMemberId) {
+        const verifyResult = await getMemberTool.handler({ id: createdMemberId }, extra);
+        if (!verifyResult.isError) {
+          const verifyData = getStructuredContent(verifyResult) as any;
+          expect(verifyData).toBeDefined();
+          expect(verifyData.id).toBe(createdMemberId);
+          expect(verifyData.name).toBe(TEST_MEMBER_NAME);
+          expect(verifyData.email).toBe(TEST_MEMBER_EMAIL);
+          return;
+        }
+        // If verification failed, the member was cleaned up — re-create below
+        createdMemberId = "";
       }
 
       const result = await createMemberTool.handler(
@@ -246,6 +313,9 @@ describe("Member Collection", () => {
       expect(data.id).toBeTruthy();
 
       createdMemberId = data.id;
+
+      // Allow search indexing to catch up
+      await new Promise(r => setTimeout(r, 2000));
     }, 30000);
 
     it("should update the created member", async () => {
@@ -331,22 +401,26 @@ describe("Member Collection", () => {
     it("should cancel update-member when elicitation is rejected", async () => {
       if (!cmsAvailable) return;
 
-      // Search for any member to attempt update rejection test
-      const searchResult = await searchMembersTool.handler(
-        { query: "test" },
-        extra,
-      );
-      const searchData = getStructuredContent(searchResult) as any;
-      if (!searchData?.items?.length) {
-        console.warn("Skipping update rejection test: no members found");
-        return;
+      // Use pre-created member, or search for any member
+      let targetMemberId = createdMemberId;
+      if (!targetMemberId) {
+        const searchResult = await searchMembersTool.handler(
+          { query: "test" },
+          extra,
+        );
+        const searchData = getStructuredContent(searchResult) as any;
+        if (!searchData?.items?.length) {
+          console.warn("Skipping update rejection test: no members found");
+          return;
+        }
+        targetMemberId = searchData.items[0].id;
       }
 
       elicitation.rejectAll();
 
       const result = await updateMemberTool.handler(
         {
-          id: searchData.items[0].id,
+          id: targetMemberId,
           name: "Should Not Change",
           email: undefined,
           isApproved: undefined,
@@ -365,21 +439,25 @@ describe("Member Collection", () => {
     it("should cancel delete-member when elicitation is rejected", async () => {
       if (!cmsAvailable) return;
 
-      // Search for any member to attempt delete rejection test
-      const searchResult = await searchMembersTool.handler(
-        { query: "test" },
-        extra,
-      );
-      const searchData = getStructuredContent(searchResult) as any;
-      if (!searchData?.items?.length) {
-        console.warn("Skipping delete rejection test: no members found");
-        return;
+      // Use pre-created member, or search for any member
+      let targetMemberId = createdMemberId;
+      if (!targetMemberId) {
+        const searchResult = await searchMembersTool.handler(
+          { query: "test" },
+          extra,
+        );
+        const searchData = getStructuredContent(searchResult) as any;
+        if (!searchData?.items?.length) {
+          console.warn("Skipping delete rejection test: no members found");
+          return;
+        }
+        targetMemberId = searchData.items[0].id;
       }
 
       elicitation.rejectAll();
 
       const result = await deleteMemberTool.handler(
-        { id: searchData.items[0].id },
+        { id: targetMemberId },
         extra,
       );
 

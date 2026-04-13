@@ -20,6 +20,7 @@ import {
 import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 
 import listLanguagesTool from "../../language/get/list-languages.js";
+import createLanguageTool from "../../language/post/create-language.js";
 import listChildrenTool from "../../content/get/list-children.js";
 import listUntranslatedTool from "../get/list-untranslated.js";
 import createVariantTool from "../post/create-variant.js";
@@ -48,14 +49,32 @@ describe("Translation Collection", () => {
       }
 
       cmsAvailable = true;
-      const languages = langData.items ?? [];
+      let languages = langData.items ?? [];
       const defaultLang = languages.find((l: any) => l.isDefault);
-      const secondaryLang = languages.find((l: any) => !l.isDefault);
+      let secondaryLang = languages.find((l: any) => !l.isDefault);
 
       if (!defaultLang || !secondaryLang) {
-        console.warn("Only one language configured — multi-language tests will be skipped");
-        defaultCulture = defaultLang?.isoCode ?? "";
-        return;
+        // Only one language — create a second one
+        console.warn("Only one language configured — creating nb-NO for multi-language tests");
+        const createResult = await createLanguageTool.handler(
+          { isoCode: "nb-NO", name: "Norwegian Bokmål", isDefault: false, isMandatory: false, fallbackIsoCode: undefined },
+          extra,
+        );
+        if (createResult.isError) {
+          console.warn("Failed to create second language — multi-language tests will be skipped");
+          defaultCulture = defaultLang?.isoCode ?? "";
+          return;
+        }
+        // Re-list languages
+        const langResult2 = await listLanguagesTool.handler({}, extra);
+        const langData2 = getStructuredContent(langResult2) as any;
+        languages = langData2?.items ?? [];
+        secondaryLang = languages.find((l: any) => !l.isDefault);
+        if (!secondaryLang) {
+          console.warn("Still only one language after creation — multi-language tests will be skipped");
+          defaultCulture = defaultLang?.isoCode ?? "";
+          return;
+        }
       }
 
       multiLanguage = true;

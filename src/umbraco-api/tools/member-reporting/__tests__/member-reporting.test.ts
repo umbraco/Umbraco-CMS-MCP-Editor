@@ -9,23 +9,29 @@
  * - Valid credentials in .env file
  */
 
-import { jest, describe, it, expect, beforeAll } from "@jest/globals";
+import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
+import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 
 import reportMemberCountTool from "../get/report-member-count.js";
 import reportMembersByGroupTool from "../get/report-members-by-group.js";
 import reportMemberActivityTool from "../get/report-member-activity.js";
 import listMemberGroupsTool from "../../member-group/get/list-member-groups.js";
+import createMemberGroupTool from "../../member-group/post/create-member-group.js";
+
+const elicitation = setupEditorElicitation(jest.fn as any);
+const REPORTING_TEST_GROUP_NAME = "Reporting Test Group";
 
 describe("Member Reporting Collection", () => {
   setupTestEnvironment();
 
   const extra = createMockRequestHandlerExtra();
   let cmsAvailable = false;
+  let createdGroupId: string | null = null;
 
   beforeAll(async () => {
     try {
@@ -34,10 +40,46 @@ describe("Member Reporting Collection", () => {
       if (!result.isError && data) {
         cmsAvailable = true;
       }
+
+      // Ensure at least one member group exists for report-members-by-group test
+      if (cmsAvailable) {
+        const groupsResult = await listMemberGroupsTool.handler({}, extra);
+        const groupsData = getStructuredContent(groupsResult) as any;
+        if (!groupsData?.items?.length) {
+          console.warn("No member groups exist — creating one for reporting tests");
+          const createResult = await createMemberGroupTool.handler(
+            { name: REPORTING_TEST_GROUP_NAME },
+            extra,
+          );
+          if (!createResult.isError) {
+            const createData = getStructuredContent(createResult) as any;
+            if (createData?.id) {
+              createdGroupId = createData.id;
+            }
+          }
+        }
+      }
     } catch {
       console.warn("CMS not available — member-reporting integration tests will be skipped");
     }
   }, 60000);
+
+  afterAll(async () => {
+    // Clean up group if we created one
+    if (createdGroupId) {
+      try {
+        const { mcpClientManager } = await import("../../../mcp-client.js");
+        await mcpClientManager.callTool("cms", "delete-member-group", { id: createdGroupId });
+      } catch {
+        // Best-effort cleanup
+      }
+    }
+    elicitation.cleanup();
+  }, 30000);
+
+  beforeEach(() => {
+    elicitation.reset();
+  });
 
   describe("report-member-count", () => {
     it("should return member count breakdown by type and group", async () => {
