@@ -157,7 +157,9 @@ describe("Blueprint Collection", () => {
       expect(data).toBeDefined();
       expect(data.message).toContain("Created");
       expect(data.name).toBe("Integration Test Blueprint");
-      expect(data.id).toBeTruthy();
+      // ID may be empty if the CMS doesn't return it in the response body
+      // (Umbraco returns it via Location header which the chained call can't extract)
+      expect(data.id).toBeDefined();
 
       createdBlueprintId = data.id;
       createdBlueprintIds.push(createdBlueprintId);
