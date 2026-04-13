@@ -366,7 +366,7 @@ describe("Bulk Operations Collection", () => {
 
       const data = getStructuredContent(result) as any;
       // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
-      expect(data?.message?.includes("cancelled") || result.isError).toBe(true);
+      expect(data?.message?.toLowerCase().includes("cancelled") || result.isError).toBe(true);
     }, 30000);
   });
 
@@ -387,7 +387,7 @@ describe("Bulk Operations Collection", () => {
 
       const data = getStructuredContent(result) as any;
       // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
-      expect(data?.message?.includes("cancelled") || result.isError).toBe(true);
+      expect(data?.message?.toLowerCase().includes("cancelled") || result.isError).toBe(true);
     }, 30000);
 
     it("should cancel bulk-unpublish when elicitation is rejected", async () => {
@@ -402,7 +402,7 @@ describe("Bulk Operations Collection", () => {
 
       const data = getStructuredContent(result) as any;
       // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
-      expect(data?.message?.includes("cancelled") || result.isError).toBe(true);
+      expect(data?.message?.toLowerCase().includes("cancelled") || result.isError).toBe(true);
     }, 30000);
 
     it("should cancel bulk-schedule-publish when elicitation is rejected", async () => {
@@ -417,7 +417,7 @@ describe("Bulk Operations Collection", () => {
 
       const data = getStructuredContent(result) as any;
       // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
-      expect(data?.message?.includes("cancelled") || result.isError).toBe(true);
+      expect(data?.message?.toLowerCase().includes("cancelled") || result.isError).toBe(true);
     }, 30000);
 
     it("should cancel bulk-set-property when elicitation is rejected", async () => {
@@ -438,7 +438,7 @@ describe("Bulk Operations Collection", () => {
 
       const data = getStructuredContent(result) as any;
       // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
-      expect(data?.message?.includes("cancelled") || result.isError).toBe(true);
+      expect(data?.message?.toLowerCase().includes("cancelled") || result.isError).toBe(true);
     }, 30000);
 
     it("should cancel bulk-move when elicitation is rejected", async () => {
@@ -454,7 +454,7 @@ describe("Bulk Operations Collection", () => {
 
       const data = getStructuredContent(result) as any;
       // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
-      expect(data?.message?.includes("cancelled") || result.isError).toBe(true);
+      expect(data?.message?.toLowerCase().includes("cancelled") || result.isError).toBe(true);
     }, 30000);
 
     it("should cancel bulk-set-block-property when elicitation is rejected", async () => {

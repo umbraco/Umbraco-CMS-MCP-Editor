@@ -262,7 +262,7 @@ describe("Media Management Collection", () => {
 
       const data = getStructuredContent(result) as any;
       // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
-      expect(data?.message?.includes("Cancelled") || result.isError).toBe(true);
+      expect(data?.message?.toLowerCase().includes("cancelled") || result.isError).toBe(true);
     }, 60000);
   });
 
@@ -279,7 +279,7 @@ describe("Media Management Collection", () => {
 
       const data = getStructuredContent(result) as any;
       // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
-      expect(data?.message?.includes("cancelled") || result.isError).toBe(true);
+      expect(data?.message?.toLowerCase().includes("cancelled") || result.isError).toBe(true);
     }, 30000);
 
     it("should cancel delete-media when elicitation is rejected", async () => {
@@ -307,7 +307,7 @@ describe("Media Management Collection", () => {
 
       const data = getStructuredContent(result) as any;
       // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
-      expect(data?.message?.includes("cancelled") || result.isError).toBe(true);
+      expect(data?.message?.toLowerCase().includes("cancelled") || result.isError).toBe(true);
     }, 30000);
 
     it("should cancel restore-media when elicitation is rejected", async () => {
@@ -339,7 +339,7 @@ describe("Media Management Collection", () => {
 
       const data = getStructuredContent(result) as any;
       // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
-      expect(data?.message?.includes("cancelled") || result.isError).toBe(true);
+      expect(data?.message?.toLowerCase().includes("cancelled") || result.isError).toBe(true);
     }, 60000);
 
     it("should cancel move-media when elicitation is rejected", async () => {
@@ -375,7 +375,7 @@ describe("Media Management Collection", () => {
 
       const data = getStructuredContent(result) as any;
       // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
-      expect(data?.message?.includes("cancelled") || result.isError).toBe(true);
+      expect(data?.message?.toLowerCase().includes("cancelled") || result.isError).toBe(true);
     }, 60000);
 
     it("should cancel upload-media when elicitation is rejected", async () => {
@@ -390,7 +390,7 @@ describe("Media Management Collection", () => {
 
       const data = getStructuredContent(result) as any;
       // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
-      expect(data?.message?.includes("cancelled") || result.isError).toBe(true);
+      expect(data?.message?.toLowerCase().includes("cancelled") || result.isError).toBe(true);
     }, 30000);
   });
 });

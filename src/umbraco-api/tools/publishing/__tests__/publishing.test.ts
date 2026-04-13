@@ -175,7 +175,7 @@ describe("Publishing Collection", () => {
 
       const data = getStructuredContent(result) as any;
       // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
-      expect(data?.message?.includes("cancelled") || result.isError).toBe(true);
+      expect(data?.message?.toLowerCase().includes("cancelled") || result.isError).toBe(true);
     }, 30000);
 
     it("should cancel unpublish when elicitation is rejected", async () => {
@@ -190,7 +190,7 @@ describe("Publishing Collection", () => {
 
       const data = getStructuredContent(result) as any;
       // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
-      expect(data?.message?.includes("cancelled") || result.isError).toBe(true);
+      expect(data?.message?.toLowerCase().includes("cancelled") || result.isError).toBe(true);
     }, 30000);
   });
 });

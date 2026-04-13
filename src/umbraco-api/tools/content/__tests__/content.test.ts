@@ -521,7 +521,7 @@ describe("Content Collection", () => {
 
       const data = getStructuredContent(result) as any;
       // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
-      expect(data?.message?.includes("cancelled") || result.isError).toBe(true);
+      expect(data?.message?.toLowerCase().includes("cancelled") || result.isError).toBe(true);
     }, 30000);
   });
 
@@ -543,7 +543,7 @@ describe("Content Collection", () => {
 
       const data = getStructuredContent(result) as any;
       // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
-      expect(data?.message?.includes("cancelled") || result.isError).toBe(true);
+      expect(data?.message?.toLowerCase().includes("cancelled") || result.isError).toBe(true);
     }, 30000);
 
     it("should cancel edit when elicitation is rejected", async () => {
@@ -561,7 +561,7 @@ describe("Content Collection", () => {
 
       const data = getStructuredContent(result) as any;
       // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
-      expect(data?.message?.includes("cancelled") || result.isError).toBe(true);
+      expect(data?.message?.toLowerCase().includes("cancelled") || result.isError).toBe(true);
     }, 30000);
 
     it("should cancel restore when elicitation is rejected", async () => {
@@ -576,7 +576,7 @@ describe("Content Collection", () => {
 
       const data = getStructuredContent(result) as any;
       // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
-      expect(data?.message?.includes("cancelled") || result.isError).toBe(true);
+      expect(data?.message?.toLowerCase().includes("cancelled") || result.isError).toBe(true);
     }, 30000);
 
     it("should cancel delete when elicitation is rejected", async () => {
@@ -591,7 +591,7 @@ describe("Content Collection", () => {
 
       const data = getStructuredContent(result) as any;
       // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
-      expect(data?.message?.includes("cancelled") || result.isError).toBe(true);
+      expect(data?.message?.toLowerCase().includes("cancelled") || result.isError).toBe(true);
     }, 30000);
   });
 });

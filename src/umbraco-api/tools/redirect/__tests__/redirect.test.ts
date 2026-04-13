@@ -151,7 +151,7 @@ describe("Redirect Collection", () => {
 
       const data = getStructuredContent(result) as any;
       // Tool may error before reaching elicitation (CMS call fails) or cancel via elicitation
-      expect(data?.message?.includes("cancelled") || result.isError).toBe(true);
+      expect(data?.message?.toLowerCase().includes("cancelled") || result.isError).toBe(true);
     }, 30000);
   });
 });
