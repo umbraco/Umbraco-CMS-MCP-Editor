@@ -38,8 +38,8 @@ const outputSchema = z.object({
 
 async function fetchTreeLevel(parentId: string | undefined, depth: number): Promise<any[]> {
   const result = parentId
-    ? await mcpClientManager.callTool("cms", "get-tree-document-children", { parentId, cursor: encodeCursor({ s: 0, t: 100 }) })
-    : await mcpClientManager.callTool("cms", "get-tree-document-root", { cursor: encodeCursor({ s: 0, t: 100 }) });
+    ? await mcpClientManager.callTool("cms", "get-document-children", { parentId, cursor: encodeCursor({ s: 0, t: 100 }) })
+    : await mcpClientManager.callTool("cms", "get-document-root", { cursor: encodeCursor({ s: 0, t: 100 }) });
 
   if (result.isError) return [];
   const data = extractChainedResult(result);

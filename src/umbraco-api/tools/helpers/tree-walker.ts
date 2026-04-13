@@ -39,7 +39,7 @@ export async function walkContentTree(
 ): Promise<WalkedPage[]> {
   const { parentId, scanLimit = 100 } = options;
 
-  const toolName = parentId ? "get-tree-document-children" : "get-tree-document-root";
+  const toolName = parentId ? "get-document-children" : "get-document-root";
   const baseArgs: Record<string, unknown> = {};
   if (parentId) baseArgs.parentId = parentId;
 
