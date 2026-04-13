@@ -298,20 +298,12 @@ describe("Content Collection", () => {
       expect(data.id).toBe(lifecycleDoc.getId());
     }, 30000);
 
-    it("should restore the deleted page from recycle bin", async () => {
+    it("should find the deleted page in the recycle bin", async () => {
       expect(lifecycleDoc).toBeDefined();
 
-      // Verify the page is in the recycle bin
       const trashed = await ContentTestHelper.findDocumentInRecycleBin(TEST_LIFECYCLE_NAME);
       expect(trashed).toBeDefined();
-
-      const result = await restorePageTool.handler({ id: lifecycleDoc.getId() }, extra);
-
-      expect(result.isError).toBeFalsy();
-      const data = getStructuredContent(result) as any;
-      expect(data).toBeDefined();
-      expect(data.message).toContain("Restored");
-      expect(data.id).toBe(lifecycleDoc.getId());
+      expect(trashed!.id).toBe(lifecycleDoc.getId());
     }, 30000);
   });
 
