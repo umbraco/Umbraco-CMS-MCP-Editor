@@ -40,7 +40,7 @@ export class ContentTestHelper {
   /** Find a document by name, searching root then one level of children */
   static async findDocument(name: string): Promise<DocumentTreeItem | undefined> {
     try {
-      const rootResult = await mcpClientManager.callTool("cms", "get-tree-document-root", {
+      const rootResult = await mcpClientManager.callTool("cms", "get-document-root", {
         cursor: this.cursor(),
       });
       if (rootResult.isError) return undefined;
@@ -55,7 +55,7 @@ export class ContentTestHelper {
       for (const item of items) {
         if (item.hasChildren) {
           try {
-            const childResult = await mcpClientManager.callTool("cms", "get-tree-document-children", {
+            const childResult = await mcpClientManager.callTool("cms", "get-document-children", {
               parentId: item.id,
               cursor: this.cursor(),
             });
@@ -116,7 +116,7 @@ export class ContentTestHelper {
 
   /** Get children of a document */
   static async getChildren(parentId: string, take = 10): Promise<DocumentTreeItem[]> {
-    const result = await mcpClientManager.callTool("cms", "get-tree-document-children", {
+    const result = await mcpClientManager.callTool("cms", "get-document-children", {
       parentId,
       cursor: this.cursor(0, take),
     });
@@ -143,7 +143,7 @@ export class ContentTestHelper {
       const recycled = await this.findDocumentInRecycleBin(name);
       if (recycled) {
         try {
-          await mcpClientManager.callTool("cms", "delete-document-from-recycle-bin", { id: recycled.id });
+          await mcpClientManager.callTool("cms", "delete-document-recycle-bin-item", { id: recycled.id });
         } catch (error) {
           console.log(`Error permanently deleting document '${name}':`, error);
         }

@@ -33,7 +33,7 @@ async function findDocumentTypeId(parentId?: string): Promise<string | null> {
   }
 
   // Fallback: find root page and use its doc type
-  const rootResult = await mcpClientManager.callTool("cms", "get-tree-document-root", {
+  const rootResult = await mcpClientManager.callTool("cms", "get-document-root", {
     cursor: btoa(JSON.stringify({ s: 0, t: 5 })),
   });
   if (rootResult.isError) return null;
