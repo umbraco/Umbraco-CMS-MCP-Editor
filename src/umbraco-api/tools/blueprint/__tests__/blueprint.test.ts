@@ -30,41 +30,33 @@ describe("Blueprint Collection", () => {
 
   const extra = createMockRequestHandlerExtra();
   const createdBlueprintIds: string[] = [];
-  let cmsAvailable = false;
   let testBlueprintId: string;
   let testPageId: string;
 
   beforeAll(async () => {
-    try {
-      const pageResult = await listChildrenTool.handler(
-        { parentId: undefined },
-        extra,
-      );
-      const pageData = getStructuredContent(pageResult) as any;
-      if (!pageResult.isError && pageData) {
-        cmsAvailable = true;
-        if (pageData.items?.length > 0) {
-          testPageId = pageData.items[0].id;
-        }
-      }
-    } catch {
-      console.warn("CMS not available — blueprint integration tests will be skipped");
+    const pageResult = await listChildrenTool.handler(
+      { parentId: undefined },
+      extra,
+    );
+    expect(pageResult.isError).toBeFalsy();
+    const pageData = getStructuredContent(pageResult) as any;
+    expect(pageData).toBeDefined();
+    if (pageData.items?.length > 0) {
+      testPageId = pageData.items[0].id;
     }
 
     // Also find an existing blueprint if any
-    if (cmsAvailable) {
-      try {
-        const blueprintResult = await listBlueprintsTool.handler(
-          { parentId: undefined },
-          extra,
-        );
-        const blueprintData = getStructuredContent(blueprintResult) as any;
-        if (!blueprintResult.isError && blueprintData?.items?.length > 0) {
-          testBlueprintId = blueprintData.items[0].id;
-        }
-      } catch {
-        // No blueprints available — that's fine
+    try {
+      const blueprintResult = await listBlueprintsTool.handler(
+        { parentId: undefined },
+        extra,
+      );
+      const blueprintData = getStructuredContent(blueprintResult) as any;
+      if (!blueprintResult.isError && blueprintData?.items?.length > 0) {
+        testBlueprintId = blueprintData.items[0].id;
       }
+    } catch {
+      // No blueprints available — that's fine
     }
   }, 60000);
 
@@ -86,7 +78,6 @@ describe("Blueprint Collection", () => {
 
   describe("list-blueprints", () => {
     it("should list root-level blueprints", async () => {
-      if (!cmsAvailable) return;
 
       const result = await listBlueprintsTool.handler(
         { parentId: undefined },
@@ -108,7 +99,7 @@ describe("Blueprint Collection", () => {
 
   describe("get-blueprint", () => {
     it("should get blueprint details by ID", async () => {
-      if (!cmsAvailable || !testBlueprintId) {
+      if (!testBlueprintId) {
         console.warn("Skipping get-blueprint test: no blueprints exist");
         return;
       }
@@ -123,7 +114,6 @@ describe("Blueprint Collection", () => {
     }, 30000);
 
     it("should return error for non-existent blueprint", async () => {
-      if (!cmsAvailable) return;
 
       const result = await getBlueprintTool.handler(
         { id: "00000000-0000-0000-0000-000000000000" },
@@ -138,7 +128,7 @@ describe("Blueprint Collection", () => {
     let createdBlueprintId: string;
 
     it("should create a blueprint from a page", async () => {
-      if (!cmsAvailable || !testPageId) {
+      if (!testPageId) {
         console.warn("Skipping create-blueprint test: no pages available");
         return;
       }
@@ -166,7 +156,7 @@ describe("Blueprint Collection", () => {
     }, 30000);
 
     it("should cancel create-blueprint when elicitation is rejected", async () => {
-      if (!cmsAvailable || !testPageId) {
+      if (!testPageId) {
         console.warn("Skipping elicitation rejection test: no pages available");
         return;
       }

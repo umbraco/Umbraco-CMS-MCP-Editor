@@ -33,46 +33,41 @@ describe("Publishing Collection", () => {
   const extra = createMockRequestHandlerExtra();
   let testPageId: string;
   let createdForTest = false;
-  let cmsAvailable = false;
 
   beforeAll(async () => {
-    try {
-      const browseResult = await listChildrenTool.handler(
-        { parentId: undefined },
-        extra,
-      );
-      const browseData = getStructuredContent(browseResult) as any;
+    const browseResult = await listChildrenTool.handler(
+      { parentId: undefined },
+      extra,
+    );
+    const browseData = getStructuredContent(browseResult) as any;
 
-      if (!browseResult.isError && browseData) {
-        cmsAvailable = true;
-        if (browseData.items?.length > 0) {
-          testPageId = browseData.items[0].id;
-        } else {
-          const { mcpClientManager } = await import("../../../mcp-client.js");
-          const docTypesResult = await mcpClientManager.callTool("cms", "get-document-type-root", {
-            take: 1, skip: 0,
-          });
-          const docTypes = extractChainedResult(docTypesResult);
-          if (docTypes?.items?.length) {
-            const createResult = await createPageTool.handler(
-              {
-                name: "Publishing Test Page",
-                documentTypeId: docTypes.items[0].id,
-                parentId: undefined,
-                values: undefined,
-              },
-              extra,
-            );
-            const created = getStructuredContent(createResult) as any;
-            if (created?.id) {
-              testPageId = created.id;
-              createdForTest = true;
-            }
-          }
+    expect(browseResult.isError).toBeFalsy();
+    expect(browseData).toBeDefined();
+
+    if (browseData.items?.length > 0) {
+      testPageId = browseData.items[0].id;
+    } else {
+      const { mcpClientManager } = await import("../../../mcp-client.js");
+      const docTypesResult = await mcpClientManager.callTool("cms", "get-document-type-root", {
+        take: 1, skip: 0,
+      });
+      const docTypes = extractChainedResult(docTypesResult);
+      if (docTypes?.items?.length) {
+        const createResult = await createPageTool.handler(
+          {
+            name: "Publishing Test Page",
+            documentTypeId: docTypes.items[0].id,
+            parentId: undefined,
+            values: undefined,
+          },
+          extra,
+        );
+        const created = getStructuredContent(createResult) as any;
+        if (created?.id) {
+          testPageId = created.id;
+          createdForTest = true;
         }
       }
-    } catch {
-      console.warn("CMS not available — publishing integration tests will be skipped");
     }
   }, 60000);
 
@@ -93,7 +88,7 @@ describe("Publishing Collection", () => {
 
   describe("publish-page", () => {
     it("should publish a page", async () => {
-      if (!cmsAvailable || !testPageId) return;
+      if (!testPageId) return;
 
       const result = await publishPageTool.handler(
         { id: testPageId, includeDescendants: false },
@@ -113,8 +108,6 @@ describe("Publishing Collection", () => {
     }, 30000);
 
     it("should return error for non-existent page", async () => {
-      if (!cmsAvailable) return;
-
       const result = await publishPageTool.handler(
         { id: "00000000-0000-0000-0000-000000000000", includeDescendants: false },
         extra,
@@ -126,7 +119,7 @@ describe("Publishing Collection", () => {
 
   describe("unpublish-page", () => {
     it("should unpublish a page", async () => {
-      if (!cmsAvailable || !testPageId) return;
+      if (!testPageId) return;
 
       const result = await unpublishPageTool.handler(
         { id: testPageId },
@@ -146,7 +139,7 @@ describe("Publishing Collection", () => {
     }, 30000);
 
     it("should re-publish page after unpublish to restore state", async () => {
-      if (!cmsAvailable || !testPageId) return;
+      if (!testPageId) return;
 
       const result = await publishPageTool.handler(
         { id: testPageId, includeDescendants: false },
@@ -164,7 +157,7 @@ describe("Publishing Collection", () => {
 
   describe("elicitation rejection", () => {
     it("should cancel publish when elicitation is rejected", async () => {
-      if (!cmsAvailable || !testPageId) return;
+      if (!testPageId) return;
 
       elicitation.rejectAll();
 
@@ -179,7 +172,7 @@ describe("Publishing Collection", () => {
     }, 30000);
 
     it("should cancel unpublish when elicitation is rejected", async () => {
-      if (!cmsAvailable || !testPageId) return;
+      if (!testPageId) return;
 
       elicitation.rejectAll();
 

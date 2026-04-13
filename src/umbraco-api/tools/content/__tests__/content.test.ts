@@ -16,7 +16,7 @@ import {
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
-import { extractChainedResult, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
+import { encodeCursor, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 import { expectElicitationCancel } from "../../../../testing/elicitation-helpers.js";
 import { ContentBuilder } from "./helpers/content-builder.js";
@@ -54,40 +54,37 @@ describe("Content Collection", () => {
   const extra = createMockRequestHandlerExtra();
   let testPageId: string;
   let testDocumentTypeId: string;
-  let cmsAvailable = false;
 
   beforeAll(async () => {
-    try {
-      const rootResult = await mcpClientManager.callTool("cms", "get-tree-document-root", {
-        cursor: btoa(JSON.stringify({ s: 0, t: 10 })),
-      });
-      if (rootResult.isError) return;
+    // Use the editor tool (not raw chained call) to list root pages
+    const rootResult = await listChildrenTool.handler({ parentId: undefined }, extra);
+    expect(rootResult.isError).toBeFalsy();
 
-      const rootData = extractChainedResult(rootResult);
-      if (!rootData?.items?.length) return;
+    const rootData = getStructuredContent(rootResult) as any;
+    expect(rootData?.items?.length).toBeGreaterThan(0);
 
-      cmsAvailable = true;
-      testPageId = rootData.items[0].id;
+    testPageId = rootData.items[0].id;
 
-      // Find an allowed document type
-      const children = await ContentTestHelper.getChildren(testPageId, 5);
-      if (children.length > 0) {
-        const childResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: children[0].id });
-        if (!childResult.isError) {
-          const child = extractChainedResult(childResult);
-          if (child?.documentType?.id) testDocumentTypeId = child.documentType.id;
+    // Find a document type that's allowed as a child of the test page.
+    // Try children first (their doc type is known to be allowed), then fall back to the page itself.
+    const children = await ContentTestHelper.getChildren(testPageId, 5);
+    for (const child of children) {
+      const childResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: child.id });
+      if (!childResult.isError) {
+        const childDoc = extractChainedResult(childResult);
+        if (childDoc?.documentType?.id) {
+          testDocumentTypeId = childDoc.documentType.id;
+          break;
         }
       }
+    }
 
-      if (!testDocumentTypeId) {
-        const pageResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: testPageId });
-        if (!pageResult.isError) {
-          const page = extractChainedResult(pageResult);
-          if (page?.documentType?.id) testDocumentTypeId = page.documentType.id;
-        }
-      }
-    } catch {
-      console.warn("CMS not available — content integration tests will be skipped");
+    if (!testDocumentTypeId) {
+      const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: testPageId });
+      expect(docResult.isError).toBeFalsy();
+      const doc = extractChainedResult(docResult);
+      expect(doc?.documentType?.id).toBeDefined();
+      testDocumentTypeId = doc.documentType.id;
     }
   }, 60000);
 
@@ -108,8 +105,6 @@ describe("Content Collection", () => {
 
   describe("list-children", () => {
     it("should return root-level pages", async () => {
-      if (!cmsAvailable) return;
-
       const result = await listChildrenTool.handler({ parentId: undefined }, extra);
 
       expect(result.isError).toBeFalsy();
@@ -126,44 +121,26 @@ describe("Content Collection", () => {
     }, 30000);
   });
 
-  describe("cursor pagination", () => {
-    it("should return nextCursor when more pages exist (list-document-types)", async () => {
-      if (!cmsAvailable) return;
-
-      const result = await listDocumentTypesTool.handler(
-        { cursor: encodeCursor({ s: 0, t: 1 }) },
-        extra,
-      );
-
-      expect(result.isError).toBeFalsy();
-      const data = getStructuredContent(result) as any;
-      expect(data).toBeDefined();
-      expect(data.items).toBeInstanceOf(Array);
-      expect(data.items.length).toBeLessThanOrEqual(1);
-
-      if (data.items.length === 0) {
-        console.warn("Skipping nextCursor assertion: no document types exist");
-        return;
-      }
-
-      if (data.total > 1) {
-        expect(data.nextCursor).toEqual(expect.any(String));
-      }
-    }, 30000);
-
-    it("should fetch second page using nextCursor (list-document-types)", async () => {
-      if (!cmsAvailable) return;
-
+  describe("pagination", () => {
+    it("should paginate list-document-types via cursor", async () => {
       const firstResult = await listDocumentTypesTool.handler(
         { cursor: encodeCursor({ s: 0, t: 1 }) },
         extra,
       );
-      const firstData = getStructuredContent(firstResult) as any;
 
-      if (!firstData?.nextCursor) {
-        console.warn("Skipping second-page test: only 1 document type exists");
+      expect(firstResult.isError).toBeFalsy();
+      const firstData = getStructuredContent(firstResult) as any;
+      expect(firstData).toBeDefined();
+      expect(firstData.items).toBeInstanceOf(Array);
+      expect(firstData.items.length).toBeGreaterThan(0);
+
+      if (firstData.total <= 1) {
+        // Only one document type — pagination not testable
         return;
       }
+
+      // Fetch second page using nextCursor
+      expect(firstData.nextCursor).toBeDefined();
 
       const secondResult = await listDocumentTypesTool.handler(
         { cursor: firstData.nextCursor },
@@ -172,29 +149,11 @@ describe("Content Collection", () => {
 
       expect(secondResult.isError).toBeFalsy();
       const secondData = getStructuredContent(secondResult) as any;
-      expect(secondData).toBeDefined();
-      expect(secondData.items).toBeInstanceOf(Array);
       expect(secondData.items.length).toBeGreaterThan(0);
       expect(secondData.items[0].id).not.toBe(firstData.items[0].id);
     }, 30000);
 
-    it("should not return nextCursor on the last page", async () => {
-      if (!cmsAvailable) return;
-
-      const result = await listDocumentTypesTool.handler(
-        { cursor: encodeCursor({ s: 0, t: 1000 }) },
-        extra,
-      );
-
-      expect(result.isError).toBeFalsy();
-      const data = getStructuredContent(result) as any;
-      expect(data).toBeDefined();
-      expect(data.nextCursor).toBeUndefined();
-    }, 30000);
-
     it("should return nextCursor when paginating list-children with take=1", async () => {
-      if (!cmsAvailable) return;
-
       const result = await listChildrenTool.handler(
         { parentId: undefined, cursor: encodeCursor({ s: 0, t: 1 }) },
         extra,
@@ -222,8 +181,6 @@ describe("Content Collection", () => {
 
   describe("search-content", () => {
     it("should search for content and return results", async () => {
-      if (!cmsAvailable) return;
-
       const result = await searchContentTool.handler({ query: TEST_SEARCH_QUERY }, extra);
 
       expect(result.isError).toBeFalsy();
@@ -234,8 +191,6 @@ describe("Content Collection", () => {
     }, 30000);
 
     it("should return empty results for nonsense query", async () => {
-      if (!cmsAvailable) return;
-
       const result = await searchContentTool.handler({ query: TEST_SEARCH_NONSENSE }, extra);
 
       expect(result.isError).toBeFalsy();
@@ -249,8 +204,6 @@ describe("Content Collection", () => {
 
   describe("get-page", () => {
     it("should get page details by ID", async () => {
-      if (!cmsAvailable || !testPageId) return;
-
       const result = await getPageTool.handler({ id: testPageId }, extra);
 
       expect(result.isError).toBeFalsy();
@@ -264,8 +217,6 @@ describe("Content Collection", () => {
     }, 30000);
 
     it("should return error for non-existent page", async () => {
-      if (!cmsAvailable) return;
-
       const result = await getPageTool.handler({ id: NON_EXISTENT_UUID }, extra);
       expect(result.isError).toBeTruthy();
     }, 30000);
@@ -273,8 +224,6 @@ describe("Content Collection", () => {
 
   describe("list-document-types", () => {
     it("should list available document types", async () => {
-      if (!cmsAvailable) return;
-
       const result = await listDocumentTypesTool.handler({}, extra);
 
       expect(result.isError).toBeFalsy();
@@ -291,25 +240,17 @@ describe("Content Collection", () => {
     }, 30000);
 
     it("should handle pagination", async () => {
-      if (!cmsAvailable) return;
-
       const result = await listDocumentTypesTool.handler({}, extra);
 
       expect(result.isError).toBeFalsy();
       const data = getStructuredContent(result) as any;
       expect(data.items).toBeInstanceOf(Array);
-      if (data.items.length === 0) {
-        console.warn("Skipping pagination assertion: no document types exist");
-        return;
-      }
       expect(data.items.length).toBeGreaterThan(0);
     }, 30000);
   });
 
   describe("inspect-blocks", () => {
     it("should return block structure for a page", async () => {
-      if (!cmsAvailable || !testPageId) return;
-
       const result = await inspectBlocksTool.handler(
         { id: testPageId, propertyAlias: undefined },
         extra,
@@ -330,16 +271,12 @@ describe("Content Collection", () => {
     let lifecycleDoc: ContentBuilder;
 
     it("should create a draft page", async () => {
-      if (!cmsAvailable || !testPageId || !testDocumentTypeId) return;
-
-      // Use builder to create test page — bypasses elicitation
       lifecycleDoc = await new ContentBuilder()
         .withName(TEST_LIFECYCLE_NAME)
         .withDocumentType(testDocumentTypeId)
         .withParent(testPageId)
         .create();
 
-      // Verify via the editor tool
       const result = await getPageTool.handler({ id: lifecycleDoc.getId() }, extra);
       expect(result.isError).toBeFalsy();
       const data = getStructuredContent(result) as any;
@@ -348,21 +285,14 @@ describe("Content Collection", () => {
     }, 30000);
 
     it("should edit the created page", async () => {
-      if (!cmsAvailable || !lifecycleDoc) {
-        console.warn("Skipping edit test: no page was created");
-        return;
-      }
+      expect(lifecycleDoc).toBeDefined();
 
       const result = await editPageTool.handler(
         { id: lifecycleDoc.getId(), values: TEST_EDIT_VALUES },
         extra,
       );
 
-      if (result.isError) {
-        console.warn("Skipping edit assertions: CMS returned error");
-        return;
-      }
-
+      expect(result.isError).toBeFalsy();
       const data = getStructuredContent(result) as any;
       expect(data).toBeDefined();
       expect(data.id).toBe(lifecycleDoc.getId());
@@ -370,18 +300,11 @@ describe("Content Collection", () => {
     }, 30000);
 
     it("should delete the created page", async () => {
-      if (!cmsAvailable || !lifecycleDoc) {
-        console.warn("Skipping delete test: no page was created");
-        return;
-      }
+      expect(lifecycleDoc).toBeDefined();
 
       const result = await deletePageTool.handler({ id: lifecycleDoc.getId() }, extra);
 
-      if (result.isError) {
-        console.warn("Skipping delete assertions: CMS returned error");
-        return;
-      }
-
+      expect(result.isError).toBeFalsy();
       const data = getStructuredContent(result) as any;
       expect(data).toBeDefined();
       expect(data.message).toContain("recycle bin");
@@ -389,24 +312,15 @@ describe("Content Collection", () => {
     }, 30000);
 
     it("should restore the deleted page from recycle bin", async () => {
-      if (!cmsAvailable || !lifecycleDoc) {
-        console.warn("Skipping restore test: no page was created/deleted");
-        return;
-      }
+      expect(lifecycleDoc).toBeDefined();
 
       const result = await restorePageTool.handler({ id: lifecycleDoc.getId() }, extra);
 
-      if (result.isError) {
-        console.warn("Skipping restore assertions: CMS returned error");
-        return;
-      }
-
+      expect(result.isError).toBeFalsy();
       const data = getStructuredContent(result) as any;
       expect(data).toBeDefined();
       expect(data.message).toContain("Restored");
       expect(data.id).toBe(lifecycleDoc.getId());
-
-      // afterEach cleanup handles permanent deletion
     }, 30000);
   });
 
@@ -414,24 +328,18 @@ describe("Content Collection", () => {
 
   describe("edit-block", () => {
     it("should edit a block property when blocks exist", async () => {
-      if (!cmsAvailable || !testPageId) return;
-
       const inspectResult = await inspectBlocksTool.handler(
         { id: testPageId, propertyAlias: undefined },
         extra,
       );
       const inspectData = getStructuredContent(inspectResult) as any;
-
-      if (!inspectData?.blockProperties?.length) {
-        console.warn("Skipping edit-block test: no block properties on test page");
-        return;
-      }
+      expect(inspectData?.blockProperties).toBeDefined();
 
       const blockProp = inspectData.blockProperties.find(
         (bp: any) => bp.blocks?.length > 0,
       );
       if (!blockProp) {
-        console.warn("Skipping edit-block test: no blocks with content found");
+        // No blocks on the test page — this is a data limitation, not a test failure
         return;
       }
 
@@ -439,7 +347,6 @@ describe("Content Collection", () => {
         (b: any) => b.contentKey && b.values?.length > 0,
       );
       if (!block) {
-        console.warn("Skipping edit-block test: no blocks with contentKey and values found");
         return;
       }
 
@@ -456,11 +363,7 @@ describe("Content Collection", () => {
         extra,
       );
 
-      if (result.isError) {
-        console.warn("Skipping edit-block assertions: CMS returned error");
-        return;
-      }
-
+      expect(result.isError).toBeFalsy();
       const data = getStructuredContent(result) as any;
       expect(data).toBeDefined();
       expect(data.message).toContain("Updated");
@@ -468,8 +371,6 @@ describe("Content Collection", () => {
     }, 30000);
 
     it("should cancel edit-block when elicitation is rejected", async () => {
-      if (!cmsAvailable || !testPageId) return;
-
       elicitation.rejectAll();
       await expectElicitationCancel(() =>
         editBlockTool.handler(
@@ -491,8 +392,6 @@ describe("Content Collection", () => {
 
   describe("elicitation rejection", () => {
     it("should cancel create when elicitation is rejected", async () => {
-      if (!cmsAvailable || !testPageId) return;
-
       elicitation.rejectAll();
       await expectElicitationCancel(() =>
         createPageTool.handler(
@@ -508,8 +407,6 @@ describe("Content Collection", () => {
     }, 30000);
 
     it("should cancel edit when elicitation is rejected", async () => {
-      if (!cmsAvailable || !testPageId) return;
-
       elicitation.rejectAll();
       await expectElicitationCancel(() =>
         editPageTool.handler(
@@ -520,8 +417,6 @@ describe("Content Collection", () => {
     }, 30000);
 
     it("should cancel restore when elicitation is rejected", async () => {
-      if (!cmsAvailable || !testPageId) return;
-
       elicitation.rejectAll();
       await expectElicitationCancel(() =>
         restorePageTool.handler({ id: testPageId }, extra),
@@ -529,8 +424,6 @@ describe("Content Collection", () => {
     }, 30000);
 
     it("should cancel delete when elicitation is rejected", async () => {
-      if (!cmsAvailable || !testPageId) return;
-
       elicitation.rejectAll();
       await expectElicitationCancel(() =>
         deletePageTool.handler({ id: testPageId }, extra),

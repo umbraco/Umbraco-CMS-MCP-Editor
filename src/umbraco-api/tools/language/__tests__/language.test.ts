@@ -32,23 +32,17 @@ describe("Language Collection", () => {
   setupTestEnvironment();
 
   const extra = createMockRequestHandlerExtra();
-  let cmsAvailable = false;
   let defaultIsoCode: string;
   let createdIsoCode: string | null = null;
 
   beforeAll(async () => {
-    try {
-      const result = await listLanguagesTool.handler({}, extra);
-      const data = getStructuredContent(result) as any;
-      if (!result.isError && data) {
-        cmsAvailable = true;
-        const defaultLang = data.items?.find((l: any) => l.isDefault);
-        if (defaultLang) {
-          defaultIsoCode = defaultLang.isoCode;
-        }
-      }
-    } catch {
-      console.warn("CMS not available — language integration tests will be skipped");
+    const result = await listLanguagesTool.handler({}, extra);
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    expect(data).toBeDefined();
+    const defaultLang = data.items?.find((l: any) => l.isDefault);
+    if (defaultLang) {
+      defaultIsoCode = defaultLang.isoCode;
     }
   }, 60000);
 
@@ -69,7 +63,6 @@ describe("Language Collection", () => {
 
   describe("list-languages", () => {
     it("should list all configured languages", async () => {
-      if (!cmsAvailable) return;
 
       const result = await listLanguagesTool.handler({}, extra);
 
@@ -90,7 +83,7 @@ describe("Language Collection", () => {
 
   describe("get-language", () => {
     it("should get default language details by ISO code", async () => {
-      if (!cmsAvailable || !defaultIsoCode) return;
+      if (!defaultIsoCode) return;
 
       const result = await getLanguageTool.handler({ isoCode: defaultIsoCode }, extra);
 
@@ -105,7 +98,6 @@ describe("Language Collection", () => {
     }, 30000);
 
     it("should return error for invalid ISO code", async () => {
-      if (!cmsAvailable) return;
 
       const result = await getLanguageTool.handler({ isoCode: "xx-INVALID" }, extra);
 
@@ -115,7 +107,6 @@ describe("Language Collection", () => {
 
   describe("create-language, update-language, delete-language lifecycle", () => {
     it("should create a new language", async () => {
-      if (!cmsAvailable) return;
 
       const result = await createLanguageTool.handler(
         { isoCode: TEST_LANGUAGE_ISO, name: "Norwegian Bokmål", isDefault: false, isMandatory: false, fallbackIsoCode: undefined },
@@ -151,7 +142,7 @@ describe("Language Collection", () => {
     }, 30000);
 
     it("should update the created language", async () => {
-      if (!cmsAvailable || !createdIsoCode) {
+      if (!createdIsoCode) {
         console.warn("Skipping update test: no language was created");
         return;
       }
@@ -173,7 +164,7 @@ describe("Language Collection", () => {
     }, 30000);
 
     it("should delete the created language", async () => {
-      if (!cmsAvailable || !createdIsoCode) {
+      if (!createdIsoCode) {
         console.warn("Skipping delete test: no language was created");
         return;
       }
@@ -196,7 +187,6 @@ describe("Language Collection", () => {
 
   describe("elicitation rejection", () => {
     it("should cancel create when elicitation is rejected", async () => {
-      if (!cmsAvailable) return;
 
       elicitation.rejectAll();
 
@@ -211,7 +201,7 @@ describe("Language Collection", () => {
     }, 30000);
 
     it("should cancel update when elicitation is rejected", async () => {
-      if (!cmsAvailable || !defaultIsoCode) return;
+      if (!defaultIsoCode) return;
 
       elicitation.rejectAll();
 
@@ -226,7 +216,7 @@ describe("Language Collection", () => {
     }, 30000);
 
     it("should cancel delete when elicitation is rejected", async () => {
-      if (!cmsAvailable || !defaultIsoCode) return;
+      if (!defaultIsoCode) return;
 
       elicitation.rejectAll();
 

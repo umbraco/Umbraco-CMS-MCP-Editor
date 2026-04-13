@@ -30,37 +30,33 @@ describe("Member Reporting Collection", () => {
   setupTestEnvironment();
 
   const extra = createMockRequestHandlerExtra();
-  let cmsAvailable = false;
   let createdGroupId: string | null = null;
 
   beforeAll(async () => {
-    try {
-      const result = await reportMemberCountTool.handler({}, extra);
-      const data = getStructuredContent(result) as any;
-      if (!result.isError && data) {
-        cmsAvailable = true;
-      }
+    const result = await reportMemberCountTool.handler({}, extra);
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    expect(data).toBeDefined();
 
-      // Ensure at least one member group exists for report-members-by-group test
-      if (cmsAvailable) {
-        const groupsResult = await listMemberGroupsTool.handler({}, extra);
-        const groupsData = getStructuredContent(groupsResult) as any;
-        if (!groupsData?.items?.length) {
-          console.warn("No member groups exist — creating one for reporting tests");
-          const createResult = await createMemberGroupTool.handler(
-            { name: REPORTING_TEST_GROUP_NAME },
-            extra,
-          );
-          if (!createResult.isError) {
-            const createData = getStructuredContent(createResult) as any;
-            if (createData?.id) {
-              createdGroupId = createData.id;
-            }
+    // Ensure at least one member group exists for report-members-by-group test
+    try {
+      const groupsResult = await listMemberGroupsTool.handler({}, extra);
+      const groupsData = getStructuredContent(groupsResult) as any;
+      if (!groupsData?.items?.length) {
+        console.warn("No member groups exist — creating one for reporting tests");
+        const createResult = await createMemberGroupTool.handler(
+          { name: REPORTING_TEST_GROUP_NAME },
+          extra,
+        );
+        if (!createResult.isError) {
+          const createData = getStructuredContent(createResult) as any;
+          if (createData?.id) {
+            createdGroupId = createData.id;
           }
         }
       }
     } catch {
-      console.warn("CMS not available — member-reporting integration tests will be skipped");
+      // Group creation is best-effort test data setup
     }
   }, 60000);
 
@@ -83,7 +79,6 @@ describe("Member Reporting Collection", () => {
 
   describe("report-member-count", () => {
     it("should return member count breakdown by type and group", async () => {
-      if (!cmsAvailable) return;
 
       const result = await reportMemberCountTool.handler({}, extra);
 
@@ -108,7 +103,6 @@ describe("Member Reporting Collection", () => {
 
   describe("report-members-by-group", () => {
     it("should return members filtered by group name", async () => {
-      if (!cmsAvailable) return;
 
       // Find a group name from list-member-groups
       const groupsResult = await listMemberGroupsTool.handler(
@@ -149,7 +143,6 @@ describe("Member Reporting Collection", () => {
 
   describe("report-member-activity", () => {
     it("should return inactive member report with expected shape", async () => {
-      if (!cmsAvailable) return;
 
       const result = await reportMemberActivityTool.handler(
         { inactiveDays: 90 },

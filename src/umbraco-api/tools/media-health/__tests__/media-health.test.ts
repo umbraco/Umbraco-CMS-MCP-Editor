@@ -27,23 +27,16 @@ describe("Media Health Collection", () => {
   setupTestEnvironment();
 
   const extra = createMockRequestHandlerExtra();
-  let cmsAvailable = false;
 
   beforeAll(async () => {
-    try {
-      const mediaResult = await listMediaChildrenTool.handler(
-        { parentId: undefined },
-        extra,
-      );
+    const mediaResult = await listMediaChildrenTool.handler(
+      { parentId: undefined },
+      extra,
+    );
+    expect(mediaResult.isError).toBeFalsy();
 
-      const mediaData = getStructuredContent(mediaResult) as any;
-
-      if (!mediaResult.isError && mediaData?.items?.length > 0) {
-        cmsAvailable = true;
-      }
-    } catch {
-      console.warn("CMS not available — media-health integration tests will be skipped");
-    }
+    const mediaData = getStructuredContent(mediaResult) as any;
+    expect(mediaData?.items?.length).toBeGreaterThan(0);
   }, 60000);
 
   afterAll(() => {
@@ -56,8 +49,6 @@ describe("Media Health Collection", () => {
 
   describe("report-large-media", () => {
     it("should return structure with threshold and items having fileSizeKb", async () => {
-      if (!cmsAvailable) return;
-
       const result = await reportLargeMediaTool.handler(
         { minSizeKb: 1, parentId: undefined },
         extra,

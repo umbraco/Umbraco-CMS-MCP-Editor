@@ -39,59 +39,55 @@ describe("Member Collection", () => {
   setupTestEnvironment();
 
   const extra = createMockRequestHandlerExtra();
-  let cmsAvailable = false;
   let testMemberTypeId: string;
   let createdMemberId: string;
 
   beforeAll(async () => {
-    try {
-      const result = await listMemberTypesTool.handler(
-        {},
+    const result = await listMemberTypesTool.handler(
+      {},
+      extra,
+    );
+    const data = getStructuredContent(result) as any;
+
+    expect(result.isError).toBeFalsy();
+    expect(data).toBeDefined();
+
+    if (data.items?.length > 0) {
+      testMemberTypeId = data.items[0].id;
+    }
+
+    // Pre-create a member so search/get tests have data to work with
+    if (testMemberTypeId) {
+      const createResult = await createMemberTool.handler(
+        {
+          email: TEST_MEMBER_EMAIL,
+          username: TEST_MEMBER_USERNAME,
+          name: TEST_MEMBER_NAME,
+          password: TEST_MEMBER_PASSWORD,
+          memberTypeId: testMemberTypeId,
+          isApproved: true,
+          groups: undefined,
+          values: undefined,
+        },
         extra,
       );
-      const data = getStructuredContent(result) as any;
-      if (!result.isError && data) {
-        cmsAvailable = true;
-        if (data.items?.length > 0) {
-          testMemberTypeId = data.items[0].id;
+      if (!createResult.isError) {
+        const createData = getStructuredContent(createResult) as any;
+        if (createData?.id) {
+          createdMemberId = createData.id;
         }
-      }
-
-      // Pre-create a member so search/get tests have data to work with
-      if (cmsAvailable && testMemberTypeId) {
-        const createResult = await createMemberTool.handler(
-          {
-            email: TEST_MEMBER_EMAIL,
-            username: TEST_MEMBER_USERNAME,
-            name: TEST_MEMBER_NAME,
-            password: TEST_MEMBER_PASSWORD,
-            memberTypeId: testMemberTypeId,
-            isApproved: true,
-            groups: undefined,
-            values: undefined,
-          },
-          extra,
-        );
-        if (!createResult.isError) {
-          const createData = getStructuredContent(createResult) as any;
-          if (createData?.id) {
-            createdMemberId = createData.id;
-          }
-        } else {
-          // Member may already exist — try to find it
-          // Allow indexing delay then search
-          await new Promise(r => setTimeout(r, 2000));
-          const searchResult = await searchMembersTool.handler({ query: TEST_MEMBER_USERNAME }, extra);
-          const searchData = getStructuredContent(searchResult) as any;
-          if (searchData?.items?.length > 0) {
-            createdMemberId = searchData.items[0].id;
-          }
-        }
-        // Allow search indexing to catch up after create
+      } else {
+        // Member may already exist — try to find it
+        // Allow indexing delay then search
         await new Promise(r => setTimeout(r, 2000));
+        const searchResult = await searchMembersTool.handler({ query: TEST_MEMBER_USERNAME }, extra);
+        const searchData = getStructuredContent(searchResult) as any;
+        if (searchData?.items?.length > 0) {
+          createdMemberId = searchData.items[0].id;
+        }
       }
-    } catch {
-      console.warn("CMS not available — member integration tests will be skipped");
+      // Allow search indexing to catch up after create
+      await new Promise(r => setTimeout(r, 2000));
     }
   }, 60000);
 
@@ -112,8 +108,6 @@ describe("Member Collection", () => {
 
   describe("list-member-types", () => {
     it("should list available member types", async () => {
-      if (!cmsAvailable) return;
-
       const result = await listMemberTypesTool.handler(
         {},
         extra,
@@ -135,8 +129,6 @@ describe("Member Collection", () => {
 
   describe("search-members", () => {
     it("should search members and return results with expected shape", async () => {
-      if (!cmsAvailable) return;
-
       const result = await searchMembersTool.handler(
         { query: "admin" },
         extra,
@@ -160,8 +152,6 @@ describe("Member Collection", () => {
     }, 30000);
 
     it("should return empty results for nonsense query", async () => {
-      if (!cmsAvailable) return;
-
       const result = await searchMembersTool.handler(
         { query: "xyznonexistent99999zzz" },
         extra,
@@ -177,8 +167,6 @@ describe("Member Collection", () => {
 
   describe("get-member", () => {
     it("should get a member by ID with full profile", async () => {
-      if (!cmsAvailable) return;
-
       // First search to find an existing member — try multiple queries
       let searchData: any = null;
       for (const query of ["test", "admin", "a"]) {
@@ -232,8 +220,6 @@ describe("Member Collection", () => {
     }, 30000);
 
     it("should return error for non-existent member ID", async () => {
-      if (!cmsAvailable) return;
-
       const result = await getMemberTool.handler(
         { id: NON_EXISTENT_UUID },
         extra,
@@ -245,7 +231,7 @@ describe("Member Collection", () => {
 
   describe("create-member, update-member, delete-member lifecycle", () => {
     it("should create a new member", async () => {
-      if (!cmsAvailable || !testMemberTypeId) {
+      if (!testMemberTypeId) {
         console.warn("Skipping create-member test: no member type available");
         return;
       }
@@ -319,7 +305,7 @@ describe("Member Collection", () => {
     }, 30000);
 
     it("should update the created member", async () => {
-      if (!cmsAvailable || !createdMemberId) {
+      if (!createdMemberId) {
         console.warn("Skipping update-member test: no member was created");
         return;
       }
@@ -349,7 +335,7 @@ describe("Member Collection", () => {
     }, 30000);
 
     it("should delete the created member", async () => {
-      if (!cmsAvailable || !createdMemberId) {
+      if (!createdMemberId) {
         console.warn("Skipping delete-member test: no member was created");
         return;
       }
@@ -375,7 +361,7 @@ describe("Member Collection", () => {
 
   describe("elicitation rejection", () => {
     it("should cancel create-member when elicitation is rejected", async () => {
-      if (!cmsAvailable || !testMemberTypeId) return;
+      if (!testMemberTypeId) return;
 
       elicitation.rejectAll();
 
@@ -399,8 +385,6 @@ describe("Member Collection", () => {
     }, 30000);
 
     it("should cancel update-member when elicitation is rejected", async () => {
-      if (!cmsAvailable) return;
-
       // Use pre-created member, or search for any member
       let targetMemberId = createdMemberId;
       if (!targetMemberId) {
@@ -437,8 +421,6 @@ describe("Member Collection", () => {
     }, 30000);
 
     it("should cancel delete-member when elicitation is rejected", async () => {
-      if (!cmsAvailable) return;
-
       // Use pre-created member, or search for any member
       let targetMemberId = createdMemberId;
       if (!targetMemberId) {

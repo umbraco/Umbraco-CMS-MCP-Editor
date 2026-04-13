@@ -35,94 +35,87 @@ describe("Redirect Collection", () => {
 
   const extra = createMockRequestHandlerExtra();
   let firstRedirectId: string | undefined;
-  let cmsAvailable = false;
   let createdPageId: string | undefined;
 
   beforeAll(async () => {
-    try {
-      // get-redirect-status always works — use it as CMS availability check
-      const statusResult = await getRedirectStatusTool.handler({}, extra);
-      if (!statusResult.isError) {
-        cmsAvailable = true;
+    // get-redirect-status always works — use it as CMS availability check
+    const statusResult = await getRedirectStatusTool.handler({}, extra);
+    expect(statusResult.isError).toBeFalsy();
+
+    // Try to grab the first redirect ID for subsequent tests
+    const listResult = await listRedirectsTool.handler({ filter: undefined }, extra);
+    if (!listResult.isError) {
+      const listData = getStructuredContent(listResult) as any;
+      if (listData?.items?.length > 0) {
+        firstRedirectId = listData.items[0].id;
       }
+    }
 
-      // Try to grab the first redirect ID for subsequent tests
-      const listResult = await listRedirectsTool.handler({ filter: undefined }, extra);
-      if (!listResult.isError) {
-        const listData = getStructuredContent(listResult) as any;
-        if (listData?.items?.length > 0) {
-          firstRedirectId = listData.items[0].id;
-        }
-      }
+    // If no redirects exist, try to create one by publishing and moving a page
+    if (!firstRedirectId) {
+      console.warn("No redirects exist — attempting to create one by moving a published page");
+      try {
+        const { mcpClientManager } = await import("../../../mcp-client.js");
+        const { extractChainedResult } = await import("@umbraco-cms/mcp-server-sdk");
 
-      // If no redirects exist, try to create one by publishing and moving a page
-      if (cmsAvailable && !firstRedirectId) {
-        console.warn("No redirects exist — attempting to create one by moving a published page");
-        try {
-          const { mcpClientManager } = await import("../../../mcp-client.js");
-          const { extractChainedResult } = await import("@umbraco-cms/mcp-server-sdk");
-
-          // Find root pages and a doc type
-          const browseResult = await listChildrenTool.handler({ parentId: undefined }, extra);
-          const browseData = getStructuredContent(browseResult) as any;
-          if (browseData?.items?.length > 0) {
-            const rootPageId = browseData.items[0].id;
-            // Get root page's doc type
-            const pageResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: rootPageId });
-            if (!pageResult.isError) {
-              const pageData = extractChainedResult(pageResult);
-              // Find a child doc type
-              const childrenResult = await listChildrenTool.handler({ parentId: rootPageId }, extra);
-              const childrenData = getStructuredContent(childrenResult) as any;
-              let childDocTypeId: string | undefined;
-              if (childrenData?.items?.length > 0) {
-                const childResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: childrenData.items[0].id });
-                if (!childResult.isError) {
-                  const childData = extractChainedResult(childResult);
-                  childDocTypeId = childData?.documentType?.id;
-                }
+        // Find root pages and a doc type
+        const browseResult = await listChildrenTool.handler({ parentId: undefined }, extra);
+        const browseData = getStructuredContent(browseResult) as any;
+        if (browseData?.items?.length > 0) {
+          const rootPageId = browseData.items[0].id;
+          // Get root page's doc type
+          const pageResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: rootPageId });
+          if (!pageResult.isError) {
+            const pageData = extractChainedResult(pageResult);
+            // Find a child doc type
+            const childrenResult = await listChildrenTool.handler({ parentId: rootPageId }, extra);
+            const childrenData = getStructuredContent(childrenResult) as any;
+            let childDocTypeId: string | undefined;
+            if (childrenData?.items?.length > 0) {
+              const childResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: childrenData.items[0].id });
+              if (!childResult.isError) {
+                const childData = extractChainedResult(childResult);
+                childDocTypeId = childData?.documentType?.id;
               }
-              if (!childDocTypeId) {
-                childDocTypeId = pageData?.documentType?.id;
-              }
-              if (childDocTypeId) {
-                // Create a child page
-                const createResult = await createPageTool.handler(
-                  { name: "Redirect Test Page", documentTypeId: childDocTypeId, parentId: rootPageId, values: undefined },
-                  extra,
-                );
-                if (!createResult.isError) {
-                  const createData = getStructuredContent(createResult) as any;
-                  createdPageId = createData?.id;
-                  if (createdPageId) {
-                    // Publish it
-                    await bulkPublishTool.handler({ ids: [createdPageId], includeDescendants: false }, extra);
-                    // Wait for publish to take effect
-                    await new Promise(r => setTimeout(r, 1000));
-                    // Move it to root (changes URL -> creates redirect)
-                    await bulkMoveTool.handler({ ids: [createdPageId], targetParentId: undefined as any }, extra);
-                    // Wait for redirect to be created
-                    await new Promise(r => setTimeout(r, 2000));
-                    // Re-list redirects
-                    const relistResult = await listRedirectsTool.handler({ filter: undefined }, extra);
-                    if (!relistResult.isError) {
-                      const relistData = getStructuredContent(relistResult) as any;
-                      if (relistData?.items?.length > 0) {
-                        firstRedirectId = relistData.items[0].id;
-                        console.warn(`Created redirect via page move: ${firstRedirectId}`);
-                      }
+            }
+            if (!childDocTypeId) {
+              childDocTypeId = pageData?.documentType?.id;
+            }
+            if (childDocTypeId) {
+              // Create a child page
+              const createResult = await createPageTool.handler(
+                { name: "Redirect Test Page", documentTypeId: childDocTypeId, parentId: rootPageId, values: undefined },
+                extra,
+              );
+              if (!createResult.isError) {
+                const createData = getStructuredContent(createResult) as any;
+                createdPageId = createData?.id;
+                if (createdPageId) {
+                  // Publish it
+                  await bulkPublishTool.handler({ ids: [createdPageId], includeDescendants: false }, extra);
+                  // Wait for publish to take effect
+                  await new Promise(r => setTimeout(r, 1000));
+                  // Move it to root (changes URL -> creates redirect)
+                  await bulkMoveTool.handler({ ids: [createdPageId], targetParentId: undefined as any }, extra);
+                  // Wait for redirect to be created
+                  await new Promise(r => setTimeout(r, 2000));
+                  // Re-list redirects
+                  const relistResult = await listRedirectsTool.handler({ filter: undefined }, extra);
+                  if (!relistResult.isError) {
+                    const relistData = getStructuredContent(relistResult) as any;
+                    if (relistData?.items?.length > 0) {
+                      firstRedirectId = relistData.items[0].id;
+                      console.warn(`Created redirect via page move: ${firstRedirectId}`);
                     }
                   }
                 }
               }
             }
           }
-        } catch {
-          console.warn("Could not create redirect via page move — redirect-specific tests will use fallback assertions");
         }
+      } catch {
+        console.warn("Could not create redirect via page move — redirect-specific tests will use fallback assertions");
       }
-    } catch {
-      console.warn("CMS not available — redirect integration tests will be skipped");
     }
   }, 120000);
 
@@ -143,8 +136,6 @@ describe("Redirect Collection", () => {
 
   describe("get-redirect-status", () => {
     it("should return whether redirect tracking is enabled", async () => {
-      if (!cmsAvailable) return;
-
       const result = await getRedirectStatusTool.handler({}, extra);
 
       expect(result.isError).toBeFalsy();
@@ -157,8 +148,6 @@ describe("Redirect Collection", () => {
 
   describe("list-redirects", () => {
     it("should list redirects and return structured result (may be empty)", async () => {
-      if (!cmsAvailable) return;
-
       const result = await listRedirectsTool.handler({ filter: undefined }, extra);
 
       expect(result.isError).toBeFalsy();
@@ -181,8 +170,6 @@ describe("Redirect Collection", () => {
 
   describe("get-redirect", () => {
     it("should get redirect details when one exists", async () => {
-      if (!cmsAvailable) return;
-
       if (!firstRedirectId) {
         // No redirects exist — verify that get-redirect returns an error for a non-existent ID
         const result = await getRedirectTool.handler(
@@ -207,8 +194,6 @@ describe("Redirect Collection", () => {
     }, 30000);
 
     it("should return error or empty result for non-existent redirect", async () => {
-      if (!cmsAvailable) return;
-
       const result = await getRedirectTool.handler(
         { id: "00000000-0000-0000-0000-000000000000" },
         extra,
@@ -227,8 +212,6 @@ describe("Redirect Collection", () => {
 
   describe("delete-redirect elicitation rejection", () => {
     it("should cancel delete-redirect when elicitation is rejected", async () => {
-      if (!cmsAvailable) return;
-
       // Use a real redirect ID if available, otherwise use a fake one
       // (the tool will either cancel via elicitation or error before the API call)
       const targetId = firstRedirectId || "00000000-0000-0000-0000-000000000001";

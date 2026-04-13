@@ -27,30 +27,26 @@ describe("Relationships Collection", () => {
   setupTestEnvironment();
 
   const extra = createMockRequestHandlerExtra();
-  let cmsAvailable = false;
   let testPageId: string;
   let testMediaId: string;
 
   beforeAll(async () => {
-    try {
-      const [pageResult, mediaResult] = await Promise.all([
-        listChildrenTool.handler({ parentId: undefined }, extra),
-        listMediaChildrenTool.handler({ parentId: undefined }, extra),
-      ]);
+    const [pageResult, mediaResult] = await Promise.all([
+      listChildrenTool.handler({ parentId: undefined }, extra),
+      listMediaChildrenTool.handler({ parentId: undefined }, extra),
+    ]);
 
-      const pageData = getStructuredContent(pageResult) as any;
-      const mediaData = getStructuredContent(mediaResult) as any;
+    expect(pageResult.isError).toBeFalsy();
+    const pageData = getStructuredContent(pageResult) as any;
+    expect(pageData).toBeDefined();
+    expect(pageData.items?.length).toBeGreaterThan(0);
+    testPageId = pageData.items[0].id;
 
-      if (!pageResult.isError && pageData?.items?.length > 0) {
-        cmsAvailable = true;
-        testPageId = pageData.items[0].id;
-      }
-
-      if (!mediaResult.isError && mediaData?.items?.length > 0) {
-        testMediaId = mediaData.items[0].id;
-      }
-    } catch {
-      console.warn("CMS not available — relationships integration tests will be skipped");
+    expect(mediaResult.isError).toBeFalsy();
+    const mediaData = getStructuredContent(mediaResult) as any;
+    expect(mediaData).toBeDefined();
+    if (mediaData.items?.length > 0) {
+      testMediaId = mediaData.items[0].id;
     }
   }, 60000);
 
@@ -66,8 +62,6 @@ describe("Relationships Collection", () => {
 
   describe("report-content-references (document)", () => {
     it("should return referencedBy array and referenceCount for a known page", async () => {
-      if (!cmsAvailable || !testPageId) return;
-
       const result = await reportContentReferencesTool.handler(
         { id: testPageId, type: "document" },
         extra,
@@ -84,7 +78,7 @@ describe("Relationships Collection", () => {
 
   describe("report-content-references (media)", () => {
     it("should return referencedBy and referenceCount for a media item", async () => {
-      if (!cmsAvailable || !testMediaId) return;
+      if (!testMediaId) return;
 
       const result = await reportContentReferencesTool.handler(
         { id: testMediaId, type: "media" },
@@ -101,8 +95,6 @@ describe("Relationships Collection", () => {
 
   describe("report-orphan-pages", () => {
     it("should return items array with scannedPages count", async () => {
-      if (!cmsAvailable) return;
-
       const result = await reportOrphanPagesTool.handler(
         { parentId: undefined },
         extra,
@@ -121,8 +113,6 @@ describe("Relationships Collection", () => {
 
   describe("report-outbound-links", () => {
     it("should return internalPages, media, and externalUrls arrays", async () => {
-      if (!cmsAvailable || !testPageId) return;
-
       const result = await reportOutboundLinksTool.handler(
         { id: testPageId },
         extra,

@@ -27,20 +27,13 @@ describe("Site Structure Collection", () => {
   setupTestEnvironment();
 
   const extra = createMockRequestHandlerExtra();
-  let cmsAvailable = false;
 
   beforeAll(async () => {
-    try {
-      const result = await reportSiteTreeSummaryTool.handler(
-        { parentId: undefined, maxDepth: 2 },
-        extra,
-      );
-      if (!result.isError) {
-        cmsAvailable = true;
-      }
-    } catch {
-      console.warn("CMS not available — site-structure integration tests will be skipped");
-    }
+    const result = await reportSiteTreeSummaryTool.handler(
+      { parentId: undefined, maxDepth: 2 },
+      extra,
+    );
+    expect(result.isError).toBeFalsy();
   }, 60000);
 
   afterAll(() => {
@@ -53,8 +46,6 @@ describe("Site Structure Collection", () => {
 
   describe("report-site-tree-summary", () => {
     it("should return tree array, totalPages, pagesPerLevel, and maxDepthFound", async () => {
-      if (!cmsAvailable) return;
-
       const result = await reportSiteTreeSummaryTool.handler(
         { parentId: undefined, maxDepth: 3 },
         extra,
@@ -72,8 +63,6 @@ describe("Site Structure Collection", () => {
 
   describe("report-deep-pages", () => {
     it("should return structure with threshold field (may be empty)", async () => {
-      if (!cmsAvailable) return;
-
       const result = await reportDeepPagesTool.handler(
         { depthThreshold: 4, parentId: undefined },
         extra,

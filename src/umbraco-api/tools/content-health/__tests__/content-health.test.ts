@@ -32,23 +32,18 @@ describe("Content Health Collection", () => {
   setupTestEnvironment();
 
   const extra = createMockRequestHandlerExtra();
-  let cmsAvailable = false;
   let testPageId: string;
 
   beforeAll(async () => {
-    try {
-      const listResult = await listChildrenTool.handler(
-        { parentId: undefined },
-        extra,
-      );
-      const listData = getStructuredContent(listResult) as any;
-      if (!listResult.isError && listData?.items?.length > 0) {
-        cmsAvailable = true;
-        testPageId = listData.items[0].id;
-      }
-    } catch {
-      console.warn("CMS not available — content-health integration tests will be skipped");
-    }
+    const listResult = await listChildrenTool.handler(
+      { parentId: undefined },
+      extra,
+    );
+    expect(listResult.isError).toBeFalsy();
+
+    const listData = getStructuredContent(listResult) as any;
+    expect(listData?.items?.length).toBeGreaterThan(0);
+    testPageId = listData.items[0].id;
   }, 60000);
 
   afterAll(() => {
@@ -61,7 +56,6 @@ describe("Content Health Collection", () => {
 
   describe("audit-page-seo", () => {
     it("should audit a known page and return SEO fields", async () => {
-      if (!cmsAvailable || !testPageId) return;
 
       const result = await auditPageSeoTool.handler({ id: testPageId }, extra);
 
@@ -77,7 +71,6 @@ describe("Content Health Collection", () => {
     }, 30000);
 
     it("should return error for non-existent page ID", async () => {
-      if (!cmsAvailable) return;
 
       const result = await auditPageSeoTool.handler(
         { id: "00000000-0000-0000-0000-000000000000" },
@@ -90,7 +83,6 @@ describe("Content Health Collection", () => {
 
   describe("audit-page-content", () => {
     it("should audit content body and meta for a known page", async () => {
-      if (!cmsAvailable || !testPageId) return;
 
       const result = await auditPageContentTool.handler({ id: testPageId }, extra);
 
@@ -106,7 +98,6 @@ describe("Content Health Collection", () => {
 
   describe("report-empty-fields", () => {
     it("should scan root pages and return items with empty fields array", async () => {
-      if (!cmsAvailable) return;
 
       const result = await reportEmptyFieldsTool.handler(
         { parentId: undefined },
@@ -131,7 +122,6 @@ describe("Content Health Collection", () => {
 
   describe("report-short-content", () => {
     it("should scan with default threshold and return wordCount and threshold fields", async () => {
-      if (!cmsAvailable) return;
 
       const result = await reportShortContentTool.handler(
         { minWordCount: 100, parentId: undefined },
@@ -154,7 +144,6 @@ describe("Content Health Collection", () => {
 
   describe("report-media-missing-alt", () => {
     it("should scan media root and return alt text status fields", async () => {
-      if (!cmsAvailable) return;
 
       const result = await reportMediaMissingAltTool.handler(
         { parentId: undefined },

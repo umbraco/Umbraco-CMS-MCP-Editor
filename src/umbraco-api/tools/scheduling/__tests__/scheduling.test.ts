@@ -31,24 +31,17 @@ describe("Scheduling Collection", () => {
 
   const extra = createMockRequestHandlerExtra();
   let testPageId: string;
-  let cmsAvailable = false;
 
   beforeAll(async () => {
-    try {
-      const browseResult = await listChildrenTool.handler(
-        { parentId: undefined },
-        extra,
-      );
-      const browseData = getStructuredContent(browseResult) as any;
-      if (!browseResult.isError && browseData) {
-        cmsAvailable = true;
-        if (browseData.items?.length > 0) {
-          testPageId = browseData.items[0].id;
-        }
-      }
-    } catch {
-      console.warn("CMS not available — scheduling integration tests will be skipped");
-    }
+    const browseResult = await listChildrenTool.handler(
+      { parentId: undefined },
+      extra,
+    );
+    expect(browseResult.isError).toBeFalsy();
+    const browseData = getStructuredContent(browseResult) as any;
+    expect(browseData).toBeDefined();
+    expect(browseData.items?.length).toBeGreaterThan(0);
+    testPageId = browseData.items[0].id;
   }, 60000);
 
   afterAll(() => {
@@ -61,7 +54,6 @@ describe("Scheduling Collection", () => {
 
   describe("get-publish-status", () => {
     it("should return publish status for a known page (not an error even if unpublished)", async () => {
-      if (!cmsAvailable || !testPageId) return;
 
       const result = await getPublishStatusTool.handler({ id: testPageId }, extra);
 
@@ -76,7 +68,6 @@ describe("Scheduling Collection", () => {
     }, 30000);
 
     it("should return error for non-existent page", async () => {
-      if (!cmsAvailable) return;
 
       const result = await getPublishStatusTool.handler(
         { id: "00000000-0000-0000-0000-000000000000" },
@@ -89,7 +80,6 @@ describe("Scheduling Collection", () => {
 
   describe("list-scheduled-content", () => {
     it("should scan root and return structured result (may be empty)", async () => {
-      if (!cmsAvailable) return;
 
       const result = await listScheduledContentTool.handler(
         { parentId: undefined },
@@ -115,7 +105,6 @@ describe("Scheduling Collection", () => {
 
   describe("schedule-publish elicitation rejection", () => {
     it("should cancel schedule-publish when elicitation is rejected", async () => {
-      if (!cmsAvailable || !testPageId) return;
 
       elicitation.rejectAll();
 
@@ -134,7 +123,6 @@ describe("Scheduling Collection", () => {
 
   describe("cancel-schedule elicitation rejection", () => {
     it("should cancel cancel-schedule when elicitation is rejected", async () => {
-      if (!cmsAvailable || !testPageId) return;
 
       elicitation.rejectAll();
 

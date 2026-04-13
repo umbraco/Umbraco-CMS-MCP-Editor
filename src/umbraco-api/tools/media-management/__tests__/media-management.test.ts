@@ -33,21 +33,14 @@ describe("Media Management Collection", () => {
 
   const extra = createMockRequestHandlerExtra();
   const createdFolderIds: string[] = [];
-  let cmsAvailable = false;
-
   beforeAll(async () => {
-    try {
-      const browseResult = await listMediaChildrenTool.handler(
-        { parentId: undefined },
-        extra,
-      );
-      const browseData = getStructuredContent(browseResult) as any;
-      if (!browseResult.isError && browseData) {
-        cmsAvailable = true;
-      }
-    } catch {
-      console.warn("CMS not available — media-management integration tests will be skipped");
-    }
+    const browseResult = await listMediaChildrenTool.handler(
+      { parentId: undefined },
+      extra,
+    );
+    expect(browseResult.isError).toBeFalsy();
+    const browseData = getStructuredContent(browseResult) as any;
+    expect(browseData).toBeDefined();
   }, 60000);
 
   afterAll(async () => {
@@ -69,7 +62,6 @@ describe("Media Management Collection", () => {
     let createdFolderId: string;
 
     it("should create a media folder", async () => {
-      if (!cmsAvailable) return;
 
       const result = await createMediaFolderTool.handler(
         { name: "Integration Test Folder", parentId: undefined },
@@ -110,7 +102,7 @@ describe("Media Management Collection", () => {
     }, 30000);
 
     it("should delete the created folder", async () => {
-      if (!cmsAvailable || !createdFolderId) {
+      if (!createdFolderId) {
         console.warn("Skipping delete test: no folder was created");
         return;
       }
@@ -129,7 +121,7 @@ describe("Media Management Collection", () => {
     }, 30000);
 
     it("should restore the deleted folder", async () => {
-      if (!cmsAvailable || !createdFolderId) {
+      if (!createdFolderId) {
         console.warn("Skipping restore test: no folder was deleted");
         return;
       }
@@ -153,7 +145,6 @@ describe("Media Management Collection", () => {
     let targetFolderId: string;
 
     it("should move a media folder into another folder", async () => {
-      if (!cmsAvailable) return;
 
       // Create two folders: one to move, one as target
       const sourceResult = await createMediaFolderTool.handler(
@@ -222,7 +213,6 @@ describe("Media Management Collection", () => {
 
   describe("bulk-move-media", () => {
     it("should bulk move multiple media folders into a target folder", async () => {
-      if (!cmsAvailable) return;
 
       // Create two source folders and one target folder
       const source1Result = await createMediaFolderTool.handler(
@@ -314,7 +304,6 @@ describe("Media Management Collection", () => {
     }, 90000);
 
     it("should cancel bulk-move-media when elicitation is rejected", async () => {
-      if (!cmsAvailable) return;
 
       // Create one source folder and one target folder
       const sourceResult = await createMediaFolderTool.handler(
@@ -387,7 +376,6 @@ describe("Media Management Collection", () => {
 
   describe("elicitation rejection", () => {
     it("should cancel create-media-folder when elicitation is rejected", async () => {
-      if (!cmsAvailable) return;
 
       elicitation.rejectAll();
 
@@ -402,7 +390,6 @@ describe("Media Management Collection", () => {
     }, 30000);
 
     it("should cancel delete-media when elicitation is rejected", async () => {
-      if (!cmsAvailable) return;
 
       // Create a folder to attempt to delete
       const createResult = await createMediaFolderTool.handler(
@@ -447,7 +434,6 @@ describe("Media Management Collection", () => {
     }, 30000);
 
     it("should cancel restore-media when elicitation is rejected", async () => {
-      if (!cmsAvailable) return;
 
       // Create then delete a folder, then try to restore with rejection
       const createResult = await createMediaFolderTool.handler(
@@ -496,7 +482,6 @@ describe("Media Management Collection", () => {
     }, 60000);
 
     it("should cancel move-media when elicitation is rejected", async () => {
-      if (!cmsAvailable) return;
 
       // Create two folders for the move attempt
       const sourceResult = await createMediaFolderTool.handler(
@@ -557,7 +542,6 @@ describe("Media Management Collection", () => {
     }, 60000);
 
     it("should cancel upload-media when elicitation is rejected", async () => {
-      if (!cmsAvailable) return;
 
       elicitation.rejectAll();
 

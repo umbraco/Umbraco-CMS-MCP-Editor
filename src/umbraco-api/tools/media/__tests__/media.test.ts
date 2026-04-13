@@ -29,24 +29,18 @@ describe("Media Collection", () => {
   setupTestEnvironment();
 
   const extra = createMockRequestHandlerExtra();
-  let cmsAvailable = false;
   let testMediaId: string;
 
   beforeAll(async () => {
-    try {
-      const browseResult = await listMediaChildrenTool.handler(
-        { parentId: undefined },
-        extra,
-      );
-      const browseData = getStructuredContent(browseResult) as any;
-      if (!browseResult.isError && browseData) {
-        cmsAvailable = true;
-        if (browseData.items?.length > 0) {
-          testMediaId = browseData.items[0].id;
-        }
-      }
-    } catch {
-      console.warn("CMS not available — media integration tests will be skipped");
+    const browseResult = await listMediaChildrenTool.handler(
+      { parentId: undefined },
+      extra,
+    );
+    expect(browseResult.isError).toBeFalsy();
+    const browseData = getStructuredContent(browseResult) as any;
+    expect(browseData).toBeDefined();
+    if (browseData.items?.length > 0) {
+      testMediaId = browseData.items[0].id;
     }
   }, 60000);
 
@@ -60,7 +54,6 @@ describe("Media Collection", () => {
 
   describe("list-media-children", () => {
     it("should return root-level media items", async () => {
-      if (!cmsAvailable) return;
 
       const result = await listMediaChildrenTool.handler(
         { parentId: undefined },
@@ -85,7 +78,6 @@ describe("Media Collection", () => {
 
   describe("search-media", () => {
     it("should search media and return results", async () => {
-      if (!cmsAvailable) return;
 
       const result = await searchMediaTool.handler(
         { query: "image", parentId: undefined },
@@ -107,7 +99,6 @@ describe("Media Collection", () => {
     }, 30000);
 
     it("should return empty results for nonsense query", async () => {
-      if (!cmsAvailable) return;
 
       const result = await searchMediaTool.handler(
         { query: "xyznonexistentmedia99999", parentId: undefined },
@@ -125,7 +116,6 @@ describe("Media Collection", () => {
 
   describe("get-media", () => {
     it("should get media item details by ID", async () => {
-      if (!cmsAvailable || !testMediaId) return;
 
       const result = await getMediaTool.handler({ id: testMediaId }, extra);
 
@@ -140,7 +130,6 @@ describe("Media Collection", () => {
     }, 30000);
 
     it("should return error for non-existent media item", async () => {
-      if (!cmsAvailable) return;
 
       const result = await getMediaTool.handler(
         { id: "00000000-0000-0000-0000-000000000000" },
@@ -153,7 +142,6 @@ describe("Media Collection", () => {
 
   describe("list-media-types", () => {
     it("should list allowed media types at root", async () => {
-      if (!cmsAvailable) return;
 
       const result = await listMediaTypesTool.handler(
         { parentId: undefined },

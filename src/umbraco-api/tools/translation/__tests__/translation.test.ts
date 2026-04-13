@@ -32,63 +32,56 @@ describe("Translation Collection", () => {
   setupTestEnvironment();
 
   const extra = createMockRequestHandlerExtra();
-  let cmsAvailable = false;
   let multiLanguage = false;
   let defaultCulture: string;
   let secondaryCulture: string;
   let testPageId: string;
 
   beforeAll(async () => {
-    try {
-      // Check CMS availability and language configuration
-      const langResult = await listLanguagesTool.handler({}, extra);
-      const langData = getStructuredContent(langResult) as any;
-      if (langResult.isError || !langData) {
-        console.warn("CMS not available — translation integration tests will be skipped");
+    // Check CMS availability and language configuration
+    const langResult = await listLanguagesTool.handler({}, extra);
+    expect(langResult.isError).toBeFalsy();
+
+    const langData = getStructuredContent(langResult) as any;
+    expect(langData).toBeDefined();
+
+    let languages = langData.items ?? [];
+    const defaultLang = languages.find((l: any) => l.isDefault);
+    let secondaryLang = languages.find((l: any) => !l.isDefault);
+
+    if (!defaultLang || !secondaryLang) {
+      // Only one language — create a second one
+      console.warn("Only one language configured — creating nb-NO for multi-language tests");
+      const createResult = await createLanguageTool.handler(
+        { isoCode: "nb-NO", name: "Norwegian Bokmål", isDefault: false, isMandatory: false, fallbackIsoCode: undefined },
+        extra,
+      );
+      if (createResult.isError) {
+        console.warn("Failed to create second language — multi-language tests will be skipped");
+        defaultCulture = defaultLang?.isoCode ?? "";
         return;
       }
-
-      cmsAvailable = true;
-      let languages = langData.items ?? [];
-      const defaultLang = languages.find((l: any) => l.isDefault);
-      let secondaryLang = languages.find((l: any) => !l.isDefault);
-
-      if (!defaultLang || !secondaryLang) {
-        // Only one language — create a second one
-        console.warn("Only one language configured — creating nb-NO for multi-language tests");
-        const createResult = await createLanguageTool.handler(
-          { isoCode: "nb-NO", name: "Norwegian Bokmål", isDefault: false, isMandatory: false, fallbackIsoCode: undefined },
-          extra,
-        );
-        if (createResult.isError) {
-          console.warn("Failed to create second language — multi-language tests will be skipped");
-          defaultCulture = defaultLang?.isoCode ?? "";
-          return;
-        }
-        // Re-list languages
-        const langResult2 = await listLanguagesTool.handler({}, extra);
-        const langData2 = getStructuredContent(langResult2) as any;
-        languages = langData2?.items ?? [];
-        secondaryLang = languages.find((l: any) => !l.isDefault);
-        if (!secondaryLang) {
-          console.warn("Still only one language after creation — multi-language tests will be skipped");
-          defaultCulture = defaultLang?.isoCode ?? "";
-          return;
-        }
+      // Re-list languages
+      const langResult2 = await listLanguagesTool.handler({}, extra);
+      const langData2 = getStructuredContent(langResult2) as any;
+      languages = langData2?.items ?? [];
+      secondaryLang = languages.find((l: any) => !l.isDefault);
+      if (!secondaryLang) {
+        console.warn("Still only one language after creation — multi-language tests will be skipped");
+        defaultCulture = defaultLang?.isoCode ?? "";
+        return;
       }
+    }
 
-      multiLanguage = true;
-      defaultCulture = defaultLang.isoCode;
-      secondaryCulture = secondaryLang.isoCode;
+    multiLanguage = true;
+    defaultCulture = defaultLang.isoCode;
+    secondaryCulture = secondaryLang.isoCode;
 
-      // Find a test page
-      const pagesResult = await listChildrenTool.handler({ parentId: undefined }, extra);
-      const pagesData = getStructuredContent(pagesResult) as any;
-      if (!pagesResult.isError && pagesData?.items?.length > 0) {
-        testPageId = pagesData.items[0].id;
-      }
-    } catch {
-      console.warn("CMS not available — translation integration tests will be skipped");
+    // Find a test page
+    const pagesResult = await listChildrenTool.handler({ parentId: undefined }, extra);
+    const pagesData = getStructuredContent(pagesResult) as any;
+    if (!pagesResult.isError && pagesData?.items?.length > 0) {
+      testPageId = pagesData.items[0].id;
     }
   }, 60000);
 
@@ -102,7 +95,7 @@ describe("Translation Collection", () => {
 
   describe("list-untranslated", () => {
     it("should list pages missing a culture variant", async () => {
-      if (!cmsAvailable || !multiLanguage) {
+      if (!multiLanguage) {
         console.warn("Skipping list-untranslated test: requires multi-language Umbraco site");
         return;
       }
@@ -129,7 +122,7 @@ describe("Translation Collection", () => {
 
   describe("create-variant", () => {
     it("should create a language variant for a page", async () => {
-      if (!cmsAvailable || !multiLanguage || !testPageId) {
+      if (!multiLanguage || !testPageId) {
         console.warn("Skipping create-variant test: requires multi-language site and a test page");
         return;
       }
@@ -158,7 +151,7 @@ describe("Translation Collection", () => {
     }, 30000);
 
     it("should cancel create-variant when elicitation is rejected", async () => {
-      if (!cmsAvailable || !multiLanguage || !testPageId) {
+      if (!multiLanguage || !testPageId) {
         console.warn("Skipping elicitation rejection test: requires multi-language site and a test page");
         return;
       }
@@ -178,7 +171,7 @@ describe("Translation Collection", () => {
 
   describe("copy-variant", () => {
     it("should copy content from default to secondary culture", async () => {
-      if (!cmsAvailable || !multiLanguage || !testPageId) {
+      if (!multiLanguage || !testPageId) {
         console.warn("Skipping copy-variant test: requires multi-language site and a test page");
         return;
       }
@@ -203,7 +196,7 @@ describe("Translation Collection", () => {
     }, 30000);
 
     it("should cancel copy-variant when elicitation is rejected", async () => {
-      if (!cmsAvailable || !multiLanguage || !testPageId) {
+      if (!multiLanguage || !testPageId) {
         console.warn("Skipping elicitation rejection test: requires multi-language site and a test page");
         return;
       }

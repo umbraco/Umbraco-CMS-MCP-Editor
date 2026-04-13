@@ -5,7 +5,7 @@
  * via chained CMS tools against a real Umbraco instance.
  */
 
-import { describe, it, expect, afterEach, beforeAll } from "@jest/globals";
+import { describe, it, expect, beforeAll, afterEach } from "@jest/globals";
 import { setupTestEnvironment } from "@umbraco-cms/mcp-server-sdk/testing";
 import { ContentBuilder } from "./content-builder.js";
 import { ContentTestHelper } from "./content-test-helper.js";
@@ -36,16 +36,11 @@ async function findDocumentTypeId(): Promise<string | null> {
 describe("ContentTestHelper", () => {
   setupTestEnvironment();
 
-  let cmsAvailable = false;
   let documentTypeId: string | null = null;
 
   beforeAll(async () => {
-    try {
-      documentTypeId = await findDocumentTypeId();
-      cmsAvailable = documentTypeId !== null;
-    } catch {
-      console.warn("CMS not available — ContentTestHelper tests will be skipped");
-    }
+    documentTypeId = await findDocumentTypeId();
+    expect(documentTypeId).not.toBeNull();
   }, 60000);
 
   afterEach(async () => {
@@ -57,7 +52,7 @@ describe("ContentTestHelper", () => {
   }, 30000);
 
   it("getNameFromItem should return the name from the first variant", async () => {
-    if (!cmsAvailable || !documentTypeId) return;
+    if (!documentTypeId) return;
 
     const builder = await new ContentBuilder()
       .withName(TEST_HELPER_NAME)
@@ -77,7 +72,7 @@ describe("ContentTestHelper", () => {
   });
 
   it("findDocument should find a document by variant name", async () => {
-    if (!cmsAvailable || !documentTypeId) return;
+    if (!documentTypeId) return;
 
     await new ContentBuilder()
       .withName(TEST_HELPER_NAME)
@@ -90,14 +85,12 @@ describe("ContentTestHelper", () => {
   }, 30000);
 
   it("findDocument should return undefined for non-existent name", async () => {
-    if (!cmsAvailable) return;
-
     const found = await ContentTestHelper.findDocument("_NonExistent Document Name 99999");
     expect(found).toBeUndefined();
   }, 30000);
 
   it("cleanup should remove a document permanently", async () => {
-    if (!cmsAvailable || !documentTypeId) return;
+    if (!documentTypeId) return;
 
     await new ContentBuilder()
       .withName(TEST_HELPER_NAME)
@@ -121,7 +114,7 @@ describe("ContentTestHelper", () => {
   }, 30000);
 
   it("findDocumentInRecycleBin should find a recycled document", async () => {
-    if (!cmsAvailable || !documentTypeId) return;
+    if (!documentTypeId) return;
 
     const builder = await new ContentBuilder()
       .withName(TEST_RECYCLE_BIN_NAME)
@@ -140,14 +133,12 @@ describe("ContentTestHelper", () => {
   }, 30000);
 
   it("findDocumentInRecycleBin should return undefined for non-existent document", async () => {
-    if (!cmsAvailable) return;
-
     const found = await ContentTestHelper.findDocumentInRecycleBin("_NonExistent RecycleBin Doc 99999");
     expect(found).toBeUndefined();
   }, 30000);
 
   it("getChildren should return child documents", async () => {
-    if (!cmsAvailable || !documentTypeId) return;
+    if (!documentTypeId) return;
 
     // Create root document
     const rootBuilder = await new ContentBuilder()

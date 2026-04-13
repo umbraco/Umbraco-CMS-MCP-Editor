@@ -42,28 +42,29 @@ describe("Bulk Operations Collection", () => {
   setupTestEnvironment();
 
   const extra = createMockRequestHandlerExtra();
-  let cmsAvailable = false;
   let firstRootPageId: string;
   let secondRootPageId: string | undefined;
   let createdSecondRootPageId: string | undefined;
 
   beforeAll(async () => {
-    try {
-      const browseResult = await listChildrenTool.handler(
-        { parentId: undefined },
-        extra,
-      );
-      const browseData = getStructuredContent(browseResult) as any;
-      if (!browseResult.isError && browseData?.items?.length > 0) {
-        cmsAvailable = true;
-        firstRootPageId = browseData.items[0].id;
-        if (browseData.items.length > 1) {
-          secondRootPageId = browseData.items[1].id;
-        }
-      }
+    const browseResult = await listChildrenTool.handler(
+      { parentId: undefined },
+      extra,
+    );
+    const browseData = getStructuredContent(browseResult) as any;
 
-      // If only one root page, create a second one for bulk-move test
-      if (cmsAvailable && !secondRootPageId) {
+    expect(browseResult.isError).toBeFalsy();
+    expect(browseData).toBeDefined();
+    expect(browseData.items?.length).toBeGreaterThan(0);
+
+    firstRootPageId = browseData.items[0].id;
+    if (browseData.items.length > 1) {
+      secondRootPageId = browseData.items[1].id;
+    }
+
+    // If only one root page, create a second one for bulk-move test
+    if (!secondRootPageId) {
+      try {
         // Find a document type that can be created at root
         const { mcpClientManager } = await import("../../../mcp-client.js");
         const { extractChainedResult } = await import("@umbraco-cms/mcp-server-sdk");
@@ -87,15 +88,15 @@ describe("Bulk Operations Collection", () => {
             }
           }
         }
+      } catch {
+        console.warn("Could not create second root page — bulk-move tests may be limited");
       }
-    } catch {
-      console.warn("CMS not available — bulk-operations integration tests will be skipped");
     }
   }, 60000);
 
   afterAll(async () => {
     // Re-publish the first root page to restore state after unpublish test
-    if (cmsAvailable && firstRootPageId) {
+    if (firstRootPageId) {
       try {
         await bulkPublishTool.handler(
           { ids: [firstRootPageId], includeDescendants: false },
@@ -194,7 +195,7 @@ describe("Bulk Operations Collection", () => {
 
   describe("bulk-publish", () => {
     it("should publish a single page and return results with success and previousVersionId", async () => {
-      if (!cmsAvailable || !firstRootPageId) return;
+      if (!firstRootPageId) return;
 
       const result = await bulkPublishTool.handler(
         { ids: [firstRootPageId], includeDescendants: false },
@@ -218,7 +219,7 @@ describe("Bulk Operations Collection", () => {
 
   describe("bulk-unpublish", () => {
     it("should unpublish a single page and return results", async () => {
-      if (!cmsAvailable || !firstRootPageId) return;
+      if (!firstRootPageId) return;
 
       const result = await bulkUnpublishTool.handler(
         { ids: [firstRootPageId] },
@@ -248,7 +249,7 @@ describe("Bulk Operations Collection", () => {
 
   describe("bulk-schedule-publish", () => {
     it("should schedule a page to publish at a future date and return results", async () => {
-      if (!cmsAvailable || !firstRootPageId) return;
+      if (!firstRootPageId) return;
 
       const result = await bulkSchedulePublishTool.handler(
         { ids: [firstRootPageId], publishDate: FUTURE_DATE },
@@ -273,7 +274,7 @@ describe("Bulk Operations Collection", () => {
 
   describe("bulk-set-property", () => {
     it("should set a property on a page and return results with previousVersionId", async () => {
-      if (!cmsAvailable || !firstRootPageId) return;
+      if (!firstRootPageId) return;
 
       // Use a safe invariant alias that most Umbraco pages have; if the property doesn't
       // exist the tool will still return a result (success or failure) rather than throwing.
@@ -304,7 +305,7 @@ describe("Bulk Operations Collection", () => {
 
   describe("bulk-set-block-property", () => {
     it("should update block properties on pages with matching blocks", async () => {
-      if (!cmsAvailable || !firstRootPageId) return;
+      if (!firstRootPageId) return;
 
       // First, inspect the page to find a block with its contentTypeKey and propertyAlias
       const inspectResult = await inspectBlocksTool.handler(
@@ -358,7 +359,7 @@ describe("Bulk Operations Collection", () => {
     }, 60000);
 
     it("should return success with 0 blocks updated when no blocks match", async () => {
-      if (!cmsAvailable || !firstRootPageId) return;
+      if (!firstRootPageId) return;
 
       const result = await bulkSetBlockPropertyTool.handler(
         {
@@ -388,7 +389,7 @@ describe("Bulk Operations Collection", () => {
 
   describe("bulk-move", () => {
     it("should test elicitation rejection only (skipping actual move when only one root page)", async () => {
-      if (!cmsAvailable || !firstRootPageId) return;
+      if (!firstRootPageId) return;
 
       if (!secondRootPageId) {
         console.warn("Skipping bulk-move live test: only one root page available");
@@ -416,7 +417,7 @@ describe("Bulk Operations Collection", () => {
 
   describe("elicitation rejection", () => {
     it("should cancel bulk-publish when elicitation is rejected", async () => {
-      if (!cmsAvailable || !firstRootPageId) return;
+      if (!firstRootPageId) return;
 
       elicitation.rejectAll();
 
@@ -431,7 +432,7 @@ describe("Bulk Operations Collection", () => {
     }, 30000);
 
     it("should cancel bulk-unpublish when elicitation is rejected", async () => {
-      if (!cmsAvailable || !firstRootPageId) return;
+      if (!firstRootPageId) return;
 
       elicitation.rejectAll();
 
@@ -446,7 +447,7 @@ describe("Bulk Operations Collection", () => {
     }, 30000);
 
     it("should cancel bulk-schedule-publish when elicitation is rejected", async () => {
-      if (!cmsAvailable || !firstRootPageId) return;
+      if (!firstRootPageId) return;
 
       elicitation.rejectAll();
 
@@ -461,7 +462,7 @@ describe("Bulk Operations Collection", () => {
     }, 30000);
 
     it("should cancel bulk-set-property when elicitation is rejected", async () => {
-      if (!cmsAvailable || !firstRootPageId) return;
+      if (!firstRootPageId) return;
 
       elicitation.rejectAll();
 
@@ -482,7 +483,7 @@ describe("Bulk Operations Collection", () => {
     }, 30000);
 
     it("should cancel bulk-move when elicitation is rejected", async () => {
-      if (!cmsAvailable || !firstRootPageId) return;
+      if (!firstRootPageId) return;
 
       elicitation.rejectAll();
 
@@ -498,7 +499,7 @@ describe("Bulk Operations Collection", () => {
     }, 30000);
 
     it("should cancel bulk-set-block-property when elicitation is rejected", async () => {
-      if (!cmsAvailable || !firstRootPageId) return;
+      if (!firstRootPageId) return;
 
       elicitation.rejectAll();
 

@@ -31,20 +31,13 @@ describe("Content Reporting Collection", () => {
   setupTestEnvironment();
 
   const extra = createMockRequestHandlerExtra();
-  let cmsAvailable = false;
 
   beforeAll(async () => {
-    try {
-      const result = await reportRecentlyChangedTool.handler(
-        { daysBack: 3650, parentId: undefined },
-        extra,
-      );
-      if (!result.isError) {
-        cmsAvailable = true;
-      }
-    } catch {
-      console.warn("CMS not available — content-reporting integration tests will be skipped");
-    }
+    const result = await reportRecentlyChangedTool.handler(
+      { daysBack: 3650, parentId: undefined },
+      extra,
+    );
+    expect(result.isError).toBeFalsy();
   }, 60000);
 
   afterAll(() => {
@@ -57,8 +50,6 @@ describe("Content Reporting Collection", () => {
 
   describe("report-stale-content", () => {
     it("should return items with daysSinceUpdate and threshold fields", async () => {
-      if (!cmsAvailable) return;
-
       const result = await reportStaleContentTool.handler(
         { daysSinceUpdate: 1, parentId: undefined },
         extra,
@@ -80,8 +71,6 @@ describe("Content Reporting Collection", () => {
 
   describe("report-unpublished", () => {
     it("should return items with state field", async () => {
-      if (!cmsAvailable) return;
-
       const result = await reportUnpublishedTool.handler(
         { parentId: undefined },
         extra,
@@ -103,8 +92,6 @@ describe("Content Reporting Collection", () => {
 
   describe("report-recently-changed", () => {
     it("should return items with daysAgo and period fields", async () => {
-      if (!cmsAvailable) return;
-
       const result = await reportRecentlyChangedTool.handler(
         { daysBack: 3650, parentId: undefined },
         extra,
@@ -126,8 +113,6 @@ describe("Content Reporting Collection", () => {
 
   describe("report-content-by-type", () => {
     it("should return items grouped by documentType with count and pages array", async () => {
-      if (!cmsAvailable) return;
-
       const result = await reportContentByTypeTool.handler(
         { parentId: undefined },
         extra,
@@ -152,8 +137,6 @@ describe("Content Reporting Collection", () => {
 
   describe("report-translation-coverage", () => {
     it("should return languages array, items with cultures, and summary object", async () => {
-      if (!cmsAvailable) return;
-
       const result = await reportTranslationCoverageTool.handler(
         { parentId: undefined },
         extra,

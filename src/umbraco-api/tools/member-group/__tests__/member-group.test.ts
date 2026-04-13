@@ -29,22 +29,17 @@ describe("Member Group Collection", () => {
   setupTestEnvironment();
 
   const extra = createMockRequestHandlerExtra();
-  let cmsAvailable = false;
   let createdGroupId: string;
 
   beforeAll(async () => {
-    try {
-      const result = await listMemberGroupsTool.handler(
-        {},
-        extra,
-      );
-      const data = getStructuredContent(result) as any;
-      if (!result.isError && data) {
-        cmsAvailable = true;
-      }
-    } catch {
-      console.warn("CMS not available — member-group integration tests will be skipped");
-    }
+    const result = await listMemberGroupsTool.handler(
+      {},
+      extra,
+    );
+    expect(result.isError).toBeFalsy();
+
+    const data = getStructuredContent(result) as any;
+    expect(data).toBeDefined();
   }, 60000);
 
   afterAll(async () => {
@@ -64,7 +59,6 @@ describe("Member Group Collection", () => {
 
   describe("list-member-groups", () => {
     it("should list member groups with expected shape", async () => {
-      if (!cmsAvailable) return;
 
       const result = await listMemberGroupsTool.handler(
         {},
@@ -86,7 +80,6 @@ describe("Member Group Collection", () => {
 
   describe("create-member-group and delete-member-group lifecycle", () => {
     it("should create a new member group", async () => {
-      if (!cmsAvailable) return;
 
       const result = await createMemberGroupTool.handler(
         { name: TEST_GROUP_NAME },
@@ -121,7 +114,7 @@ describe("Member Group Collection", () => {
     }, 30000);
 
     it("should delete the created member group", async () => {
-      if (!cmsAvailable || !createdGroupId) {
+      if (!createdGroupId) {
         console.warn("Skipping delete-member-group test: no group was created");
         return;
       }
@@ -147,7 +140,6 @@ describe("Member Group Collection", () => {
 
   describe("elicitation rejection", () => {
     it("should cancel create-member-group when elicitation is rejected", async () => {
-      if (!cmsAvailable) return;
 
       elicitation.rejectAll();
 
@@ -162,7 +154,6 @@ describe("Member Group Collection", () => {
     }, 30000);
 
     it("should cancel delete-member-group when elicitation is rejected", async () => {
-      if (!cmsAvailable) return;
 
       // List groups to find an existing one to attempt rejection test
       const listResult = await listMemberGroupsTool.handler(

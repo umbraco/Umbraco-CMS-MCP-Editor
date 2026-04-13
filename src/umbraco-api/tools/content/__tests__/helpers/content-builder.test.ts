@@ -5,7 +5,7 @@
  * via chained CMS tools against a real Umbraco instance.
  */
 
-import { describe, it, expect, afterEach } from "@jest/globals";
+import { describe, it, expect, beforeAll, afterEach } from "@jest/globals";
 import { setupTestEnvironment } from "@umbraco-cms/mcp-server-sdk/testing";
 import { ContentBuilder } from "./content-builder.js";
 import { ContentTestHelper } from "./content-test-helper.js";
@@ -49,16 +49,11 @@ async function findDocumentTypeId(parentId?: string): Promise<string | null> {
 describe("ContentBuilder", () => {
   setupTestEnvironment();
 
-  let cmsAvailable = false;
   let documentTypeId: string | null = null;
 
   beforeAll(async () => {
-    try {
-      documentTypeId = await findDocumentTypeId();
-      cmsAvailable = documentTypeId !== null;
-    } catch {
-      console.warn("CMS not available — ContentBuilder tests will be skipped");
-    }
+    documentTypeId = await findDocumentTypeId();
+    expect(documentTypeId).not.toBeNull();
   }, 60000);
 
   afterEach(async () => {
@@ -70,7 +65,7 @@ describe("ContentBuilder", () => {
   }, 30000);
 
   it("should create a document and find it by name", async () => {
-    if (!cmsAvailable || !documentTypeId) return;
+    if (!documentTypeId) return;
 
     const builder = await new ContentBuilder()
       .withName(TEST_DOCUMENT_NAME)
@@ -83,7 +78,7 @@ describe("ContentBuilder", () => {
   }, 30000);
 
   it("should return the created document's id and item", async () => {
-    if (!cmsAvailable || !documentTypeId) return;
+    if (!documentTypeId) return;
 
     const builder = await new ContentBuilder()
       .withName(TEST_DOCUMENT_NAME)
@@ -98,7 +93,7 @@ describe("ContentBuilder", () => {
   }, 30000);
 
   it("should move a document to the recycle bin", async () => {
-    if (!cmsAvailable || !documentTypeId) return;
+    if (!documentTypeId) return;
 
     const builder = await new ContentBuilder()
       .withName(TEST_RECYCLE_BIN_NAME)
@@ -133,7 +128,7 @@ describe("ContentBuilder", () => {
   });
 
   it("should cleanup remove a document permanently", async () => {
-    if (!cmsAvailable || !documentTypeId) return;
+    if (!documentTypeId) return;
 
     await new ContentBuilder()
       .withName(TEST_DOCUMENT_NAME)

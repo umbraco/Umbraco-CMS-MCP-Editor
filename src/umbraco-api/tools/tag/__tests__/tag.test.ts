@@ -22,22 +22,16 @@ describe("Tag Collection", () => {
   setupTestEnvironment();
 
   const extra = createMockRequestHandlerExtra();
-  let cmsAvailable = false;
   let existingTagGroup: string | null = null;
 
   beforeAll(async () => {
-    try {
-      const result = await listTagsTool.handler({ tagGroup: undefined }, extra);
-      const data = getStructuredContent(result) as any;
-      if (!result.isError && data) {
-        cmsAvailable = true;
-        // Capture a tag group for later filtering test
-        if (data.items?.length > 0 && data.items[0].group) {
-          existingTagGroup = data.items[0].group;
-        }
-      }
-    } catch {
-      console.warn("CMS not available — tag integration tests will be skipped");
+    const result = await listTagsTool.handler({ tagGroup: undefined }, extra);
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    expect(data).toBeDefined();
+    // Capture a tag group for later filtering test
+    if (data.items?.length > 0 && data.items[0].group) {
+      existingTagGroup = data.items[0].group;
     }
   }, 60000);
 
@@ -47,7 +41,6 @@ describe("Tag Collection", () => {
 
   describe("list-tags", () => {
     it("should list all tags across the site", async () => {
-      if (!cmsAvailable) return;
 
       const result = await listTagsTool.handler({ tagGroup: undefined }, extra);
 
@@ -69,7 +62,6 @@ describe("Tag Collection", () => {
     }, 30000);
 
     it("should filter tags by group", async () => {
-      if (!cmsAvailable) return;
 
       // Use an existing tag group if available, otherwise test with a known group name
       const groupToTest = existingTagGroup || "default";

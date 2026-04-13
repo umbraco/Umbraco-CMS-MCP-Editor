@@ -34,23 +34,17 @@ describe("Dictionary Collection", () => {
   setupTestEnvironment();
 
   const extra = createMockRequestHandlerExtra();
-  let cmsAvailable = false;
   let createdItemId: string | null = null;
   let existingItemId: string | null = null;
   let defaultIsoCode: string = "en-US";
 
   beforeAll(async () => {
-    try {
-      const result = await listDictionaryTool.handler({ parentId: undefined }, extra);
-      const data = getStructuredContent(result) as any;
-      if (!result.isError && data) {
-        cmsAvailable = true;
-        if (data.items?.length > 0) {
-          existingItemId = data.items[0].id;
-        }
-      }
-    } catch {
-      console.warn("CMS not available — dictionary integration tests will be skipped");
+    const result = await listDictionaryTool.handler({ parentId: undefined }, extra);
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    expect(data).toBeDefined();
+    if (data.items?.length > 0) {
+      existingItemId = data.items[0].id;
     }
   }, 60000);
 
@@ -72,7 +66,6 @@ describe("Dictionary Collection", () => {
 
   describe("list-dictionary", () => {
     it("should browse root dictionary entries", async () => {
-      if (!cmsAvailable) return;
 
       const result = await listDictionaryTool.handler({ parentId: undefined }, extra);
 
@@ -93,7 +86,6 @@ describe("Dictionary Collection", () => {
 
   describe("search-dictionary", () => {
     it("should search for dictionary items by key name", async () => {
-      if (!cmsAvailable) return;
 
       const result = await searchDictionaryTool.handler({ query: "a" }, extra);
 
@@ -110,7 +102,6 @@ describe("Dictionary Collection", () => {
     }, 30000);
 
     it("should return empty results for non-matching query", async () => {
-      if (!cmsAvailable) return;
 
       const result = await searchDictionaryTool.handler({ query: "xyznonexistent99999mcp" }, extra);
 
@@ -124,7 +115,7 @@ describe("Dictionary Collection", () => {
 
   describe("get-dictionary", () => {
     it("should get a dictionary item with all translations", async () => {
-      if (!cmsAvailable || !existingItemId) {
+      if (!existingItemId) {
         console.warn("Skipping get-dictionary test: no existing dictionary items found");
         return;
       }
@@ -146,7 +137,6 @@ describe("Dictionary Collection", () => {
     }, 30000);
 
     it("should return error for non-existent dictionary item", async () => {
-      if (!cmsAvailable) return;
 
       const result = await getDictionaryTool.handler(
         { id: "00000000-0000-0000-0000-000000000000" },
@@ -159,7 +149,6 @@ describe("Dictionary Collection", () => {
 
   describe("create-dictionary, update-dictionary, move-dictionary lifecycle", () => {
     it("should create a dictionary item", async () => {
-      if (!cmsAvailable) return;
 
       const result = await createDictionaryTool.handler(
         {
@@ -206,7 +195,7 @@ describe("Dictionary Collection", () => {
     }, 30000);
 
     it("should update translations for the created dictionary item", async () => {
-      if (!cmsAvailable || !createdItemId) {
+      if (!createdItemId) {
         console.warn("Skipping update test: no dictionary item was created");
         return;
       }
@@ -232,7 +221,7 @@ describe("Dictionary Collection", () => {
     }, 30000);
 
     it("should move the created dictionary item to root", async () => {
-      if (!cmsAvailable || !createdItemId) {
+      if (!createdItemId) {
         console.warn("Skipping move test: no dictionary item was created");
         return;
       }
@@ -256,7 +245,6 @@ describe("Dictionary Collection", () => {
 
   describe("elicitation rejection", () => {
     it("should cancel create when elicitation is rejected", async () => {
-      if (!cmsAvailable) return;
 
       elicitation.rejectAll();
 
@@ -275,7 +263,7 @@ describe("Dictionary Collection", () => {
     }, 30000);
 
     it("should cancel update when elicitation is rejected", async () => {
-      if (!cmsAvailable || !existingItemId) {
+      if (!existingItemId) {
         console.warn("Skipping elicitation rejection test: no existing dictionary items found");
         return;
       }
@@ -296,7 +284,7 @@ describe("Dictionary Collection", () => {
     }, 30000);
 
     it("should cancel move when elicitation is rejected", async () => {
-      if (!cmsAvailable || !existingItemId) {
+      if (!existingItemId) {
         console.warn("Skipping elicitation rejection test: no existing dictionary items found");
         return;
       }
