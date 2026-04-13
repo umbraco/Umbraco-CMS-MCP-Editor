@@ -1,0 +1,14 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`report-stale-content should return stale content items 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "items": [],
+    "nextCursor": undefined,
+    "scannedPages": 2,
+    "threshold": 1,
+    "total": 0,
+  },
+}
+`;

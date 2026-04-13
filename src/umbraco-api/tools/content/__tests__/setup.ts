@@ -12,9 +12,10 @@ import { jest } from "@jest/globals";
 export {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
-  createSnapshotResult,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
+
+export { createEditorSnapshotResult as createSnapshotResult } from "../../../../testing/snapshot-helpers.js";
 
 export { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 

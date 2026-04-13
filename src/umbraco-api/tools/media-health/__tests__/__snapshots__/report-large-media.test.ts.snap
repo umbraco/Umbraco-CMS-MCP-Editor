@@ -1,0 +1,14 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`report-large-media should return structure with threshold and items 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "items": [],
+    "nextCursor": undefined,
+    "scannedItems": 100,
+    "threshold": 1,
+    "total": 0,
+  },
+}
+`;

@@ -1,0 +1,13 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`report-empty-fields should scan root pages and return items with empty fields 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "items": [],
+    "nextCursor": undefined,
+    "scannedPages": 2,
+    "total": 0,
+  },
+}
+`;

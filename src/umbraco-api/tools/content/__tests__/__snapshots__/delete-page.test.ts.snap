@@ -5,8 +5,8 @@ exports[`delete-page should delete a page (move to recycle bin) 1`] = `
   "content": [],
   "structuredContent": {
     "id": "00000000-0000-0000-0000-000000000000",
-    "message": "Moved "_Test Delete Page" to the recycle bin",
-    "name": "_Test Delete Page",
+    "message": "Moved "_Test Delete Page (2)" to the recycle bin",
+    "name": "_Test Delete Page (2)",
   },
 }
 `;

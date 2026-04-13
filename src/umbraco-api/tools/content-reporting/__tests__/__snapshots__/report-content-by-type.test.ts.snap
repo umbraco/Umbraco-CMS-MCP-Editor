@@ -1,0 +1,41 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`report-content-by-type should return content breakdown by document type 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "items": [
+      {
+        "alias": "",
+        "count": 2,
+        "documentType": {
+          "0": "(",
+          "1": "u",
+          "2": "n",
+          "3": "k",
+          "4": "n",
+          "5": "o",
+          "6": "w",
+          "7": "n",
+          "8": ")",
+          "id": "00000000-0000-0000-0000-000000000000",
+        },
+        "pages": [
+          {
+            "id": "dcf18a51-6919-4cf8-89d1-36b94ce4d963",
+            "name": "Home",
+            "url": "",
+          },
+          {
+            "id": "4f1389dd-8884-44d3-941e-b0bca260698b",
+            "name": "Bulk Move Test Page",
+            "url": "",
+          },
+        ],
+      },
+    ],
+    "totalPages": 2,
+    "totalTypes": 1,
+  },
+}
+`;

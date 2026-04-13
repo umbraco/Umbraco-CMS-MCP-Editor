@@ -1,0 +1,54 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`list-media-types should list allowed media types at root 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "items": [
+      {
+        "alias": "",
+        "icon": "icon-article",
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "Article",
+      },
+      {
+        "alias": "",
+        "icon": "icon-audio-lines",
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "Audio",
+      },
+      {
+        "alias": "",
+        "icon": "icon-document",
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "File",
+      },
+      {
+        "alias": "",
+        "icon": "icon-folder",
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "Folder",
+      },
+      {
+        "alias": "",
+        "icon": "icon-picture",
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "Image",
+      },
+      {
+        "alias": "",
+        "icon": "icon-origami",
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "Vector Graphics (SVG)",
+      },
+      {
+        "alias": "",
+        "icon": "icon-video",
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "Video",
+      },
+    ],
+    "total": 7,
+  },
+}
+`;

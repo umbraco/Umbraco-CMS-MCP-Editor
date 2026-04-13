@@ -1,0 +1,23 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`list-blueprints should list root-level blueprints 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "items": [
+      {
+        "documentType": undefined,
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "_Test List Blueprints",
+      },
+      {
+        "documentType": undefined,
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "Integration Test Blueprint",
+      },
+    ],
+    "nextCursor": undefined,
+    "total": 2,
+  },
+}
+`;

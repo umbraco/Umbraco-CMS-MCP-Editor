@@ -1,0 +1,43 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`report-translation-coverage should return translation coverage matrix 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "items": [
+      {
+        "cultures": {
+          "en-US": false,
+        },
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "Home",
+        "url": "",
+      },
+      {
+        "cultures": {
+          "en-US": false,
+        },
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "Bulk Move Test Page",
+        "url": "",
+      },
+    ],
+    "languages": [
+      {
+        "isoCode": "en-US",
+        "name": "English (United States)",
+      },
+    ],
+    "nextCursor": undefined,
+    "scannedPages": 2,
+    "summary": {
+      "en-US": {
+        "missing": 2,
+        "percentage": 0,
+        "translated": 0,
+      },
+    },
+    "total": 2,
+  },
+}
+`;

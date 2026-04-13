@@ -1,0 +1,18 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`get-dictionary should get a dictionary item with all translations 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "name": "_Test Get Dictionary",
+    "translations": [
+      {
+        "isoCode": "en-US",
+        "languageName": "en-US",
+        "translation": "Test translation value",
+      },
+    ],
+  },
+}
+`;

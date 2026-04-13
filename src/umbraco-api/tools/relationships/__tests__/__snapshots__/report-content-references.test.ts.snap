@@ -1,0 +1,29 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`report-content-references should return referencedBy and referenceCount for a media item 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "name": "Social Icons",
+    "referenceCount": 0,
+    "referencedBy": [],
+    "type": "media",
+    "url": "",
+  },
+}
+`;
+
+exports[`report-content-references should return referencedBy array and referenceCount for a known page 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "name": "Home",
+    "referenceCount": 0,
+    "referencedBy": [],
+    "type": "document",
+    "url": "",
+  },
+}
+`;

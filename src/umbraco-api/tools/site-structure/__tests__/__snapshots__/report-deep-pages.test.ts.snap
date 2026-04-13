@@ -1,0 +1,14 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`report-deep-pages should return structure with threshold field 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "items": [],
+    "nextCursor": undefined,
+    "scannedPages": 117,
+    "threshold": 4,
+    "total": 0,
+  },
+}
+`;

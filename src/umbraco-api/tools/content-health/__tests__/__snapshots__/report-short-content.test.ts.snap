@@ -1,0 +1,31 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`report-short-content should scan with default threshold 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "items": [
+      {
+        "documentType": "",
+        "id": "00000000-0000-0000-0000-000000000000",
+        "lastModified": "NORMALIZED_DATE",
+        "name": "Home",
+        "url": "",
+        "wordCount": 5,
+      },
+      {
+        "documentType": "",
+        "id": "00000000-0000-0000-0000-000000000000",
+        "lastModified": "NORMALIZED_DATE",
+        "name": "Bulk Move Test Page",
+        "url": "",
+        "wordCount": 0,
+      },
+    ],
+    "nextCursor": undefined,
+    "scannedPages": 2,
+    "threshold": 100,
+    "total": 2,
+  },
+}
+`;

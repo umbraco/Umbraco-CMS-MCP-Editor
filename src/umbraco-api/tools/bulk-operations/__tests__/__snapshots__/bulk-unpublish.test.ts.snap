@@ -1,0 +1,21 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`bulk-unpublish should unpublish a single page and return results 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "failureCount": 0,
+    "message": "Unpublished 1 of 1 pages",
+    "results": [
+      {
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "Home",
+        "previousVersionId": "0000003f-0000-0000-0000-000000000000",
+        "success": true,
+      },
+    ],
+    "skippedCount": 0,
+    "successCount": 1,
+  },
+}
+`;
