@@ -21,6 +21,7 @@ describe("delete-page", () => {
   const extra = createMockRequestHandlerExtra();
   let testPageId: string;
   let testDocumentTypeId: string;
+  let lastCreatedId: string | undefined;
 
   beforeAll(async () => {
     const state = await initContentTestState(extra);
@@ -33,7 +34,10 @@ describe("delete-page", () => {
   });
 
   afterEach(async () => {
-    await ContentTestHelper.cleanup(TEST_PAGE_NAME, testPageId);
+    if (lastCreatedId) {
+      await ContentTestHelper.cleanupById(lastCreatedId);
+      lastCreatedId = undefined;
+    }
   }, 30000);
 
   beforeEach(() => {
@@ -46,6 +50,7 @@ describe("delete-page", () => {
       .withDocumentType(testDocumentTypeId)
       .withParent(testPageId)
       .create();
+    lastCreatedId = doc.getId();
 
     const result = await deletePageTool.handler({ id: doc.getId() }, extra);
 
@@ -59,6 +64,7 @@ describe("delete-page", () => {
       .withDocumentType(testDocumentTypeId)
       .withParent(testPageId)
       .create();
+    lastCreatedId = doc.getId();
 
     await doc.moveToRecycleBin();
 

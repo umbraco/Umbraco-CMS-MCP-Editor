@@ -41,9 +41,7 @@ describe("restore-page", () => {
     elicitation.cleanup();
   });
 
-  afterEach(async () => {
-    await ContentTestHelper.cleanup(TEST_PAGE_NAME, testPageId);
-  }, 30000);
+  // No pages created in this suite — no cleanup needed
 
   beforeEach(() => {
     elicitation.reset();

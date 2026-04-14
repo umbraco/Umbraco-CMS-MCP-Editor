@@ -33,7 +33,9 @@ describe("get-page", () => {
   }, 60000);
 
   afterAll(async () => {
-    await ContentTestHelper.cleanup(TEST_PAGE_NAME, testPageId);
+    if (doc) {
+      await ContentTestHelper.cleanupById(doc.getId());
+    }
   }, 30000);
 
   it("should get page details by ID", async () => {

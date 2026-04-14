@@ -156,21 +156,31 @@ export class ContentTestHelper {
     return data?.items ?? [];
   }
 
+  /** Clean up a document by ID — move to recycle bin then permanently delete */
+  static async cleanupById(id: string): Promise<void> {
+    try {
+      await mcpClientManager.callTool("cms", "move-document-to-recycle-bin", { id });
+    } catch {
+      // May already be in recycle bin
+    }
+    try {
+      await mcpClientManager.callTool("cms", "delete-document-recycle-bin-item", { id });
+    } catch {
+      // Best-effort
+    }
+  }
+
   /** Clean up a document by name — finds it (in tree or recycle bin) and permanently deletes */
   static async cleanup(name: string, parentId?: string): Promise<void> {
     try {
       // Try to find in normal tree first
       const item = await this.findDocument(name, parentId);
       if (item) {
-        try {
-          // Move to recycle bin
-          await mcpClientManager.callTool("cms", "move-document-to-recycle-bin", { id: item.id });
-        } catch {
-          // May already be in recycle bin
-        }
+        await this.cleanupById(item.id);
+        return;
       }
 
-      // Now find in recycle bin and permanently delete
+      // Fall back to recycle bin search
       const recycled = await this.findDocumentInRecycleBin(name);
       if (recycled) {
         try {

@@ -23,6 +23,7 @@ describe("create-page", () => {
   const extra = createMockRequestHandlerExtra();
   let testPageId: string;
   let testDocumentTypeId: string;
+  let lastCreatedId: string | undefined;
 
   beforeAll(async () => {
     const state = await initContentTestState(extra);
@@ -35,7 +36,10 @@ describe("create-page", () => {
   });
 
   afterEach(async () => {
-    await ContentTestHelper.cleanup(TEST_PAGE_NAME, testPageId);
+    if (lastCreatedId) {
+      await ContentTestHelper.cleanupById(lastCreatedId);
+      lastCreatedId = undefined;
+    }
   }, 30000);
 
   beforeEach(() => {
@@ -56,6 +60,7 @@ describe("create-page", () => {
     expect(result.isError).toBeFalsy();
 
     const data = getStructuredContent(result) as any;
+    lastCreatedId = data.id;
     const verifyResult = await getPageTool.handler({ id: data.id }, extra);
 
     expect(createSnapshotResult(verifyResult, data.id)).toMatchSnapshot();
