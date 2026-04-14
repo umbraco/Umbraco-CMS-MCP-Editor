@@ -20,3 +20,6 @@ https.globalAgent.options.rejectUnauthorized = false;
 const agent = new Agent({ connect: { rejectUnauthorized: false } });
 setGlobalDispatcher(agent);
 globalThis.fetch = undiciFetch as typeof globalThis.fetch;
+
+// Enable in-process CMS — bypass MCP subprocess spawning
+process.env.USE_IN_PROCESS_CMS = "true";
