@@ -33,4 +33,9 @@ describe("BulkOperationsTestHelper", () => {
     const docTypeId = await BulkOperationsTestHelper.getDocumentTypeId("00000000-0000-0000-0000-000000000000");
     expect(docTypeId).toBeUndefined();
   }, 30000);
+
+  it("deletePage should handle non-existent page gracefully", async () => {
+    // Should not throw for a non-existent page
+    await BulkOperationsTestHelper.deletePage("00000000-0000-0000-0000-000000000000");
+  }, 30000);
 });

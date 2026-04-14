@@ -48,10 +48,12 @@ export class MemberBuilder {
     const result = await mcpClientManager.callTool("cms", "create-member", {
       email: this.email,
       username: this.username,
-      name: this.name,
       password: this.password,
-      memberTypeId: this.memberTypeId,
+      memberType: { id: this.memberTypeId },
       isApproved: this.isApproved,
+      variants: [{ culture: null, segment: null, name: this.name }],
+      values: [],
+      groups: null,
     });
 
     if (result.isError) {
