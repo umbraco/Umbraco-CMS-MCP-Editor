@@ -21,5 +21,5 @@ const agent = new Agent({ connect: { rejectUnauthorized: false } });
 setGlobalDispatcher(agent);
 globalThis.fetch = undiciFetch as typeof globalThis.fetch;
 
-// Test telemetry — instruments MCP calls to measure timing on CI
-import "./src/testing/telemetry.js";
+// Enable in-process CMS — bypass MCP subprocess spawning
+process.env.USE_IN_PROCESS_CMS = "true";
