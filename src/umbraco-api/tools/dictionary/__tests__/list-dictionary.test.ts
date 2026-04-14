@@ -1,22 +1,36 @@
-import { describe, it, expect, beforeAll } from "@jest/globals";
+import { describe, it, expect, beforeAll, afterAll } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
-  initDictionaryTestState,
+  DictionaryBuilder,
+  DictionaryTestHelper,
 } from "./setup.js";
 import listDictionaryTool from "../get/list-dictionary.js";
+
+const TEST_DICTIONARY_NAME = "_Test List Dictionary";
 
 describe("list-dictionary", () => {
   setupTestEnvironment();
 
   const extra = createMockRequestHandlerExtra();
+  let createdId: string | undefined;
 
   beforeAll(async () => {
-    await initDictionaryTestState(extra);
+    // Create a dictionary item so the list has known data
+    await DictionaryTestHelper.cleanup(TEST_DICTIONARY_NAME);
+    const item = await new DictionaryBuilder()
+      .withName(TEST_DICTIONARY_NAME)
+      .withTranslation("en-US", "List test value")
+      .create();
+    createdId = item.getId();
   }, 60000);
 
-  it("should list root dictionary entries", async () => {
+  afterAll(async () => {
+    await DictionaryTestHelper.cleanup(TEST_DICTIONARY_NAME);
+  }, 30000);
+
+  it("should list dictionary entries including the created item", async () => {
     const result = await listDictionaryTool.handler(
       { parentId: undefined },
       extra,
@@ -26,11 +40,12 @@ describe("list-dictionary", () => {
     const data = getStructuredContent(result) as any;
     expect(data).toBeDefined();
     expect(Array.isArray(data.items)).toBe(true);
-    expect(typeof data.total).toBe("number");
-    if (data.items.length > 0) {
-      expect(typeof data.items[0].id).toBe("string");
-      expect(typeof data.items[0].name).toBe("string");
-      expect(Array.isArray(data.items[0].translatedLanguages)).toBe(true);
-    }
+    expect(data.total).toBeGreaterThan(0);
+
+    // Verify our created item appears
+    const found = data.items.find((item: any) => item.name === TEST_DICTIONARY_NAME);
+    expect(found).toBeDefined();
+    expect(found.id).toBeDefined();
+    expect(Array.isArray(found.translatedLanguages)).toBe(true);
   }, 30000);
 });

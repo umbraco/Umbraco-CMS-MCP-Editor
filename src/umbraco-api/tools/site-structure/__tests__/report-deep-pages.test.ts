@@ -1,23 +1,37 @@
-/**
- * Integration tests for the report-deep-pages tool.
- *
- * Runs against a real Umbraco instance via the chained @umbraco-cms/mcp-dev MCP server.
- */
-
-import { describe, it, expect } from "@jest/globals";
+import { describe, it, expect, beforeAll, afterAll } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "./setup.js";
+import { ContentBuilder } from "../../content/__tests__/helpers/content-builder.js";
+import { ContentTestHelper } from "../../content/__tests__/helpers/content-test-helper.js";
+import { initContentTestState } from "../../content/__tests__/setup.js";
 import reportDeepPagesTool from "../get/report-deep-pages.js";
+
+const TEST_PAGE_NAME = "_Test Report Deep";
 
 describe("report-deep-pages", () => {
   setupTestEnvironment();
 
   const extra = createMockRequestHandlerExtra();
+  let createdId: string | undefined;
 
-  it("should return structure with threshold field", async () => {
+  beforeAll(async () => {
+    const state = await initContentTestState(extra);
+    const doc = await new ContentBuilder()
+      .withName(TEST_PAGE_NAME)
+      .withDocumentType(state.testDocumentTypeId)
+      .withParent(state.testPageId)
+      .create();
+    createdId = doc.getId();
+  }, 60000);
+
+  afterAll(async () => {
+    if (createdId) await ContentTestHelper.cleanupById(createdId);
+  }, 30000);
+
+  it("should return deep pages report with scanned pages", async () => {
     const result = await reportDeepPagesTool.handler(
       { depthThreshold: 4, parentId: undefined },
       extra,
@@ -27,14 +41,8 @@ describe("report-deep-pages", () => {
     const data = getStructuredContent(result) as any;
     expect(data).toBeDefined();
     expect(Array.isArray(data.items)).toBe(true);
-    expect(typeof data.scannedPages).toBe("number");
+    expect(data.scannedPages).toBeGreaterThan(0);
     expect(typeof data.threshold).toBe("number");
     expect(typeof data.total).toBe("number");
-    if (data.items.length > 0) {
-      expect(typeof data.items[0].id).toBe("string");
-      expect(typeof data.items[0].name).toBe("string");
-      expect(typeof data.items[0].depth).toBe("number");
-      expect(typeof data.items[0].url).toBe("string");
-    }
   }, 60000);
 });

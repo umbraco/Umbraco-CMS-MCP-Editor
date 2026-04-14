@@ -176,6 +176,9 @@ Custom fields defined in `config/server-config.ts`.
 - Use `setupEditorElicitation(jest.fn)` from `src/testing/setup-elicitation.ts` for write operations (NOT `setupElicitationMock` from the SDK — it doesn't set the server ref needed by `confirmAction`)
 - Use `getStructuredContent(result)` to extract typed output
 - Tests must create their own state — never skip because data doesn't exist. If a create fails, search for existing items as fallback
+- **Never rely on pre-existing Umbraco data** — CI runs against a fresh Umbraco install with only the demo site. Tests that snapshot list/report results from existing content will fail on CI because the data differs from local dev. Every test must use builders to create the specific data it needs, then snapshot/assert against that known data, and clean up afterwards
+- **Snapshot tests must be deterministic** — only snapshot data the test created itself. Use `createSnapshotResult()` with the created item's ID for normalization. For tools that report on all content (list-children, report-short-content, etc.), create test data, run the tool, then assert the created item appears in the results — don't snapshot the entire result
+- Clean up by ID (via `ContentTestHelper.cleanupById`) not by name search — name search can fail with large datasets
 - **Always run tests locally first** (`npm test`) and verify they pass before pushing to CI. Fix failures locally, don't rely on CI for iteration
 
 **Eval tests (`tests/evals/`):**
