@@ -20,3 +20,6 @@ https.globalAgent.options.rejectUnauthorized = false;
 const agent = new Agent({ connect: { rejectUnauthorized: false } });
 setGlobalDispatcher(agent);
 globalThis.fetch = undiciFetch as typeof globalThis.fetch;
+
+// Test telemetry — instruments MCP calls to measure timing on CI
+import "./src/testing/telemetry.js";

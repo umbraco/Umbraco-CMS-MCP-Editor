@@ -25,6 +25,10 @@ const config: JestConfigWithTsJest = {
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json", "node"],
   collectCoverageFrom: ["src/**/*.ts", "!src/**/*.d.ts"],
   coverageDirectory: "coverage",
+  reporters: [
+    "default",
+    "<rootDir>/src/testing/telemetry-reporter.ts",
+  ],
 };
 
 export default config;
