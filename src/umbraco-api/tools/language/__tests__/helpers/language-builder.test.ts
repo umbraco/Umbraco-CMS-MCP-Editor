@@ -1,5 +1,8 @@
 /**
  * Language Builder & Helper Tests
+ *
+ * Verifies the LanguageBuilder and LanguageTestHelper work correctly
+ * for creating, checking, and cleaning up languages against real Umbraco.
  */
 
 import { describe, it, expect, afterEach } from "@jest/globals";
@@ -17,7 +20,6 @@ describe("LanguageBuilder", () => {
   }, 30000);
 
   it("should create a language and return the ISO code", async () => {
-    // Clean up first in case it exists
     await LanguageTestHelper.cleanup(TEST_ISO);
 
     const lang = await new LanguageBuilder()
@@ -28,7 +30,7 @@ describe("LanguageBuilder", () => {
     expect(lang.getIsoCode()).toBe(TEST_ISO);
   }, 30000);
 
-  it("should verify a created language exists", async () => {
+  it("should verify a created language exists via helper", async () => {
     await LanguageTestHelper.cleanup(TEST_ISO);
 
     await new LanguageBuilder()
@@ -40,10 +42,32 @@ describe("LanguageBuilder", () => {
     expect(exists).toBe(true);
   }, 30000);
 
-  it("languageExists should return a boolean", async () => {
-    // Even for non-standard ISO codes, the CMS may return a result
+  it("should delete a created language via builder", async () => {
+    await LanguageTestHelper.cleanup(TEST_ISO);
+
+    const lang = await new LanguageBuilder()
+      .withIsoCode(TEST_ISO)
+      .withName("Norwegian Bokmål")
+      .create();
+
+    await lang.delete();
+
     const exists = await LanguageTestHelper.languageExists(TEST_ISO);
-    expect(typeof exists).toBe("boolean");
+    expect(exists).toBe(false);
+  }, 30000);
+
+  it("cleanup should remove a language and languageExists should confirm", async () => {
+    await LanguageTestHelper.cleanup(TEST_ISO);
+
+    await new LanguageBuilder()
+      .withIsoCode(TEST_ISO)
+      .withName("Norwegian Bokmål")
+      .create();
+
+    await LanguageTestHelper.cleanup(TEST_ISO);
+
+    const exists = await LanguageTestHelper.languageExists(TEST_ISO);
+    expect(exists).toBe(false);
   }, 30000);
 
   it("should throw if create called without ISO code", async () => {

@@ -9,11 +9,16 @@ import { mcpClientManager } from "../../../../mcp-client.js";
 import { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 
 export class LanguageTestHelper {
-  /** Check if a language exists by ISO code */
+  /** Check if a language is configured by listing all and searching by ISO code */
   static async languageExists(isoCode: string): Promise<boolean> {
     try {
-      const result = await mcpClientManager.callTool("cms", "get-language", { isoCode });
-      return !result.isError;
+      const result = await mcpClientManager.callTool("cms", "get-language", {
+        cursor: btoa(JSON.stringify({ s: 0, t: 100 })),
+      });
+      if (result.isError) return false;
+      const data = extractChainedResult(result);
+      const items: any[] = data?.items ?? [];
+      return items.some((lang: any) => lang.isoCode === isoCode);
     } catch {
       return false;
     }
