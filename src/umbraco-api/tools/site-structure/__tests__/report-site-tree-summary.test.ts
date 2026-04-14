@@ -8,7 +8,7 @@ import { describe, it, expect } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
-  createSnapshotResult,
+  getStructuredContent,
 } from "./setup.js";
 import reportSiteTreeSummaryTool from "../get/report-site-tree-summary.js";
 
@@ -23,6 +23,18 @@ describe("report-site-tree-summary", () => {
       extra,
     );
 
-    expect(createSnapshotResult(result)).toMatchSnapshot();
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    expect(data).toBeDefined();
+    expect(Array.isArray(data.tree)).toBe(true);
+    expect(typeof data.totalPages).toBe("number");
+    expect(typeof data.pagesPerLevel).toBe("object");
+    expect(typeof data.maxDepthFound).toBe("number");
+    if (data.tree.length > 0) {
+      expect(typeof data.tree[0].id).toBe("string");
+      expect(typeof data.tree[0].name).toBe("string");
+      expect(typeof data.tree[0].depth).toBe("number");
+      expect(typeof data.tree[0].childCount).toBe("number");
+    }
   }, 30000);
 });

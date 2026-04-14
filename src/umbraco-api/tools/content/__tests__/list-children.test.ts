@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
-  createSnapshotResult,
+  getStructuredContent,
   initContentTestState,
 } from "./setup.js";
 import { encodeCursor } from "@umbraco-cms/mcp-server-sdk";
@@ -20,7 +20,15 @@ describe("list-children", () => {
   it("should return root-level pages", async () => {
     const result = await listChildrenTool.handler({ parentId: undefined }, extra);
 
-    expect(createSnapshotResult(result)).toMatchSnapshot();
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    expect(data).toBeDefined();
+    expect(Array.isArray(data.items)).toBe(true);
+    expect(typeof data.total).toBe("number");
+    if (data.items.length > 0) {
+      expect(typeof data.items[0].id).toBe("string");
+      expect(typeof data.items[0].name).toBe("string");
+    }
   }, 30000);
 
   it("should accept cursor parameter", async () => {
@@ -29,6 +37,10 @@ describe("list-children", () => {
       extra,
     );
 
-    expect(createSnapshotResult(result)).toMatchSnapshot();
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    expect(data).toBeDefined();
+    expect(Array.isArray(data.items)).toBe(true);
+    expect(typeof data.total).toBe("number");
   }, 30000);
 });

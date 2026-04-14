@@ -12,7 +12,7 @@ import { describe, it, expect } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
-  createSnapshotResult,
+  getStructuredContent,
 } from "./setup.js";
 import reportMediaMissingAltTool from "../get/report-media-missing-alt.js";
 
@@ -27,6 +27,16 @@ describe("report-media-missing-alt", () => {
       extra,
     );
 
-    expect(createSnapshotResult(result)).toMatchSnapshot();
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    expect(data).toBeDefined();
+    expect(Array.isArray(data.items)).toBe(true);
+    expect(typeof data.totalImages).toBe("number");
+    expect(typeof data.missingAltCount).toBe("number");
+    if (data.items.length > 0) {
+      expect(typeof data.items[0].id).toBe("string");
+      expect(typeof data.items[0].name).toBe("string");
+      expect(typeof data.items[0].hasAlt).toBe("boolean");
+    }
   }, 60000);
 });

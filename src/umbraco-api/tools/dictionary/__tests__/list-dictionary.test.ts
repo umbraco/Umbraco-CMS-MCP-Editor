@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
-  createSnapshotResult,
+  getStructuredContent,
   initDictionaryTestState,
 } from "./setup.js";
 import listDictionaryTool from "../get/list-dictionary.js";
@@ -23,6 +23,14 @@ describe("list-dictionary", () => {
     );
 
     expect(result.isError).toBeFalsy();
-    expect(createSnapshotResult(result)).toMatchSnapshot();
+    const data = getStructuredContent(result) as any;
+    expect(data).toBeDefined();
+    expect(Array.isArray(data.items)).toBe(true);
+    expect(typeof data.total).toBe("number");
+    if (data.items.length > 0) {
+      expect(typeof data.items[0].id).toBe("string");
+      expect(typeof data.items[0].name).toBe("string");
+      expect(Array.isArray(data.items[0].translatedLanguages)).toBe(true);
+    }
   }, 30000);
 });

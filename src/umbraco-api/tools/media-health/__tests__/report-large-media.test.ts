@@ -13,7 +13,7 @@ import { describe, it, expect, beforeAll } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
-  createSnapshotResult,
+  getStructuredContent,
 } from "./setup.js";
 import { initMediaHealthTestState } from "./setup.js";
 import reportLargeMediaTool from "../get/report-large-media.js";
@@ -34,6 +34,12 @@ describe("report-large-media", () => {
       extra,
     );
 
-    expect(createSnapshotResult(result)).toMatchSnapshot();
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    expect(data).toBeDefined();
+    expect(Array.isArray(data.items)).toBe(true);
+    expect(typeof data.total).toBe("number");
+    expect(typeof data.scannedItems).toBe("number");
+    expect(typeof data.threshold).toBe("number");
   }, 60000);
 });

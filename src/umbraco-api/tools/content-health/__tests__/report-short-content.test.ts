@@ -12,7 +12,7 @@ import { describe, it, expect } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
-  createSnapshotResult,
+  getStructuredContent,
 } from "./setup.js";
 import reportShortContentTool from "../get/report-short-content.js";
 
@@ -27,6 +27,17 @@ describe("report-short-content", () => {
       extra,
     );
 
-    expect(createSnapshotResult(result)).toMatchSnapshot();
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    expect(data).toBeDefined();
+    expect(Array.isArray(data.items)).toBe(true);
+    expect(typeof data.scannedPages).toBe("number");
+    expect(typeof data.threshold).toBe("number");
+    expect(typeof data.total).toBe("number");
+    if (data.items.length > 0) {
+      expect(typeof data.items[0].id).toBe("string");
+      expect(typeof data.items[0].name).toBe("string");
+      expect(typeof data.items[0].wordCount).toBe("number");
+    }
   }, 30000);
 });

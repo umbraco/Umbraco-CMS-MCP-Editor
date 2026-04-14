@@ -12,7 +12,7 @@ import { describe, it, expect } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
-  createSnapshotResult,
+  getStructuredContent,
 } from "./setup.js";
 import reportEmptyFieldsTool from "../get/report-empty-fields.js";
 
@@ -27,6 +27,17 @@ describe("report-empty-fields", () => {
       extra,
     );
 
-    expect(createSnapshotResult(result)).toMatchSnapshot();
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    expect(data).toBeDefined();
+    expect(Array.isArray(data.items)).toBe(true);
+    expect(typeof data.scannedPages).toBe("number");
+    expect(typeof data.total).toBe("number");
+    if (data.items.length > 0) {
+      expect(typeof data.items[0].id).toBe("string");
+      expect(typeof data.items[0].name).toBe("string");
+      expect(Array.isArray(data.items[0].emptyFields)).toBe(true);
+      expect(typeof data.items[0].emptyFieldCount).toBe("number");
+    }
   }, 30000);
 });

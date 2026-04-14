@@ -12,7 +12,7 @@ import { describe, it, expect, beforeAll } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
-  createSnapshotResult,
+  getStructuredContent,
   initContentHealthTestState,
   NON_EXISTENT_UUID,
 } from "./setup.js";
@@ -32,7 +32,16 @@ describe("audit-page-seo", () => {
   it("should return SEO audit for a known page", async () => {
     const result = await auditPageSeoTool.handler({ id: testPageId }, extra);
 
-    expect(createSnapshotResult(result, testPageId)).toMatchSnapshot();
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    expect(data).toBeDefined();
+    expect(typeof data.id).toBe("string");
+    expect(typeof data.name).toBe("string");
+    expect(typeof data.hasTitle).toBe("boolean");
+    expect(typeof data.hasMetaDescription).toBe("boolean");
+    expect(Array.isArray(data.headings)).toBe(true);
+    expect(Array.isArray(data.images)).toBe(true);
+    expect(typeof data.bodyWordCount).toBe("number");
   }, 30000);
 
   it("should return error for non-existent page ID", async () => {

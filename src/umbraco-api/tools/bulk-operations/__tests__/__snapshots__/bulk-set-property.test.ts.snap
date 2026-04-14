@@ -10,7 +10,7 @@ exports[`bulk-set-property should set a property on a page and return results wi
       {
         "id": "00000000-0000-0000-0000-000000000000",
         "name": "Home",
-        "previousVersionId": "0000003f-0000-0000-0000-000000000000",
+        "previousVersionId": "00000000-0000-0000-0000-000000000000",
         "success": true,
       },
     ],

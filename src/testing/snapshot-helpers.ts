@@ -22,8 +22,8 @@ const DUPLICATE_SUFFIX_IN_STRING_REGEX = /(_Test [^"]+?) \(\d+\)/g;
 /** Date fields used by editor MCP tools that the SDK doesn't normalize */
 const EDITOR_DATE_FIELDS = ["lastModified"];
 
-/** Fields known to contain UUIDs in nested content (block lists, media pickers, etc.) */
-const UUID_FIELDS = ["key", "mediaKey", "contentTypeKey"];
+/** Fields known to contain UUIDs in nested content (block lists, media pickers, versions, etc.) */
+const UUID_FIELDS = ["key", "mediaKey", "contentTypeKey", "previousVersionId", "currentVersionId", "versionId"];
 
 /**
  * Check if an object looks like a property value entry (has alias + editorAlias).
