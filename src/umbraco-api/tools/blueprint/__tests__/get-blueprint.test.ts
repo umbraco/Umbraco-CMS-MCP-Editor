@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from "@jest/glob
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
-  createSnapshotResult,
+  getStructuredContent,
   initBlueprintTestState,
   BlueprintBuilder,
   BlueprintTestHelper,
@@ -19,6 +19,7 @@ describe("get-blueprint", () => {
   let testPageId: string;
 
   beforeAll(async () => {
+    await BlueprintTestHelper.cleanup(TEST_BLUEPRINT_NAME);
     const state = await initBlueprintTestState(extra);
     testPageId = state.testPageId;
   }, 60000);
@@ -36,7 +37,15 @@ describe("get-blueprint", () => {
     const result = await getBlueprintTool.handler({ id: bp.getId() }, extra);
 
     expect(result.isError).toBeFalsy();
-    expect(createSnapshotResult(result, bp.getId())).toMatchSnapshot();
+    // Use assertions instead of snapshot — blueprint captures source page
+    // property values which change when other tests modify the Home page
+    const data = getStructuredContent(result) as any;
+    expect(data).toBeDefined();
+    expect(data.id).toBe(bp.getId());
+    expect(data.name).toBe(TEST_BLUEPRINT_NAME);
+    expect(data.documentType).toBeDefined();
+    expect(data.values).toBeInstanceOf(Array);
+    expect(data.variants).toBeInstanceOf(Array);
   }, 30000);
 
   it("should return error for non-existent blueprint", async () => {
