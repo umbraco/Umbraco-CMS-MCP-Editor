@@ -5,7 +5,7 @@
  * Registers stdio servers from mcp-servers.ts at import time so the
  * manager is ready when tools are called (both in production and tests).
  *
- * In hosted mode (worker.ts), the in-process CMS server is registered
+ * In hosted mode (worker.ts), the CMS server is registered
  * additionally via mcpClientManager.registerServer() at init time.
  */
 

@@ -27,7 +27,6 @@ const config: JestConfigWithTsJest = {
   coverageDirectory: "coverage",
   reporters: [
     "default",
-    "<rootDir>/src/testing/telemetry-reporter.ts",
   ],
 };
 
