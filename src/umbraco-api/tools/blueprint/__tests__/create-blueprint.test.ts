@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach } from
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
+  createSnapshotResult,
   getStructuredContent,
   initBlueprintTestState,
   createElicitation,
@@ -52,12 +53,7 @@ describe("create-blueprint", () => {
     // Verify via get-blueprint if we got an ID back
     if (data.id) {
       const verifyResult = await getBlueprintTool.handler({ id: data.id }, extra);
-      expect(verifyResult.isError).toBeFalsy();
-      const verifyData = getStructuredContent(verifyResult) as any;
-      expect(verifyData.id).toBe(data.id);
-      expect(verifyData.name).toBe(TEST_BLUEPRINT_NAME);
-      expect(verifyData.documentType).toBeDefined();
-      expect(verifyData.values).toBeInstanceOf(Array);
+      expect(createSnapshotResult(verifyResult, data.id)).toMatchSnapshot();
     }
   }, 30000);
 

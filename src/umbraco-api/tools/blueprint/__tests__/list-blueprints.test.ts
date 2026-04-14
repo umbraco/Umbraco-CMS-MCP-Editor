@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from "@jest/glob
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
+  createSnapshotResult,
   initBlueprintTestState,
   BlueprintBuilder,
   BlueprintTestHelper,
@@ -17,7 +18,6 @@ describe("list-blueprints", () => {
   let testPageId: string;
 
   beforeAll(async () => {
-    // Clean up any stale blueprints from prior test runs
     await BlueprintTestHelper.cleanup(TEST_BLUEPRINT_NAME);
     const state = await initBlueprintTestState(extra);
     testPageId = state.testPageId;
@@ -27,8 +27,7 @@ describe("list-blueprints", () => {
     await BlueprintTestHelper.cleanup(TEST_BLUEPRINT_NAME);
   }, 30000);
 
-  it("should list root-level blueprints including created one", async () => {
-    // Ensure at least one blueprint exists
+  it("should list root-level blueprints", async () => {
     await new BlueprintBuilder()
       .withName(TEST_BLUEPRINT_NAME)
       .withSourcePage(testPageId)
@@ -40,16 +39,7 @@ describe("list-blueprints", () => {
     );
 
     expect(result.isError).toBeFalsy();
-    // Use assertions — the full list varies with leftover data from other runs
-    const data = result.structuredContent as any;
-    expect(data).toBeDefined();
-    expect(data.items).toBeInstanceOf(Array);
-    expect(data.total).toBeGreaterThan(0);
-
-    // Verify our created blueprint appears in the list
-    const found = data.items.find((item: any) => item.name === TEST_BLUEPRINT_NAME);
-    expect(found).toBeDefined();
-    expect(found.id).toBeDefined();
+    expect(createSnapshotResult(result)).toMatchSnapshot();
   }, 30000);
 
   it("should return items with expected shape", async () => {

@@ -11,6 +11,7 @@ import { createSnapshotResult } from "@umbraco-cms/mcp-server-sdk/testing";
 
 const NORMALIZED_DATE = "NORMALIZED_DATE";
 const NORMALIZED_UUID = "00000000-0000-0000-0000-000000000000";
+const NORMALIZED_VALUE = "[NORMALIZED_VALUE]";
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Date fields used by editor MCP tools that the SDK doesn't normalize */
@@ -19,12 +20,26 @@ const EDITOR_DATE_FIELDS = ["lastModified"];
 /** Fields known to contain UUIDs in nested content (block lists, media pickers, etc.) */
 const UUID_FIELDS = ["key", "mediaKey", "contentTypeKey"];
 
+/**
+ * Check if an object looks like a property value entry (has alias + editorAlias).
+ * These contain mutable user content in the `value` field that changes between
+ * test runs (e.g. when bulk-set-property modifies the Home page title).
+ */
+function isPropertyValueEntry(obj: any): boolean {
+  return obj && typeof obj === "object" && "alias" in obj && "editorAlias" in obj && "value" in obj;
+}
+
 function normalizeEditorFields(obj: any): any {
   if (obj === null || obj === undefined) return obj;
   if (Array.isArray(obj)) return obj.map(normalizeEditorFields);
   if (typeof obj !== "object") return obj;
 
   const normalized = { ...obj };
+
+  // Normalize mutable property values (objects with alias + editorAlias + value)
+  if (isPropertyValueEntry(normalized)) {
+    normalized.value = NORMALIZED_VALUE;
+  }
 
   for (const field of EDITOR_DATE_FIELDS) {
     if (normalized[field] && typeof normalized[field] === "string") {
