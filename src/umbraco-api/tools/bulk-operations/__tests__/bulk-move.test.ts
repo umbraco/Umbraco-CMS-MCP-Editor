@@ -7,10 +7,8 @@ import {
   createElicitation,
   expectElicitationCancel,
   FAKE_TARGET_UUID,
-  BulkOperationsTestHelper,
 } from "./setup.js";
 import bulkMoveTool from "../post/bulk-move.js";
-import deletePageTool from "../../content/delete/delete-page.js";
 
 const elicitation = createElicitation();
 
@@ -20,23 +18,14 @@ describe("bulk-move", () => {
   const extra = createMockRequestHandlerExtra();
   let firstRootPageId: string;
   let secondRootPageId: string | undefined;
-  let createdSecondRootPageId: string | undefined;
 
   beforeAll(async () => {
     const state = await initBulkOperationsTestState(extra);
     firstRootPageId = state.firstRootPageId;
     secondRootPageId = state.secondRootPageId;
-    createdSecondRootPageId = state.createdSecondRootPageId;
   }, 60000);
 
   afterAll(async () => {
-    if (createdSecondRootPageId) {
-      try {
-        await deletePageTool.handler({ id: createdSecondRootPageId }, extra);
-      } catch {
-        // Best-effort cleanup
-      }
-    }
     elicitation.cleanup();
   }, 30000);
 

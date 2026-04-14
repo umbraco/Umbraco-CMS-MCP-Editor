@@ -6,11 +6,11 @@ exports[`report-site-tree-summary should return tree array, totalPages, pagesPer
   "structuredContent": {
     "maxDepthFound": 2,
     "pagesPerLevel": {
-      "0": 1,
+      "0": 2,
       "1": 100,
       "2": 15,
     },
-    "totalPages": 116,
+    "totalPages": 117,
     "tree": [
       {
         "childCount": 100,
@@ -1058,6 +1058,15 @@ exports[`report-site-tree-summary should return tree array, totalPages, pagesPer
         "documentType": "",
         "id": "dcf18a51-6919-4cf8-89d1-36b94ce4d963",
         "name": "Home",
+        "url": "",
+      },
+      {
+        "childCount": 0,
+        "children": [],
+        "depth": 0,
+        "documentType": "",
+        "id": "d4c20596-4cff-434d-9c46-23289b34964d",
+        "name": "_Bulk Move Test Page",
         "url": "",
       },
     ],

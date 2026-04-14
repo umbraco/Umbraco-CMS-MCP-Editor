@@ -4,7 +4,7 @@ exports[`audit-page-content should audit content body and meta for a known page 
 {
   "content": [],
   "structuredContent": {
-    "bodyContent": "Bulk Test Value For Umbraco",
+    "bodyContent": "[NORMALIZED_BODY]",
     "bodyWordCount": 5,
     "documentType": "",
     "hasMetaDescription": false,

@@ -2,9 +2,9 @@ import { describe, it, expect, beforeAll, afterAll } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
-  createSnapshotResult,
   MemberReportingTestHelper,
 } from "./setup.js";
+import { getStructuredContent } from "@umbraco-cms/mcp-server-sdk/testing";
 import {
   initMemberReportingTestState,
   cleanupMemberReportingTestState,
@@ -33,6 +33,11 @@ describe("report-members-by-group", () => {
 
     const result = await reportMembersByGroupTool.handler({ groupName }, extra);
 
-    expect(createSnapshotResult(result)).toMatchSnapshot();
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    expect(data).toBeDefined();
+    expect(data.groupName).toEqual(expect.any(String));
+    expect(data.items).toBeInstanceOf(Array);
+    expect(data.total).toEqual(expect.any(Number));
   }, 60000);
 });

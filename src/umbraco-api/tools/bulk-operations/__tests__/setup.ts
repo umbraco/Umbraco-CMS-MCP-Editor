@@ -23,11 +23,8 @@ export { setupEditorElicitation } from "../../../../testing/setup-elicitation.js
 export { expectElicitationCancel } from "../../../../testing/elicitation-helpers.js";
 
 import { getStructuredContent } from "@umbraco-cms/mcp-server-sdk/testing";
-import { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
 import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 import listChildrenTool from "../../content/get/list-children.js";
-import createPageTool from "../../content/post/create-page.js";
 
 export const FAKE_UUID = "00000000-0000-0000-0000-000000000001";
 export const FAKE_TARGET_UUID = "00000000-0000-0000-0000-000000000002";
@@ -70,40 +67,11 @@ export async function initBulkOperationsTestState(
   }
 
   const firstRootPageId: string = browseData.items[0].id;
-  let secondRootPageId: string | undefined;
-  let createdSecondRootPageId: string | undefined;
+  const secondRootPageId: string | undefined = browseData.items.length > 1
+    ? browseData.items[1].id
+    : undefined;
 
-  if (browseData.items.length > 1) {
-    secondRootPageId = browseData.items[1].id;
-  }
-
-  // If only one root page, create a second one for bulk-move tests
-  if (!secondRootPageId) {
-    try {
-      const pageResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: firstRootPageId });
-      if (!pageResult.isError) {
-        const pageData = extractChainedResult(pageResult);
-        const docTypeId = pageData?.documentType?.id;
-        if (docTypeId) {
-          const createResult = await createPageTool.handler(
-            { name: "_Bulk Move Test Page", documentTypeId: docTypeId, parentId: undefined, values: undefined },
-            extra,
-          );
-          if (!createResult.isError) {
-            const createData = getStructuredContent(createResult) as any;
-            if (createData?.id) {
-              secondRootPageId = createData.id;
-              createdSecondRootPageId = createData.id;
-            }
-          }
-        }
-      }
-    } catch {
-      console.warn("Could not create second root page — bulk-move tests may be limited");
-    }
-  }
-
-  const state: BulkOperationsTestState = { firstRootPageId, secondRootPageId, createdSecondRootPageId };
+  const state: BulkOperationsTestState = { firstRootPageId, secondRootPageId, createdSecondRootPageId: undefined };
   cachedState = state;
   return state;
 }

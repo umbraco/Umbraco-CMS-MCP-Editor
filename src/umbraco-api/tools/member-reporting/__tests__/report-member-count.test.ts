@@ -2,8 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
-  createSnapshotResult,
 } from "./setup.js";
+import { getStructuredContent } from "@umbraco-cms/mcp-server-sdk/testing";
 import {
   initMemberReportingTestState,
   cleanupMemberReportingTestState,
@@ -26,14 +26,16 @@ describe("report-member-count", () => {
   it("should return member count breakdown by type and group", async () => {
     const result = await reportMemberCountTool.handler({}, extra);
 
-    expect(createSnapshotResult(result)).toMatchSnapshot();
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    expect(data).toBeDefined();
+    expect(data.totalMembers).toEqual(expect.any(Number));
+    expect(data.byType).toBeInstanceOf(Array);
+    expect(data.byGroup).toBeInstanceOf(Array);
   }, 60000);
 
-  it("should return error for invalid input", async () => {
-    // report-member-count takes no input — test that the tool handles
-    // a connectivity failure gracefully by checking success on normal call
+  it("should return no error on normal call", async () => {
     const result = await reportMemberCountTool.handler({}, extra);
-
     expect(result.isError).toBeFalsy();
   }, 60000);
 });

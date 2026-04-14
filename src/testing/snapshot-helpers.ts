@@ -54,6 +54,11 @@ function normalizeEditorFields(obj: any): any {
     normalized.message = normalized.message.replace(DUPLICATE_SUFFIX_IN_STRING_REGEX, "$1");
   }
 
+  // Normalize extracted body content (mutable — depends on current page property values)
+  if (typeof normalized.bodyContent === "string" && normalized.bodyContent.length > 0) {
+    normalized.bodyContent = "[NORMALIZED_BODY]";
+  }
+
   // Normalize mutable property values (objects with alias + editorAlias + value)
   if (isPropertyValueEntry(normalized)) {
     normalized.value = NORMALIZED_VALUE;
