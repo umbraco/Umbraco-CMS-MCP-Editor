@@ -33,7 +33,7 @@ describe("get-page", () => {
   }, 60000);
 
   afterAll(async () => {
-    await ContentTestHelper.cleanup(TEST_PAGE_NAME);
+    await ContentTestHelper.cleanup(TEST_PAGE_NAME, testPageId);
   }, 30000);
 
   it("should get page details by ID", async () => {

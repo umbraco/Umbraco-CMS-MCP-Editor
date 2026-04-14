@@ -31,15 +31,26 @@ export class ContentTestHelper {
     return items.find(item => this.getItemName(item) === name);
   }
 
+  /** Match by exact name OR Umbraco's duplicate suffix pattern "name (N)" */
+  private static findByNameOrDuplicate(items: DocumentTreeItem[], name: string): DocumentTreeItem | undefined {
+    const duplicatePattern = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}( \\(\\d+\\))?$`);
+    return items.find(item => duplicatePattern.test(this.getItemName(item)));
+  }
+
   /** Extract the display name from a tree item */
   static getNameFromItem(item?: DocumentTreeItem): string {
     if (!item) return "";
     return this.getItemName(item);
   }
 
-  /** Find a document by name, searching root then one level of children */
-  static async findDocument(name: string): Promise<DocumentTreeItem | undefined> {
+  /** Find a document by name, optionally scoped to a parent. Searches with high take to handle large child lists. */
+  static async findDocument(name: string, parentId?: string): Promise<DocumentTreeItem | undefined> {
     try {
+      // If parentId given, search directly under that parent
+      if (parentId) {
+        return await this.findDocumentUnderParent(parentId, name);
+      }
+
       const rootResult = await mcpClientManager.callTool("cms", "get-document-root", {
         cursor: this.cursor(),
       });
@@ -54,20 +65,8 @@ export class ContentTestHelper {
       // Check children of each root item
       for (const item of items) {
         if (item.hasChildren) {
-          try {
-            const childResult = await mcpClientManager.callTool("cms", "get-document-children", {
-              parentId: item.id,
-              cursor: this.cursor(),
-            });
-            if (!childResult.isError) {
-              const childData = extractChainedResult(childResult);
-              const children: DocumentTreeItem[] = childData?.items ?? [];
-              const childMatch = this.findByName(children, name);
-              if (childMatch) return childMatch;
-            }
-          } catch {
-            // Continue searching other branches
-          }
+          const childMatch = await this.findDocumentUnderParent(item.id, name);
+          if (childMatch) return childMatch;
         }
       }
       return undefined;
@@ -76,37 +75,69 @@ export class ContentTestHelper {
     }
   }
 
-  /** Find a document in the recycle bin by name */
+  /** Find a document by name directly under a specific parent (paginated, up to 500 items) */
+  static async findDocumentUnderParent(parentId: string, name: string): Promise<DocumentTreeItem | undefined> {
+    try {
+      // Search in pages of 100, up to 500 total
+      for (let skip = 0; skip < 500; skip += 100) {
+        const childResult = await mcpClientManager.callTool("cms", "get-document-children", {
+          parentId,
+          cursor: this.cursor(skip, 100),
+        });
+        if (childResult.isError) return undefined;
+
+        const childData = extractChainedResult(childResult);
+        const children: DocumentTreeItem[] = childData?.items ?? [];
+
+        const match = this.findByName(children, name);
+        if (match) return match;
+
+        // If fewer items than requested, we've reached the end
+        if (children.length < 100) break;
+      }
+      return undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Find a document in the recycle bin by name (paginated, up to 500 items) */
   static async findDocumentInRecycleBin(name: string): Promise<DocumentTreeItem | undefined> {
     try {
-      const result = await mcpClientManager.callTool("cms", "get-recycle-bin-document-root", {
-        cursor: this.cursor(),
-      });
-      if (result.isError) return undefined;
+      // Search recycle bin root in pages of 100, up to 500
+      for (let skip = 0; skip < 500; skip += 100) {
+        const result = await mcpClientManager.callTool("cms", "get-recycle-bin-document-root", {
+          cursor: this.cursor(skip, 100),
+        });
+        if (result.isError) return undefined;
 
-      const data = extractChainedResult(result);
-      const items: DocumentTreeItem[] = data?.items ?? [];
+        const data = extractChainedResult(result);
+        const items: DocumentTreeItem[] = data?.items ?? [];
 
-      const match = this.findByName(items, name);
-      if (match) return match;
+        const match = this.findByNameOrDuplicate(items, name);
+        if (match) return match;
 
-      for (const item of items) {
-        if (item.hasChildren) {
-          try {
-            const childResult = await mcpClientManager.callTool("cms", "get-recycle-bin-document-children", {
-              parentId: item.id,
-              cursor: this.cursor(),
-            });
-            if (!childResult.isError) {
-              const childData = extractChainedResult(childResult);
-              const children: DocumentTreeItem[] = childData?.items ?? [];
-              const childMatch = this.findByName(children, name);
-              if (childMatch) return childMatch;
+        // Check children of each item in this page
+        for (const item of items) {
+          if (item.hasChildren) {
+            try {
+              const childResult = await mcpClientManager.callTool("cms", "get-recycle-bin-document-children", {
+                parentId: item.id,
+                cursor: this.cursor(),
+              });
+              if (!childResult.isError) {
+                const childData = extractChainedResult(childResult);
+                const children: DocumentTreeItem[] = childData?.items ?? [];
+                const childMatch = this.findByNameOrDuplicate(children, name);
+                if (childMatch) return childMatch;
+              }
+            } catch {
+              // Continue
             }
-          } catch {
-            // Continue
           }
         }
+
+        if (items.length < 100) break;
       }
       return undefined;
     } catch {
@@ -126,10 +157,10 @@ export class ContentTestHelper {
   }
 
   /** Clean up a document by name — finds it (in tree or recycle bin) and permanently deletes */
-  static async cleanup(name: string): Promise<void> {
+  static async cleanup(name: string, parentId?: string): Promise<void> {
     try {
       // Try to find in normal tree first
-      const item = await this.findDocument(name);
+      const item = await this.findDocument(name, parentId);
       if (item) {
         try {
           // Move to recycle bin

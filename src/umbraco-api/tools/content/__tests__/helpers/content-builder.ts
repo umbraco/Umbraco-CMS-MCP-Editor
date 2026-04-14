@@ -85,8 +85,14 @@ export class ContentBuilder {
       throw new Error(`Failed to create document: ${JSON.stringify(errorData)}`);
     }
 
-    // Find the created document by name (CMS may not return ID in response)
-    this.createdItem = await ContentTestHelper.findDocument(name) ?? null;
+    // Try to get the ID from the create response
+    const created = extractChainedResult(result);
+    if (created?.id) {
+      this.createdItem = { id: created.id, name, variants: [{ name }] };
+    } else {
+      // Fall back to searching by name, scoped to parent if set
+      this.createdItem = await ContentTestHelper.findDocument(name, this.parentId ?? undefined) ?? null;
+    }
 
     if (!this.createdItem) {
       throw new Error(`Failed to find created document with name: ${name}`);

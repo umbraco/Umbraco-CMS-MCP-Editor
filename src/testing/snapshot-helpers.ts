@@ -14,6 +14,11 @@ const NORMALIZED_UUID = "00000000-0000-0000-0000-000000000000";
 const NORMALIZED_VALUE = "[NORMALIZED_VALUE]";
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Umbraco appends " (N)" to duplicate names — strip the suffix for stable snapshots */
+const DUPLICATE_SUFFIX_REGEX = /^(_Test .+?) \(\d+\)$/;
+/** Same pattern but for occurrences inside message strings */
+const DUPLICATE_SUFFIX_IN_STRING_REGEX = /(_Test [^"]+?) \(\d+\)/g;
+
 /** Date fields used by editor MCP tools that the SDK doesn't normalize */
 const EDITOR_DATE_FIELDS = ["lastModified"];
 
@@ -35,6 +40,19 @@ function normalizeEditorFields(obj: any): any {
   if (typeof obj !== "object") return obj;
 
   const normalized = { ...obj };
+
+  // Strip Umbraco's duplicate-name suffix " (N)" from test page names
+  if (typeof normalized.name === "string") {
+    const nameMatch = normalized.name.match(DUPLICATE_SUFFIX_REGEX);
+    if (nameMatch) {
+      normalized.name = nameMatch[1];
+    }
+  }
+
+  // Strip duplicate suffix from message strings that mention test page names
+  if (typeof normalized.message === "string") {
+    normalized.message = normalized.message.replace(DUPLICATE_SUFFIX_IN_STRING_REGEX, "$1");
+  }
 
   // Normalize mutable property values (objects with alias + editorAlias + value)
   if (isPropertyValueEntry(normalized)) {
