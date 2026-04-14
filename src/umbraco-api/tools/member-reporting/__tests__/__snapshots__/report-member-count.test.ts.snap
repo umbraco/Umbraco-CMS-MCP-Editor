@@ -4,16 +4,7 @@ exports[`report-member-count should return member count breakdown by type and gr
 {
   "content": [],
   "structuredContent": {
-    "byGroup": [
-      {
-        "count": 0,
-        "group": "Delete Rejection Test Group",
-      },
-      {
-        "count": 0,
-        "group": "_Test Create Member Group",
-      },
-    ],
+    "byGroup": [],
     "byType": [],
     "totalMembers": 0,
   },

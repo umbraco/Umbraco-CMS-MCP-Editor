@@ -11,9 +11,15 @@ exports[`list-languages should list all configured languages 1`] = `
         "isoCode": "en-US",
         "name": "English (United States)",
       },
+      {
+        "isDefault": false,
+        "isMandatory": false,
+        "isoCode": "nb-NO",
+        "name": "Norwegian Bokmål",
+      },
     ],
     "nextCursor": undefined,
-    "total": 1,
+    "total": 2,
   },
 }
 `;

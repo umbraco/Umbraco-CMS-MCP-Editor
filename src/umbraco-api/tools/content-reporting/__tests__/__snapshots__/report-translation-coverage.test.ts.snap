@@ -8,6 +8,7 @@ exports[`report-translation-coverage should return translation coverage matrix 1
       {
         "cultures": {
           "en-US": false,
+          "nb-NO": false,
         },
         "id": "00000000-0000-0000-0000-000000000000",
         "name": "Home",
@@ -16,9 +17,10 @@ exports[`report-translation-coverage should return translation coverage matrix 1
       {
         "cultures": {
           "en-US": false,
+          "nb-NO": false,
         },
         "id": "00000000-0000-0000-0000-000000000000",
-        "name": "Bulk Move Test Page",
+        "name": "_Bulk Move Test Page",
         "url": "",
       },
     ],
@@ -27,11 +29,20 @@ exports[`report-translation-coverage should return translation coverage matrix 1
         "isoCode": "en-US",
         "name": "English (United States)",
       },
+      {
+        "isoCode": "nb-NO",
+        "name": "Norwegian Bokmål",
+      },
     ],
     "nextCursor": undefined,
     "scannedPages": 2,
     "summary": {
       "en-US": {
+        "missing": 2,
+        "percentage": 0,
+        "translated": 0,
+      },
+      "nb-NO": {
         "missing": 2,
         "percentage": 0,
         "translated": 0,

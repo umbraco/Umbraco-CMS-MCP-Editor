@@ -4,20 +4,11 @@ exports[`report-stale-content should return stale content items 1`] = `
 {
   "content": [],
   "structuredContent": {
-    "items": [
-      {
-        "daysSinceUpdate": 1,
-        "documentType": "",
-        "id": "00000000-0000-0000-0000-000000000000",
-        "lastModified": "NORMALIZED_DATE",
-        "name": "Bulk Move Test Page",
-        "url": "",
-      },
-    ],
+    "items": [],
     "nextCursor": undefined,
     "scannedPages": 2,
     "threshold": 1,
-    "total": 1,
+    "total": 0,
   },
 }
 `;

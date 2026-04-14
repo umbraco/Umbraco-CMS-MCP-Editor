@@ -12,17 +12,10 @@ exports[`report-orphan-pages should return items array with scannedPages count 1
         "name": "Home",
         "url": "",
       },
-      {
-        "documentType": "",
-        "id": "00000000-0000-0000-0000-000000000000",
-        "inboundReferenceCount": 0,
-        "name": "Bulk Move Test Page",
-        "url": "",
-      },
     ],
     "nextCursor": undefined,
-    "scannedPages": 2,
-    "total": 2,
+    "scannedPages": 1,
+    "total": 1,
   },
 }
 `;

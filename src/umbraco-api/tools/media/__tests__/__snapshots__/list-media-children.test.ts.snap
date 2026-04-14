@@ -707,7 +707,7 @@ exports[`list-media-children should return root-level media items 1`] = `
       },
     ],
     "nextCursor": "eyJzIjoxMDAsInQiOjIwfQ",
-    "total": 1554,
+    "total": 1592,
   },
 }
 `;

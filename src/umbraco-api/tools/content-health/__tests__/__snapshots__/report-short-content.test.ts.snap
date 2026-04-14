@@ -17,7 +17,7 @@ exports[`report-short-content should scan with default threshold 1`] = `
         "documentType": "",
         "id": "00000000-0000-0000-0000-000000000000",
         "lastModified": "NORMALIZED_DATE",
-        "name": "Bulk Move Test Page",
+        "name": "_Bulk Move Test Page",
         "url": "",
         "wordCount": 0,
       },

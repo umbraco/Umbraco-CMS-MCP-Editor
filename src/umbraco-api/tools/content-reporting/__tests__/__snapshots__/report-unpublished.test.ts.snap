@@ -13,18 +13,10 @@ exports[`report-unpublished should return unpublished content items 1`] = `
         "state": "Draft",
         "url": "",
       },
-      {
-        "documentType": "",
-        "id": "00000000-0000-0000-0000-000000000000",
-        "lastModified": "NORMALIZED_DATE",
-        "name": "Bulk Move Test Page",
-        "state": "Draft",
-        "url": "",
-      },
     ],
     "nextCursor": undefined,
-    "scannedPages": 2,
-    "total": 2,
+    "scannedPages": 1,
+    "total": 1,
   },
 }
 `;
