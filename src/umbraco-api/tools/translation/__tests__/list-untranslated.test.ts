@@ -21,10 +21,6 @@ describe("list-untranslated", () => {
   }, 60000);
 
   it("should list pages missing a culture variant", async () => {
-    if (!multiLanguage) {
-      console.warn("Skipping: requires multi-language Umbraco site");
-      return;
-    }
 
     const result = await listUntranslatedTool.handler(
       { culture: secondaryCulture, parentId: undefined },

@@ -51,11 +51,6 @@ describe("update-language", () => {
       extra,
     );
 
-    if (result.isError) {
-      console.warn("Skipping update-language assertions: CMS returned error");
-      return;
-    }
-
     const data = getStructuredContent(result) as any;
     expect(data).toBeDefined();
     expect(data.isoCode).toBe(TEST_LANGUAGE_ISO);

@@ -26,12 +26,8 @@ describe("report-members-by-group", () => {
 
   it("should return members for an existing group", async () => {
     const groupName = await MemberReportingTestHelper.getGroupName(extra);
-    if (!groupName) {
-      console.warn("No member groups found — skipping test");
-      return;
-    }
 
-    const result = await reportMembersByGroupTool.handler({ groupName }, extra);
+    const result = await reportMembersByGroupTool.handler({ groupName: groupName! }, extra);
 
     expect(result.isError).toBeFalsy();
     const data = getStructuredContent(result) as any;

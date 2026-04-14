@@ -39,11 +39,6 @@ describe("unpublish-page", () => {
   it("should unpublish a page", async () => {
     const result = await unpublishPageTool.handler({ id: testPageId }, extra);
 
-    if (result.isError) {
-      console.warn("Skipping unpublish assertions: CMS returned error");
-      return;
-    }
-
     const data = getStructuredContent(result) as any;
     expect(data).toBeDefined();
     expect(data.message).toContain("Unpublished");
@@ -56,11 +51,6 @@ describe("unpublish-page", () => {
       { id: testPageId, includeDescendants: false },
       extra,
     );
-
-    if (result.isError) {
-      console.warn("Skipping re-publish assertions: CMS returned error");
-      return;
-    }
     const data = getStructuredContent(result) as any;
     expect(data.message).toContain("Published");
   }, 30000);

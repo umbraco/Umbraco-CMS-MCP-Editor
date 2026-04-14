@@ -29,10 +29,6 @@ describe("delete-member", () => {
   beforeEach(() => { elicitation.reset(); });
 
   it("should delete a member", async () => {
-    if (!testMemberTypeId) {
-      console.warn("Skipping delete-member test: no member type available");
-      return;
-    }
 
     // Create a member to delete
     const createResult = await createMemberTool.handler(
@@ -41,7 +37,7 @@ describe("delete-member", () => {
         username: "delete-test",
         name: "_Test Delete Member",
         password: TEST_MEMBER_PASSWORD,
-        memberTypeId: testMemberTypeId,
+        memberTypeId: testMemberTypeId!,
         isApproved: true,
         groups: undefined,
         values: undefined,
@@ -62,17 +58,7 @@ describe("delete-member", () => {
       if (searchData?.items?.length > 0) memberId = searchData.items[0].id;
     }
 
-    if (!memberId) {
-      console.warn("Skipping delete test: could not create member");
-      return;
-    }
-
-    const result = await deleteMemberTool.handler({ id: memberId }, extra);
-
-    if (result.isError) {
-      console.warn("Skipping delete assertions: CMS returned error");
-      return;
-    }
+    const result = await deleteMemberTool.handler({ id: memberId! }, extra);
 
     const data = getStructuredContent(result) as any;
     expect(data).toBeDefined();
@@ -87,11 +73,6 @@ describe("delete-member", () => {
     const searchData = getStructuredContent(searchResult) as any;
     if (searchData?.items?.length > 0) {
       targetMemberId = searchData.items[0].id;
-    }
-
-    if (!targetMemberId) {
-      console.warn("Skipping delete rejection test: no members found");
-      return;
     }
 
     elicitation.rejectAll();

@@ -46,11 +46,6 @@ describe("delete-language", () => {
 
     const result = await deleteLanguageTool.handler({ isoCode: TEST_LANGUAGE_ISO }, extra);
 
-    if (result.isError) {
-      console.warn("Skipping delete-language assertions: CMS returned error");
-      return;
-    }
-
     const data = getStructuredContent(result) as any;
     expect(data).toBeDefined();
     expect(data.isoCode).toBe(TEST_LANGUAGE_ISO);

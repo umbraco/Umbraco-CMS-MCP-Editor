@@ -55,11 +55,6 @@ describe("update-dictionary", () => {
       extra,
     );
 
-    if (result.isError) {
-      console.warn("Skipping update-dictionary assertions: CMS returned error");
-      return;
-    }
-
     const data = getStructuredContent(result) as any;
     expect(data.id).toBe(item.getId());
     expect(data.message).toContain("Updated");
@@ -71,10 +66,6 @@ describe("update-dictionary", () => {
   }, 30000);
 
   it("should cancel update when elicitation is rejected", async () => {
-    if (!existingItemId) {
-      console.warn("Skipping update elicitation test: no existing dictionary items");
-      return;
-    }
 
     elicitation.rejectAll();
     await expectElicitationCancel(() =>

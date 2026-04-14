@@ -20,12 +20,8 @@ describe("get-redirect", () => {
   }, 60000);
 
   it("should get redirect details when one exists", async () => {
-    if (!firstRedirectId) {
-      console.warn("No redirects found — skipping get-redirect detail assertions");
-      return;
-    }
 
-    const result = await getRedirectTool.handler({ id: firstRedirectId }, extra);
+    const result = await getRedirectTool.handler({ id: firstRedirectId! }, extra);
 
     expect(result.isError).toBeFalsy();
     const data = getStructuredContent(result) as any;

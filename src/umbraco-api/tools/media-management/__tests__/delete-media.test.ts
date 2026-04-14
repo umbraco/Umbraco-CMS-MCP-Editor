@@ -37,11 +37,6 @@ describe("delete-media", () => {
 
     const result = await deleteMediaTool.handler({ id: folder.getId() }, extra);
 
-    if (result.isError) {
-      console.warn("Skipping delete-media assertions: CMS returned error");
-      return;
-    }
-
     const data = getStructuredContent(result) as any;
     expect(data).toBeDefined();
     expect(data.message).toContain("recycle bin");

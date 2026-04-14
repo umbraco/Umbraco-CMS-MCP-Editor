@@ -32,20 +32,12 @@ describe("copy-variant", () => {
   beforeEach(() => { elicitation.reset(); });
 
   it("should copy content from default to secondary culture", async () => {
-    if (!multiLanguage || !testPageId) {
-      console.warn("Skipping: requires multi-language site and test page");
-      return;
-    }
+    if (!multiLanguage || !testPageId) {    }
 
     const result = await copyVariantTool.handler(
-      { id: testPageId, sourceCulture: defaultCulture, targetCulture: secondaryCulture },
+      { id: testPageId!, sourceCulture: defaultCulture, targetCulture: secondaryCulture },
       extra,
     );
-
-    if (result.isError) {
-      console.warn("Skipping copy-variant assertions: CMS returned error");
-      return;
-    }
 
     const data = getStructuredContent(result) as any;
     expect(data).toBeDefined();
@@ -57,10 +49,7 @@ describe("copy-variant", () => {
   }, 30000);
 
   it("should cancel copy-variant when elicitation is rejected", async () => {
-    if (!multiLanguage || !testPageId) {
-      console.warn("Skipping: requires multi-language site and test page");
-      return;
-    }
+    if (!multiLanguage || !testPageId) {    }
 
     elicitation.rejectAll();
     await expectElicitationCancel(() =>

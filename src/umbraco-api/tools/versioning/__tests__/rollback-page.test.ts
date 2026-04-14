@@ -30,21 +30,13 @@ describe("rollback-page", () => {
     const versionsResult = await listVersionsTool.handler({ id: testPageId }, extra);
     const versionsData = getStructuredContent(versionsResult) as any;
 
-    if (!versionsData?.versions?.length || versionsData.versions.length < 2) {
-      console.warn("Skipping rollback test: fewer than 2 versions available");
-      return;
-    }
+    if (!versionsData?.versions?.length || versionsData.versions.length < 2) {    }
 
     const targetVersion = versionsData.versions[1];
     const result = await rollbackPageTool.handler(
       { id: testPageId, versionId: targetVersion.versionId, culture: undefined },
       extra,
     );
-
-    if (result.isError) {
-      console.warn("Skipping rollback assertions: CMS returned error");
-      return;
-    }
 
     const data = getStructuredContent(result) as any;
     expect(data).toBeDefined();
@@ -56,11 +48,6 @@ describe("rollback-page", () => {
   it("should cancel rollback when elicitation is rejected", async () => {
     const versionsResult = await listVersionsTool.handler({ id: testPageId }, extra);
     const versionsData = getStructuredContent(versionsResult) as any;
-
-    if (!versionsData?.versions?.length) {
-      console.warn("Skipping elicitation rejection test: no versions available");
-      return;
-    }
 
     elicitation.rejectAll();
 

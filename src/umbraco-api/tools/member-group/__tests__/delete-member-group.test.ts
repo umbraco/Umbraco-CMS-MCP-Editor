@@ -37,11 +37,6 @@ describe("delete-member-group", () => {
 
     const result = await deleteMemberGroupTool.handler({ id: group.getId() }, extra);
 
-    if (result.isError) {
-      console.warn("Skipping delete assertions: CMS returned error");
-      return;
-    }
-
     const data = getStructuredContent(result) as any;
     expect(data).toBeDefined();
     expect(data.message).toContain("Deleted");
@@ -62,11 +57,6 @@ describe("delete-member-group", () => {
         .create();
       targetGroupId = group.getId();
       elicitation.reset();
-    }
-
-    if (!targetGroupId) {
-      console.warn("Skipping delete rejection test: no group available");
-      return;
     }
 
     elicitation.rejectAll();

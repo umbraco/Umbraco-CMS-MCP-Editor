@@ -32,11 +32,6 @@ describe("publish-page", () => {
       extra,
     );
 
-    if (result.isError) {
-      console.warn("Skipping publish assertions: CMS returned error");
-      return;
-    }
-
     const data = getStructuredContent(result) as any;
     expect(data).toBeDefined();
     expect(data.message).toContain("Published");

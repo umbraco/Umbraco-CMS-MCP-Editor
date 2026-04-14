@@ -43,11 +43,6 @@ describe("restore-media", () => {
     // Restore it
     const result = await restoreMediaTool.handler({ id: folder.getId() }, extra);
 
-    if (result.isError) {
-      console.warn("Skipping restore-media assertions: CMS returned error");
-      return;
-    }
-
     const data = getStructuredContent(result) as any;
     expect(data).toBeDefined();
     expect(data.message).toContain("Restored");

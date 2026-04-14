@@ -35,11 +35,6 @@ describe("create-media-folder", () => {
       extra,
     );
 
-    if (result.isError) {
-      console.warn("Skipping create-media-folder assertions: CMS returned error");
-      return;
-    }
-
     const data = getStructuredContent(result) as any;
     expect(data).toBeDefined();
     expect(data.message).toContain("Created");

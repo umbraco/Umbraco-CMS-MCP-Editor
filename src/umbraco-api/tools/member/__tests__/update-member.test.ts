@@ -71,14 +71,10 @@ describe("update-member", () => {
   beforeEach(() => { elicitation.reset(); });
 
   it("should update a member", async () => {
-    if (!memberId) {
-      console.warn("Skipping update-member test: no member available");
-      return;
-    }
 
     const result = await updateMemberTool.handler(
       {
-        id: memberId,
+        id: memberId!,
         name: TEST_MEMBER_UPDATED_NAME,
         email: undefined,
         isApproved: undefined,
@@ -89,11 +85,6 @@ describe("update-member", () => {
       extra,
     );
 
-    if (result.isError) {
-      console.warn("Skipping update-member assertions: CMS returned error");
-      return;
-    }
-
     const data = getStructuredContent(result) as any;
     expect(data).toBeDefined();
     expect(data.message).toContain("Updated");
@@ -101,10 +92,6 @@ describe("update-member", () => {
   }, 30000);
 
   it("should cancel update when elicitation is rejected", async () => {
-    if (!memberId) {
-      console.warn("Skipping update rejection test: no member available");
-      return;
-    }
 
     elicitation.rejectAll();
     await expectElicitationCancel(() =>

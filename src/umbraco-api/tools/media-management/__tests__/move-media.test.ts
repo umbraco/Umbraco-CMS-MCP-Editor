@@ -47,11 +47,6 @@ describe("move-media", () => {
       extra,
     );
 
-    if (result.isError) {
-      console.warn("Skipping move-media assertions: CMS returned error");
-      return;
-    }
-
     const data = getStructuredContent(result) as any;
     expect(data).toBeDefined();
     expect(data.message).toContain("Moved");

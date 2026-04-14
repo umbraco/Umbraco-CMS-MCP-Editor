@@ -34,15 +34,11 @@ describe("bulk-move", () => {
   });
 
   it("should reject move when elicitation is rejected (with real pages)", async () => {
-    if (!secondRootPageId) {
-      console.warn("Skipping bulk-move live test: only one root page available");
-      return;
-    }
 
     elicitation.rejectAll();
 
     const result = await bulkMoveTool.handler(
-      { ids: [firstRootPageId], targetParentId: secondRootPageId },
+      { ids: [firstRootPageId], targetParentId: secondRootPageId! },
       extra,
     );
 

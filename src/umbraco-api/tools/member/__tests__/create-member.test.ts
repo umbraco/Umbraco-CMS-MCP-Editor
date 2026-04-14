@@ -43,10 +43,6 @@ describe("create-member", () => {
   beforeEach(() => { elicitation.reset(); });
 
   it("should create a new member", async () => {
-    if (!testMemberTypeId) {
-      console.warn("Skipping create-member test: no member type available");
-      return;
-    }
 
     const result = await createMemberTool.handler(
       {
@@ -54,7 +50,7 @@ describe("create-member", () => {
         username: TEST_MEMBER_USERNAME,
         name: TEST_MEMBER_NAME,
         password: TEST_MEMBER_PASSWORD,
-        memberTypeId: testMemberTypeId,
+        memberTypeId: testMemberTypeId!,
         isApproved: true,
         groups: undefined,
         values: undefined,

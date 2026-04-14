@@ -30,23 +30,17 @@ describe("create-variant", () => {
   beforeEach(() => { elicitation.reset(); });
 
   it("should create a language variant for a page", async () => {
-    if (!multiLanguage || !testPageId) {
-      console.warn("Skipping: requires multi-language site and test page");
-      return;
-    }
+    if (!multiLanguage || !testPageId) {    }
 
     const result = await createVariantTool.handler(
-      { id: testPageId, culture: secondaryCulture, values: undefined },
+      { id: testPageId!, culture: secondaryCulture, values: undefined },
       extra,
     );
 
     if (result.isError) {
       const errData = getStructuredContent(result) as any;
       const errText = typeof errData === "string" ? errData : JSON.stringify(errData);
-      if (errText.includes("already exists")) {
-        console.warn("Skipping: variant already exists on test page");
-        return;
-      }
+      if (errText.includes("already exists")) {      }
     }
 
     expect(result.isError).toBeFalsy();
@@ -58,10 +52,7 @@ describe("create-variant", () => {
   }, 30000);
 
   it("should cancel create-variant when elicitation is rejected", async () => {
-    if (!multiLanguage || !testPageId) {
-      console.warn("Skipping: requires multi-language site and test page");
-      return;
-    }
+    if (!multiLanguage || !testPageId) {    }
 
     elicitation.rejectAll();
     await expectElicitationCancel(() =>

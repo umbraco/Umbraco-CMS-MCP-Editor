@@ -25,12 +25,7 @@ describe("get-member", () => {
       }
     }
 
-    if (!memberId) {
-      console.warn("Skipping get-member test: no members found via search");
-      return;
-    }
-
-    const result = await getMemberTool.handler({ id: memberId }, extra);
+    const result = await getMemberTool.handler({ id: memberId! }, extra);
 
     expect(result.isError).toBeFalsy();
     const data = getStructuredContent(result) as any;

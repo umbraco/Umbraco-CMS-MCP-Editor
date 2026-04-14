@@ -57,10 +57,6 @@ describe("move-dictionary", () => {
   }, 30000);
 
   it("should cancel move when elicitation is rejected", async () => {
-    if (!existingItemId) {
-      console.warn("Skipping move elicitation test: no existing dictionary items");
-      return;
-    }
 
     elicitation.rejectAll();
     await expectElicitationCancel(() =>

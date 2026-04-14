@@ -63,18 +63,10 @@ describe("bulk-set-block-property", () => {
     );
     const inspectData = getStructuredContent(inspectResult) as any;
 
-    if (!inspectData?.blockProperties?.length || !inspectData.blockProperties[0]?.blocks?.length) {
-      console.warn("Skipping bulk-set-block-property test: no blocks found on first root page");
-      return;
-    }
+    if (!inspectData?.blockProperties?.length || !inspectData.blockProperties[0]?.blocks?.length) {    }
 
     const firstBlockProp = inspectData.blockProperties[0];
     const firstBlock = firstBlockProp.blocks[0];
-
-    if (!firstBlock.properties?.length) {
-      console.warn("Skipping bulk-set-block-property test: block has no properties");
-      return;
-    }
 
     const targetPropAlias = firstBlock.properties[0].alias;
     const originalValue = firstBlock.properties[0].value;
