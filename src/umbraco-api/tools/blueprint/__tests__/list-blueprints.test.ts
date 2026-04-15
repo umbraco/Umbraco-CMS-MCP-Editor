@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from "@jest/glob
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
-  createSnapshotResult,
+  getStructuredContent,
   initBlueprintTestState,
   BlueprintBuilder,
   BlueprintTestHelper,
@@ -27,7 +27,7 @@ describe("list-blueprints", () => {
     await BlueprintTestHelper.cleanup(TEST_BLUEPRINT_NAME);
   }, 30000);
 
-  it("should list root-level blueprints", async () => {
+  it("should list blueprints including the created one", async () => {
     await new BlueprintBuilder()
       .withName(TEST_BLUEPRINT_NAME)
       .withSourcePage(testPageId)
@@ -39,7 +39,15 @@ describe("list-blueprints", () => {
     );
 
     expect(result.isError).toBeFalsy();
-    expect(createSnapshotResult(result)).toMatchSnapshot();
+    const data = getStructuredContent(result) as any;
+    expect(data).toBeDefined();
+    expect(data.items).toBeInstanceOf(Array);
+    expect(data.total).toBeGreaterThan(0);
+
+    // Verify our created blueprint appears
+    const found = data.items.find((item: any) => item.name === TEST_BLUEPRINT_NAME);
+    expect(found).toBeDefined();
+    expect(found.id).toBeDefined();
   }, 30000);
 
   it("should return items with expected shape", async () => {
@@ -49,7 +57,7 @@ describe("list-blueprints", () => {
     );
 
     expect(result.isError).toBeFalsy();
-    const data = result.structuredContent as any;
+    const data = getStructuredContent(result) as any;
     expect(data).toBeDefined();
     expect(data.items).toBeInstanceOf(Array);
     expect(data.total).toEqual(expect.any(Number));

@@ -11,8 +11,8 @@ export { MemberReportingGroupBuilder } from "./helpers/member-reporting-builder.
 
 import { getStructuredContent } from "@umbraco-cms/mcp-server-sdk/testing";
 import reportMemberCountTool from "../get/report-member-count.js";
-import listMemberGroupsTool from "../../member-group/get/list-member-groups.js";
-import createMemberGroupTool from "../../member-group/post/create-member-group.js";
+import { MemberGroupBuilder } from "../../member-group/__tests__/helpers/member-group-builder.js";
+import { MemberGroupTestHelper } from "../../member-group/__tests__/helpers/member-group-test-helper.js";
 
 const TEST_REPORTING_GROUP_NAME = "_Test Reporting Group";
 
@@ -31,25 +31,13 @@ export async function initMemberReportingTestState(
 
   let createdGroupId: string | null = null;
 
-  // Ensure at least one member group exists
-  try {
-    const groupsResult = await listMemberGroupsTool.handler({}, extra);
-    const groupsData = getStructuredContent(groupsResult) as any;
-    if (!groupsData?.items?.length) {
-      console.warn("No member groups exist — creating one for reporting tests");
-      const createResult = await createMemberGroupTool.handler(
-        { name: TEST_REPORTING_GROUP_NAME },
-        extra,
-      );
-      if (!createResult.isError) {
-        const createData = getStructuredContent(createResult) as any;
-        if (createData?.id) {
-          createdGroupId = createData.id;
-        }
-      }
-    }
-  } catch {
-    // Group creation is best-effort test data setup
+  // Ensure at least one member group exists — create via CMS directly (no elicitation)
+  const groups = await MemberGroupTestHelper.listGroups();
+  if (!groups.length) {
+    const group = await new MemberGroupBuilder()
+      .withName(TEST_REPORTING_GROUP_NAME)
+      .create();
+    createdGroupId = group.getId();
   }
 
   cachedState = { createdGroupId };
