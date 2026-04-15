@@ -59,17 +59,18 @@ describe("create-member", () => {
     );
 
     if (result.isError) {
-      // Member may already exist — search for it
+      // Member may already exist — search for it as fallback
       await new Promise(r => setTimeout(r, 2000));
       const searchResult = await searchMembersTool.handler({ query: TEST_MEMBER_USERNAME }, extra);
       const searchData = getStructuredContent(searchResult) as any;
       if (searchData?.items?.length > 0) {
         createdMemberId = searchData.items[0].id;
-        console.warn(`Found existing member ${createdMemberId}`);
+        // Verify the existing member has the expected shape
+        const existingResult = await getMemberTool.handler({ id: createdMemberId! }, extra);
+        expect(existingResult.isError).toBeFalsy();
         return;
       }
-      console.warn("Could not find or create member");
-      return;
+      throw new Error("create-member failed and no existing member found to fall back on");
     }
 
     const data = getStructuredContent(result) as any;

@@ -46,14 +46,15 @@ describe("create-language", () => {
     );
 
     if (result.isError) {
-      // Language may already exist — verify it does
+      // Language may already exist despite cleanup — verify it does
       const existingResult = await getLanguageTool.handler({ isoCode: TEST_LANGUAGE_ISO }, extra);
       if (!existingResult.isError) {
-        console.warn(`Language ${TEST_LANGUAGE_ISO} already exists — test passes`);
+        // Language exists — assert it has the expected shape
+        const existingData = getStructuredContent(existingResult) as any;
+        expect(existingData.isoCode).toBe(TEST_LANGUAGE_ISO);
         return;
       }
-      console.warn("create-language failed and language does not exist");
-      return;
+      throw new Error(`create-language failed and language ${TEST_LANGUAGE_ISO} does not exist`);
     }
 
     const data = getStructuredContent(result) as any;
