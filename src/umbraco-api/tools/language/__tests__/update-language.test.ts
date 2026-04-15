@@ -47,10 +47,11 @@ describe("update-language", () => {
       .create();
 
     const result = await updateLanguageTool.handler(
-      { isoCode: TEST_LANGUAGE_ISO, isMandatory: false, isDefault: undefined, fallbackIsoCode: undefined },
+      { isoCode: TEST_LANGUAGE_ISO, isMandatory: false, isDefault: false, fallbackIsoCode: undefined },
       extra,
     );
 
+    expect(result.isError).toBeFalsy();
     const data = getStructuredContent(result) as any;
     expect(data).toBeDefined();
     expect(data.isoCode).toBe(TEST_LANGUAGE_ISO);

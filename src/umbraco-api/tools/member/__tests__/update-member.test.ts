@@ -6,16 +6,11 @@ import {
   initMemberTestState,
   createElicitation,
   expectElicitationCancel,
-  TEST_MEMBER_EMAIL,
-  TEST_MEMBER_USERNAME,
-  TEST_MEMBER_NAME,
-  TEST_MEMBER_PASSWORD,
   TEST_MEMBER_UPDATED_NAME,
 } from "./setup.js";
-import createMemberTool from "../post/create-member.js";
+import { MemberBuilder } from "./helpers/member-builder.js";
+import { MemberTestHelper } from "./helpers/member-test-helper.js";
 import updateMemberTool from "../put/update-member.js";
-import deleteMemberTool from "../delete/delete-member.js";
-import searchMembersTool from "../get/search-members.js";
 
 const elicitation = createElicitation();
 
@@ -23,58 +18,32 @@ describe("update-member", () => {
   setupTestEnvironment();
 
   const extra = createMockRequestHandlerExtra();
-  let testMemberTypeId: string | undefined;
-  let memberId: string | undefined;
+  let memberId: string;
 
   beforeAll(async () => {
     const state = await initMemberTestState(extra);
-    testMemberTypeId = state.testMemberTypeId;
+    expect(state.testMemberTypeId).toBeDefined();
 
-    // Create or find a member to update
-    if (testMemberTypeId) {
-      const createResult = await createMemberTool.handler(
-        {
-          email: "update-test@example.com",
-          username: "update-test",
-          name: "_Test Update Member",
-          password: TEST_MEMBER_PASSWORD,
-          memberTypeId: testMemberTypeId,
-          isApproved: true,
-          groups: undefined,
-          values: undefined,
-        },
-        extra,
-      );
-      if (!createResult.isError) {
-        const data = getStructuredContent(createResult) as any;
-        memberId = data?.id;
-      }
-      if (!memberId) {
-        await new Promise(r => setTimeout(r, 2000));
-        const searchResult = await searchMembersTool.handler({ query: "update-test" }, extra);
-        const searchData = getStructuredContent(searchResult) as any;
-        if (searchData?.items?.length > 0) memberId = searchData.items[0].id;
-      }
-    }
+    const member = await new MemberBuilder()
+      .withEmail("update-test@example.com")
+      .withUsername("update-test")
+      .withName("_Test Update Member")
+      .withMemberType(state.testMemberTypeId!)
+      .create();
+    memberId = member.getId();
   }, 60000);
 
   afterAll(async () => {
-    if (memberId) {
-      try {
-        elicitation.reset();
-        await deleteMemberTool.handler({ id: memberId }, extra);
-      } catch { /* best-effort */ }
-    }
+    if (memberId) await MemberTestHelper.cleanup(memberId);
     elicitation.cleanup();
   }, 30000);
 
   beforeEach(() => { elicitation.reset(); });
 
   it("should update a member", async () => {
-
     const result = await updateMemberTool.handler(
       {
-        id: memberId!,
+        id: memberId,
         name: TEST_MEMBER_UPDATED_NAME,
         email: undefined,
         isApproved: undefined,
@@ -85,6 +54,7 @@ describe("update-member", () => {
       extra,
     );
 
+    expect(result.isError).toBeFalsy();
     const data = getStructuredContent(result) as any;
     expect(data).toBeDefined();
     expect(data.message).toContain("Updated");
@@ -92,12 +62,11 @@ describe("update-member", () => {
   }, 30000);
 
   it("should cancel update when elicitation is rejected", async () => {
-
     elicitation.rejectAll();
     await expectElicitationCancel(() =>
       updateMemberTool.handler(
         {
-          id: memberId!,
+          id: memberId,
           name: "Should Not Change",
           email: undefined,
           isApproved: undefined,

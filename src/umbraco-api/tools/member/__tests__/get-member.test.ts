@@ -1,31 +1,40 @@
-import { describe, it, expect } from "@jest/globals";
+import { describe, it, expect, beforeAll, afterAll } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
+  initMemberTestState,
   NON_EXISTENT_UUID,
 } from "./setup.js";
+import { MemberBuilder } from "./helpers/member-builder.js";
+import { MemberTestHelper } from "./helpers/member-test-helper.js";
 import getMemberTool from "../get/get-member.js";
-import searchMembersTool from "../get/search-members.js";
 
 describe("get-member", () => {
   setupTestEnvironment();
 
   const extra = createMockRequestHandlerExtra();
+  let memberId: string;
+
+  beforeAll(async () => {
+    const state = await initMemberTestState(extra);
+    expect(state.testMemberTypeId).toBeDefined();
+
+    const member = await new MemberBuilder()
+      .withEmail("get-test@example.com")
+      .withUsername("get-test")
+      .withName("_Test Get Member")
+      .withMemberType(state.testMemberTypeId!)
+      .create();
+    memberId = member.getId();
+  }, 60000);
+
+  afterAll(async () => {
+    if (memberId) await MemberTestHelper.cleanup(memberId);
+  }, 30000);
 
   it("should get a member by ID with full profile", async () => {
-    // Find an existing member
-    let memberId: string | undefined;
-    for (const query of ["test", "admin", "a"]) {
-      const searchResult = await searchMembersTool.handler({ query }, extra);
-      const data = getStructuredContent(searchResult) as any;
-      if (data?.items?.length > 0) {
-        memberId = data.items[0].id;
-        break;
-      }
-    }
-
-    const result = await getMemberTool.handler({ id: memberId! }, extra);
+    const result = await getMemberTool.handler({ id: memberId }, extra);
 
     expect(result.isError).toBeFalsy();
     const data = getStructuredContent(result) as any;

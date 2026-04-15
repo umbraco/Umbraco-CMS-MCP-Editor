@@ -35,7 +35,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     }
 
     // Step 3: Perform update
-    const result = await mcpClientManager.callTool("cms", "update-language", { isoCode, data: { isDefault, isMandatory, fallbackIsoCode } });
+    const result = await mcpClientManager.callTool("cms", "update-language", { isoCode, data: { name, isDefault, isMandatory, fallbackIsoCode } });
     if (result.isError) return createToolResultError(result);
 
     return createToolResult({

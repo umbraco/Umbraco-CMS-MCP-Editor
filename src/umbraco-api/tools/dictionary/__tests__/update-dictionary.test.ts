@@ -55,6 +55,7 @@ describe("update-dictionary", () => {
       extra,
     );
 
+    expect(result.isError).toBeFalsy();
     const data = getStructuredContent(result) as any;
     expect(data.id).toBe(item.getId());
     expect(data.message).toContain("Updated");
