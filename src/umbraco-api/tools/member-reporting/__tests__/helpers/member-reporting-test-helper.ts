@@ -25,7 +25,7 @@ export class MemberReportingTestHelper {
       return { createdGroupId: null };
     }
 
-    console.warn("No member groups exist — creating one for reporting tests");
+    // No groups exist — create one for testing
     const createResult = await createMemberGroupTool.handler(
       { name: "_Test Reporting Group" },
       extra,

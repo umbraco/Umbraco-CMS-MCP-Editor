@@ -53,7 +53,6 @@ async function getCmsToolMap(): Promise<Map<string, any>> {
   }
 
   (process as any).__cmsToolMap = toolMap;
-  process.stderr.write(`[in-process-cms] Built tool map with ${toolMap.size} tools\n`);
   return toolMap;
 }
 

@@ -24,12 +24,14 @@ export class LanguageTestHelper {
     }
   }
 
-  /** Delete a language by ISO code (best-effort) */
+  /** Delete a language by ISO code (only if it exists) */
   static async cleanup(isoCode: string): Promise<void> {
+    const exists = await this.languageExists(isoCode);
+    if (!exists) return;
     try {
       await mcpClientManager.callTool("cms", "delete-language", { isoCode });
     } catch {
-      // Language may not exist — that's fine
+      // Best-effort
     }
   }
 }
