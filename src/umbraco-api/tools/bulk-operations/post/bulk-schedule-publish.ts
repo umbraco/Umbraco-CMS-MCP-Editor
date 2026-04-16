@@ -71,7 +71,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const results = await executeBulkSequentially(items, async (item) => {
       const result = await mcpClientManager.callTool("cms", "publish-document", {
         id: item.id,
-        data: { publishSchedules: [{ culture: null, schedule: publishDate }] },
+        data: { publishSchedules: [{ culture: null, schedule: { publishTime: publishDate } }] },
       });
       if (result.isError) {
         return extractChainedResult(result)?.detail ?? "Schedule publish failed";

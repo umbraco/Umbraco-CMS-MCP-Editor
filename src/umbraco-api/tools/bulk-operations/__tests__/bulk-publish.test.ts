@@ -3,11 +3,12 @@ import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
-  createSnapshotResult,
   initBulkOperationsTestState,
   createElicitation,
   expectElicitationCancel,
+  BulkOperationsTestHelper,
 } from "./setup.js";
+import { ContentBuilder } from "../../content/__tests__/helpers/content-builder.js";
 import bulkPublishTool from "../post/bulk-publish.js";
 
 const elicitation = createElicitation();
@@ -17,15 +18,23 @@ describe("bulk-publish", () => {
 
   const extra = createMockRequestHandlerExtra();
   let firstRootPageId: string;
+  let blogPageId: string;
+  let articleDocTypeId: string;
+  const createdIds: string[] = [];
 
   beforeAll(async () => {
     const state = await initBulkOperationsTestState(extra);
     firstRootPageId = state.firstRootPageId;
+    blogPageId = state.blogPageId;
+    articleDocTypeId = state.articleDocTypeId;
   }, 60000);
 
   afterAll(async () => {
+    for (const id of createdIds.reverse()) {
+      await BulkOperationsTestHelper.deletePage(id);
+    }
     elicitation.cleanup();
-  });
+  }, 60000);
 
   beforeEach(() => {
     elicitation.reset();
@@ -62,15 +71,31 @@ describe("bulk-publish", () => {
     expect(errorCaught).toBe(true);
   }, 10000);
 
-  it("should publish a single page and return results with success and previousVersionId", async () => {
+  it("should bulk publish multiple pages", async () => {
+    const article1 = await new ContentBuilder()
+      .withName("_Test Bulk Publish 1")
+      .withDocumentType(articleDocTypeId)
+      .withParent(blogPageId)
+      .create();
+    createdIds.push(article1.getId());
+
+    const article2 = await new ContentBuilder()
+      .withName("_Test Bulk Publish 2")
+      .withDocumentType(articleDocTypeId)
+      .withParent(blogPageId)
+      .create();
+    createdIds.push(article2.getId());
+
     const result = await bulkPublishTool.handler(
-      { ids: [firstRootPageId], includeDescendants: false },
+      { ids: [article1.getId(), article2.getId()], includeDescendants: false },
       extra,
     );
 
     expect(result.isError).toBeFalsy();
-    expect(createSnapshotResult(result, firstRootPageId)).toMatchSnapshot();
-  }, 30000);
+    const data = getStructuredContent(result) as any;
+    expect(data.successCount).toBe(2);
+    expect(data.failureCount).toBe(0);
+  }, 60000);
 
   it("should cancel when elicitation is rejected", async () => {
     elicitation.rejectAll();

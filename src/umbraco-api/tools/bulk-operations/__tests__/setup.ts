@@ -23,7 +23,9 @@ export { setupEditorElicitation } from "../../../../testing/setup-elicitation.js
 export { expectElicitationCancel } from "../../../../testing/elicitation-helpers.js";
 
 import { getStructuredContent } from "@umbraco-cms/mcp-server-sdk/testing";
+import { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
+import { mcpClientManager } from "../../../mcp-client.js";
 import listChildrenTool from "../../content/get/list-children.js";
 
 export const FAKE_UUID = "00000000-0000-0000-0000-000000000001";
@@ -36,8 +38,12 @@ interface BulkOperationsTestState {
   firstRootPageId: string;
   /** Second root page ID — used as move target */
   secondRootPageId: string | undefined;
-  /** If we created the second page, its ID for cleanup */
-  createdSecondRootPageId: string | undefined;
+  /** Blog page ID */
+  blogPageId: string;
+  /** Blog document type ID (for creating blog containers) */
+  blogDocTypeId: string;
+  /** Article document type ID (for creating articles under blogs) */
+  articleDocTypeId: string;
 }
 
 let cachedState: BulkOperationsTestState | null = null;
@@ -46,7 +52,7 @@ let cachedState: BulkOperationsTestState | null = null;
  * Initialise and cache shared bulk operations test state.
  *
  * - Finds root pages for bulk operations
- * - Creates a second root page if only one exists (for bulk-move)
+ * - Discovers Blog page, blog doc type, and article doc type from starter kit
  * - Caches the result so multiple test suites share the same lookup
  */
 export async function initBulkOperationsTestState(
@@ -71,7 +77,33 @@ export async function initBulkOperationsTestState(
     ? browseData.items[1].id
     : undefined;
 
-  const state: BulkOperationsTestState = { firstRootPageId, secondRootPageId, createdSecondRootPageId: undefined };
+  // Find Blog page under the first root page
+  const children = getStructuredContent(
+    await listChildrenTool.handler({ parentId: firstRootPageId }, extra),
+  ) as any;
+  const blogItem = children.items?.find((i: any) => i.name === "Blog");
+  if (!blogItem) throw new Error("No Blog page found in starter kit");
+
+  const blogDoc = extractChainedResult(
+    await mcpClientManager.callTool("cms", "get-document-by-id", { id: blogItem.id }),
+  );
+
+  // Get article doc type from first blog child
+  const blogChildren = getStructuredContent(
+    await listChildrenTool.handler({ parentId: blogItem.id }, extra),
+  ) as any;
+  if (!blogChildren.items?.length) throw new Error("No articles found under Blog");
+  const articleDoc = extractChainedResult(
+    await mcpClientManager.callTool("cms", "get-document-by-id", { id: blogChildren.items[0].id }),
+  );
+
+  const state: BulkOperationsTestState = {
+    firstRootPageId,
+    secondRootPageId,
+    blogPageId: blogItem.id,
+    blogDocTypeId: blogDoc.documentType.id,
+    articleDocTypeId: articleDoc.documentType.id,
+  };
   cachedState = state;
   return state;
 }

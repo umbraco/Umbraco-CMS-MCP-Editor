@@ -3,12 +3,12 @@ import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
-  createSnapshotResult,
   initBulkOperationsTestState,
   createElicitation,
   expectElicitationCancel,
   FUTURE_DATE,
 } from "./setup.js";
+import listChildrenTool from "../../content/get/list-children.js";
 import bulkSchedulePublishTool from "../post/bulk-schedule-publish.js";
 
 const elicitation = createElicitation();
@@ -18,10 +18,12 @@ describe("bulk-schedule-publish", () => {
 
   const extra = createMockRequestHandlerExtra();
   let firstRootPageId: string;
+  let blogPageId: string;
 
   beforeAll(async () => {
     const state = await initBulkOperationsTestState(extra);
     firstRootPageId = state.firstRootPageId;
+    blogPageId = state.blogPageId;
   }, 60000);
 
   afterAll(async () => {
@@ -32,20 +34,26 @@ describe("bulk-schedule-publish", () => {
     elicitation.reset();
   });
 
-  it("should schedule a page to publish at a future date", async () => {
+  it("should bulk schedule multiple pages to publish at a future date", async () => {
+    // Use existing blog articles (already published with valid content)
+    const blogChildren = getStructuredContent(
+      await listChildrenTool.handler({ parentId: blogPageId }, extra),
+    ) as any;
+    if (blogChildren.items?.length < 2) throw new Error("Need at least 2 blog articles");
+    const articleIds = blogChildren.items.slice(0, 2).map((i: any) => i.id);
+
     const result = await bulkSchedulePublishTool.handler(
-      { ids: [firstRootPageId], publishDate: FUTURE_DATE },
+      { ids: articleIds, publishDate: FUTURE_DATE },
       extra,
     );
 
     expect(result.isError).toBeFalsy();
     const data = getStructuredContent(result) as any;
-    expect(data).toBeDefined();
     expect(data.results).toBeInstanceOf(Array);
-    expect(data.results.length).toBe(1);
-    expect(data.results[0]).toHaveProperty("success");
-    expect(data.results[0]).toHaveProperty("id");
-  }, 30000);
+    expect(data.results.length).toBe(2);
+    expect(data.successCount).toBe(2);
+    expect(data.failureCount).toBe(0);
+  }, 60000);
 
   it("should cancel when elicitation is rejected", async () => {
     elicitation.rejectAll();

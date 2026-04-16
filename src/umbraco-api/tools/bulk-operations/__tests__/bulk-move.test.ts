@@ -3,7 +3,6 @@ import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
-  extractChainedResult,
   initBulkOperationsTestState,
   createElicitation,
   expectElicitationCancel,
@@ -11,8 +10,6 @@ import {
   FAKE_TARGET_UUID,
 } from "./setup.js";
 import { ContentBuilder } from "../../content/__tests__/helpers/content-builder.js";
-import { mcpClientManager } from "../../../mcp-client.js";
-import listChildrenTool from "../../content/get/list-children.js";
 import bulkMoveTool from "../post/bulk-move.js";
 
 const elicitation = createElicitation();
@@ -32,29 +29,9 @@ describe("bulk-move", () => {
     const state = await initBulkOperationsTestState(extra);
     firstRootPageId = state.firstRootPageId;
     secondRootPageId = state.secondRootPageId;
-
-    // Find the Blog page and its doc type + article doc type
-    const children = getStructuredContent(
-      await listChildrenTool.handler({ parentId: firstRootPageId }, extra),
-    ) as any;
-    const blogItem = children.items?.find((i: any) => i.name === "Blog");
-    if (!blogItem) throw new Error("No Blog page found in starter kit");
-    blogPageId = blogItem.id;
-
-    const blogDoc = extractChainedResult(
-      await mcpClientManager.callTool("cms", "get-document-by-id", { id: blogPageId }),
-    );
-    blogDocTypeId = blogDoc.documentType.id;
-
-    // Get article doc type from first blog child
-    const blogChildren = getStructuredContent(
-      await listChildrenTool.handler({ parentId: blogPageId }, extra),
-    ) as any;
-    if (!blogChildren.items?.length) throw new Error("No articles found under Blog");
-    const articleDoc = extractChainedResult(
-      await mcpClientManager.callTool("cms", "get-document-by-id", { id: blogChildren.items[0].id }),
-    );
-    articleDocTypeId = articleDoc.documentType.id;
+    blogPageId = state.blogPageId;
+    blogDocTypeId = state.blogDocTypeId;
+    articleDocTypeId = state.articleDocTypeId;
   }, 60000);
 
   afterAll(async () => {
