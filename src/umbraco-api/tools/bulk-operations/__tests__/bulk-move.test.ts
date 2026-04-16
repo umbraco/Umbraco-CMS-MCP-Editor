@@ -3,11 +3,16 @@ import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
+  extractChainedResult,
   initBulkOperationsTestState,
   createElicitation,
   expectElicitationCancel,
+  BulkOperationsTestHelper,
   FAKE_TARGET_UUID,
 } from "./setup.js";
+import { ContentBuilder } from "../../content/__tests__/helpers/content-builder.js";
+import { mcpClientManager } from "../../../mcp-client.js";
+import listChildrenTool from "../../content/get/list-children.js";
 import bulkMoveTool from "../post/bulk-move.js";
 
 const elicitation = createElicitation();
@@ -18,23 +23,89 @@ describe("bulk-move", () => {
   const extra = createMockRequestHandlerExtra();
   let firstRootPageId: string;
   let secondRootPageId: string | undefined;
+  let blogPageId: string;
+  let blogDocTypeId: string;
+  let articleDocTypeId: string;
+  const createdIds: string[] = [];
 
   beforeAll(async () => {
     const state = await initBulkOperationsTestState(extra);
     firstRootPageId = state.firstRootPageId;
     secondRootPageId = state.secondRootPageId;
+
+    // Find the Blog page and its doc type + article doc type
+    const children = getStructuredContent(
+      await listChildrenTool.handler({ parentId: firstRootPageId }, extra),
+    ) as any;
+    const blogItem = children.items?.find((i: any) => i.name === "Blog");
+    if (!blogItem) throw new Error("No Blog page found in starter kit");
+    blogPageId = blogItem.id;
+
+    const blogDoc = extractChainedResult(
+      await mcpClientManager.callTool("cms", "get-document-by-id", { id: blogPageId }),
+    );
+    blogDocTypeId = blogDoc.documentType.id;
+
+    // Get article doc type from first blog child
+    const blogChildren = getStructuredContent(
+      await listChildrenTool.handler({ parentId: blogPageId }, extra),
+    ) as any;
+    if (!blogChildren.items?.length) throw new Error("No articles found under Blog");
+    const articleDoc = extractChainedResult(
+      await mcpClientManager.callTool("cms", "get-document-by-id", { id: blogChildren.items[0].id }),
+    );
+    articleDocTypeId = articleDoc.documentType.id;
   }, 60000);
 
   afterAll(async () => {
+    // Clean up in reverse order (articles first, then container)
+    for (const id of createdIds.reverse()) {
+      await BulkOperationsTestHelper.deletePage(id);
+    }
     elicitation.cleanup();
-  }, 30000);
+  }, 60000);
 
   beforeEach(() => {
     elicitation.reset();
   });
 
-  it("should reject move when elicitation is rejected (with real pages)", async () => {
+  it("should bulk move articles to a new blog container", async () => {
+    // Create a second blog container under the home page
+    const targetBlog = await new ContentBuilder()
+      .withName("_Test Target Blog")
+      .withDocumentType(blogDocTypeId)
+      .withParent(firstRootPageId)
+      .create();
+    createdIds.push(targetBlog.getId());
 
+    // Create two articles under the existing blog
+    const article1 = await new ContentBuilder()
+      .withName("_Test Move Article 1")
+      .withDocumentType(articleDocTypeId)
+      .withParent(blogPageId)
+      .create();
+    createdIds.push(article1.getId());
+
+    const article2 = await new ContentBuilder()
+      .withName("_Test Move Article 2")
+      .withDocumentType(articleDocTypeId)
+      .withParent(blogPageId)
+      .create();
+    createdIds.push(article2.getId());
+
+    // Bulk move both articles into the new blog container
+    const result = await bulkMoveTool.handler(
+      { ids: [article1.getId(), article2.getId()], targetParentId: targetBlog.getId() },
+      extra,
+    );
+
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    expect(data.successCount).toBe(2);
+    expect(data.failureCount).toBe(0);
+  }, 60000);
+
+  it("should reject move when elicitation is rejected (with real pages)", async () => {
     elicitation.rejectAll();
 
     const result = await bulkMoveTool.handler(

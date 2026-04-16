@@ -83,7 +83,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const results = await executeBulkSequentially(items, async (item) => {
       const result = await mcpClientManager.callTool("cms", "move-document", {
         id: item.id,
-        target: { id: targetParentId },
+        data: { target: { id: targetParentId } },
       });
       if (result.isError) {
         return extractChainedResult(result)?.detail ?? "Move failed";

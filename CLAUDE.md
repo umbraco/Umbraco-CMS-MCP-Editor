@@ -41,13 +41,16 @@ npm run build          # Build with tsup
 npm run compile        # Type-check only
 npm run generate       # Generate API client from OpenAPI spec (Orval)
 npm run inspect        # Run MCP inspector
-npm run test           # Unit tests only
+npm run test           # All integration tests
+npm run test:one       # Single test file (requires --testPathPattern)
 npm run test:evals     # LLM eval tests (requires Claude Code subscription or ANTHROPIC_API_KEY)
 npm run test:all       # Both unit and eval tests
 npm run test:e2e       # Playwright E2E tests for hosted worker
 ```
 
-**Single test:** `npm test -- --testPathPattern=src/path/__tests__/file.test.ts`
+**Single test file:** `npm run test:one -- --testPathPattern='collection/__tests__/tool-name'`
+
+**Important:** Do NOT use `npm test --` to run a single file — it has a hardcoded `--testPathPattern=__tests__` that matches everything, so both patterns apply and all 126 suites run. Always use `npm run test:one` for single-file iteration.
 
 **Always use npm scripts** (`npm run compile`, `npm test`, `npm run build`) — never run `node`, `npx tsc`, or `jest` directly.
 
