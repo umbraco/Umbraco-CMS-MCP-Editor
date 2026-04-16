@@ -90,8 +90,32 @@ function normalizeEditorFields(obj: any): any {
  * and nested UUIDs in property values.
  * Use this instead of the SDK's createSnapshotResult in editor MCP tests.
  */
+/**
+ * Fields the SDK normalizer expects to be objects with { id } but editor tools
+ * may return as plain strings (e.g. get-page returns documentType as an alias string).
+ * We wrap these in an object before SDK normalization to prevent string spreading.
+ */
+const SDK_ID_REFERENCE_FIELDS = ["documentType", "mediaType", "parent", "document", "user"];
+
+function wrapStringIdRefFields(obj: any): any {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return obj;
+  const result = { ...obj };
+  for (const field of SDK_ID_REFERENCE_FIELDS) {
+    if (typeof result[field] === "string") {
+      result[field] = { alias: result[field] };
+    }
+  }
+  return result;
+}
+
 export function createEditorSnapshotResult(result: any, idToReplace?: string): any {
-  const sdkNormalized = createSnapshotResult(result, idToReplace);
+  // Wrap string ID-reference fields before SDK normalization to prevent
+  // the SDK from spreading strings into { "0": "u", "1": "n", ... }
+  const safeResult = result?.structuredContent
+    ? { ...result, structuredContent: wrapStringIdRefFields(result.structuredContent) }
+    : result;
+
+  const sdkNormalized = createSnapshotResult(safeResult, idToReplace);
 
   if (sdkNormalized?.structuredContent) {
     sdkNormalized.structuredContent = normalizeEditorFields(sdkNormalized.structuredContent);
