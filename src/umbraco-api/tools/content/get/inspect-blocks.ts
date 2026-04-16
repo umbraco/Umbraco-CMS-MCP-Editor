@@ -17,7 +17,7 @@ const outputSchema = z.object({
     blocks: z.array(z.object({
       contentKey: z.string().describe("The block's unique key — use this with edit-block"),
       contentTypeKey: z.string().describe("The block's element type ID"),
-      contentTypeAlias: z.string().optional().describe("The block's element type alias (if available)"),
+      contentTypeAlias: z.string().optional().describe("The block's element type alias (resolved from contentTypeKey when available)"),
       properties: z.array(z.object({
         alias: z.string(),
         value: z.any(),
@@ -47,15 +47,48 @@ function isRteWithBlocks(value: any): boolean {
   );
 }
 
-function extractBlocks(contentData: any[]): Array<{ contentKey: string; contentTypeKey: string; contentTypeAlias?: string; properties: Array<{ alias: string; value: any }> }> {
+function extractBlocks(contentData: any[], aliasMap: Map<string, string>): Array<{ contentKey: string; contentTypeKey: string; contentTypeAlias?: string; properties: Array<{ alias: string; value: any }> }> {
   return contentData.map((block: any) => ({
     contentKey: block.key ?? "",
     contentTypeKey: block.contentTypeKey ?? "",
-    contentTypeAlias: block.contentTypeAlias ?? undefined,
+    contentTypeAlias: aliasMap.get(block.contentTypeKey) ?? undefined,
     properties: Array.isArray(block.values)
       ? block.values.map((v: any) => ({ alias: v.alias ?? "", value: v.value }))
       : [],
   }));
+}
+
+/** Resolve contentTypeKey UUIDs to aliases via CMS document-type lookups */
+async function resolveContentTypeAliases(allValues: Array<{ value: any }>): Promise<Map<string, string>> {
+  const aliasMap = new Map<string, string>();
+  const keys = new Set<string>();
+
+  for (const v of allValues) {
+    const contentData = isBlockListOrGridValue(v.value)
+      ? v.value.contentData
+      : isRteWithBlocks(v.value)
+        ? v.value.blocks.contentData
+        : null;
+    if (contentData) {
+      for (const block of contentData) {
+        if (block.contentTypeKey) keys.add(block.contentTypeKey);
+      }
+    }
+  }
+
+  for (const key of keys) {
+    try {
+      const result = await mcpClientManager.callTool("cms", "get-document-type-by-id", { id: key });
+      if (!result.isError) {
+        const dt = extractChainedResult(result);
+        if (dt?.alias) aliasMap.set(key, dt.alias);
+      }
+    } catch {
+      // Best-effort — leave unmapped
+    }
+  }
+
+  return aliasMap;
 }
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
@@ -76,20 +109,22 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       ? allValues.filter((v: any) => v.alias === propertyAlias)
       : allValues;
 
-    const blockProperties = filtered
-      .filter((v: any) => isBlockListOrGridValue(v.value) || isRteWithBlocks(v.value))
+    const blockValues = filtered.filter((v: any) => isBlockListOrGridValue(v.value) || isRteWithBlocks(v.value));
+    const aliasMap = await resolveContentTypeAliases(blockValues);
+
+    const blockProperties = blockValues
       .map((v: any) => {
         if (isRteWithBlocks(v.value)) {
           return {
             propertyAlias: v.alias,
             editorAlias: "Umbraco.RichText",
-            blocks: extractBlocks(v.value.blocks.contentData),
+            blocks: extractBlocks(v.value.blocks.contentData, aliasMap),
           };
         }
         return {
           propertyAlias: v.alias,
           editorAlias: v.editorAlias ?? undefined,
-          blocks: extractBlocks(v.value.contentData),
+          blocks: extractBlocks(v.value.contentData, aliasMap),
         };
       });
 

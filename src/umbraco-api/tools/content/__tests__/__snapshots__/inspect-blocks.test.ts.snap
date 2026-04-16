@@ -9,7 +9,7 @@ exports[`inspect-blocks should return block structure for a page 1`] = `
         "blocks": [
           {
             "contentKey": "88b3cd1e-0bd7-47fd-9081-ab4832c84241",
-            "contentTypeAlias": undefined,
+            "contentTypeAlias": "iconLinkRow",
             "contentTypeKey": "00000000-0000-0000-0000-000000000000",
             "properties": [
               {
@@ -44,7 +44,7 @@ exports[`inspect-blocks should return block structure for a page 1`] = `
           },
           {
             "contentKey": "ea8a8fee-444b-461b-8b07-de267ccbe9ef",
-            "contentTypeAlias": undefined,
+            "contentTypeAlias": "iconLinkRow",
             "contentTypeKey": "00000000-0000-0000-0000-000000000000",
             "properties": [
               {
@@ -79,7 +79,7 @@ exports[`inspect-blocks should return block structure for a page 1`] = `
           },
           {
             "contentKey": "8fc94595-272b-475a-b4f8-0b8da018f720",
-            "contentTypeAlias": undefined,
+            "contentTypeAlias": "iconLinkRow",
             "contentTypeKey": "00000000-0000-0000-0000-000000000000",
             "properties": [
               {
@@ -114,7 +114,7 @@ exports[`inspect-blocks should return block structure for a page 1`] = `
           },
           {
             "contentKey": "f5a40b08-daf1-412f-bc57-f768498be386",
-            "contentTypeAlias": undefined,
+            "contentTypeAlias": "iconLinkRow",
             "contentTypeKey": "00000000-0000-0000-0000-000000000000",
             "properties": [
               {
@@ -149,7 +149,7 @@ exports[`inspect-blocks should return block structure for a page 1`] = `
           },
           {
             "contentKey": "4342c4bf-5050-4a32-8b3e-6dbc2156afc2",
-            "contentTypeAlias": undefined,
+            "contentTypeAlias": "iconLinkRow",
             "contentTypeKey": "00000000-0000-0000-0000-000000000000",
             "properties": [
               {
@@ -184,7 +184,7 @@ exports[`inspect-blocks should return block structure for a page 1`] = `
           },
           {
             "contentKey": "f0190005-f618-485f-a210-5d873e4c9227",
-            "contentTypeAlias": undefined,
+            "contentTypeAlias": "iconLinkRow",
             "contentTypeKey": "00000000-0000-0000-0000-000000000000",
             "properties": [
               {
@@ -219,7 +219,7 @@ exports[`inspect-blocks should return block structure for a page 1`] = `
           },
           {
             "contentKey": "853ba3c4-9bf1-4997-a49e-d9ebca703142",
-            "contentTypeAlias": undefined,
+            "contentTypeAlias": "iconLinkRow",
             "contentTypeKey": "00000000-0000-0000-0000-000000000000",
             "properties": [
               {
@@ -260,7 +260,7 @@ exports[`inspect-blocks should return block structure for a page 1`] = `
         "blocks": [
           {
             "contentKey": "bfc949ab-5489-4586-89f3-0c6c93f2d619",
-            "contentTypeAlias": undefined,
+            "contentTypeAlias": "latestArticlesRow",
             "contentTypeKey": "00000000-0000-0000-0000-000000000000",
             "properties": [
               {
