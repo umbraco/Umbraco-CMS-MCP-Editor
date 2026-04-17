@@ -11,6 +11,7 @@ import {
   TEST_LANGUAGE_NAME,
 } from "./setup.js";
 import deleteLanguageTool from "../delete/delete-language.js";
+import getLanguageTool from "../get/get-language.js";
 
 const elicitation = createElicitation();
 
@@ -46,10 +47,15 @@ describe("delete-language", () => {
 
     const result = await deleteLanguageTool.handler({ isoCode: TEST_LANGUAGE_ISO }, extra);
 
+    expect(result.isError).toBeFalsy();
     const data = getStructuredContent(result) as any;
     expect(data).toBeDefined();
     expect(data.isoCode).toBe(TEST_LANGUAGE_ISO);
     expect(data.message).toContain("deleted");
+
+    // Verify it's actually gone
+    const getResult = await getLanguageTool.handler({ isoCode: TEST_LANGUAGE_ISO }, extra);
+    expect(getResult.isError).toBe(true);
   }, 30000);
 
   it("should cancel delete when elicitation is rejected", async () => {
