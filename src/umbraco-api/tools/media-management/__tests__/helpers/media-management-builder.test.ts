@@ -42,7 +42,7 @@ describe("MediaManagementBuilder", () => {
 
   it("should throw if getId called before create", () => {
     const builder = new MediaManagementBuilder();
-    expect(() => builder.getId()).toThrow(/No media folder has been created yet/);
+    expect(() => builder.getId()).toThrow(/No media item has been created yet/);
   });
 
   it("cleanup should handle non-existent media gracefully", async () => {
