@@ -34,7 +34,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     const publishResult = await mcpClientManager.callTool("cms", "publish-document", {
       id,
-      data: { publishSchedules: [{ culture: culture ?? null, schedule: publishDate }] },
+      data: { publishSchedules: [{ culture: culture ?? null, schedule: { publishTime: publishDate } }] },
     });
     if (publishResult.isError) return createToolResultError(publishResult);
 

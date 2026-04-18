@@ -45,13 +45,15 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     await Promise.all(
       pages.map(async (page) => {
-        const publishResult = await mcpClientManager.callTool("cms", "get-document-publish", { id: page.id });
+        // Use get-document-by-id (draft state) — it carries scheduledPublishDate /
+        // scheduledUnpublishDate for both published and never-published pages.
+        // get-document-publish 404s for never-published drafts, hiding the most
+        // common scheduling case (a draft scheduled for its first publish).
+        const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: page.id });
+        if (docResult.isError) return;
 
-        // 404 (isError) means unpublished — skip silently
-        if (publishResult.isError) return;
-
-        const publishData = extractChainedResult(publishResult);
-        const variants: any[] = publishData?.variants ?? [];
+        const docData = extractChainedResult(docResult);
+        const variants: any[] = docData?.variants ?? [];
 
         for (const variant of variants) {
           const scheduledPublishDate: string | null = variant.scheduledPublishDate ?? null;
