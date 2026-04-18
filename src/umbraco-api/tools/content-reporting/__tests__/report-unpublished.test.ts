@@ -16,9 +16,11 @@ describe("report-unpublished", () => {
 
   const extra = createMockRequestHandlerExtra();
   let createdId: string | undefined;
+  let parentId: string | undefined;
 
   beforeAll(async () => {
     const state = await initContentTestState(extra);
+    parentId = state.testPageId;
     // Create a draft page (not published) — the report should find it
     const doc = await new ContentBuilder()
       .withName(TEST_PAGE_NAME)
@@ -33,8 +35,11 @@ describe("report-unpublished", () => {
   }, 30000);
 
   it("should return unpublished content items including the created draft", async () => {
+    // Scope to the parent page we seeded into — the tool walks children of
+    // the given parent, so the root-level scan (parentId: undefined) wouldn't
+    // see the draft we created as a child of the root.
     const result = await reportUnpublishedTool.handler(
-      { parentId: undefined },
+      { parentId },
       extra,
     );
 
@@ -44,14 +49,12 @@ describe("report-unpublished", () => {
     expect(Array.isArray(data.items)).toBe(true);
     expect(typeof data.scannedPages).toBe("number");
     expect(typeof data.total).toBe("number");
-    // At least one unpublished page should exist (the one we created)
-    expect(data.total).toBeGreaterThan(0);
 
-    // Verify item shape
-    if (data.items.length > 0) {
-      expect(data.items[0]).toHaveProperty("id");
-      expect(data.items[0]).toHaveProperty("name");
-      expect(data.items[0]).toHaveProperty("state");
-    }
+    const found = data.items.find((item: any) => item.id === createdId);
+    expect(found).toBeDefined();
+    expect(found).toHaveProperty("id");
+    expect(found).toHaveProperty("name");
+    expect(found).toHaveProperty("state");
+    expect(found.state).not.toBe("Published");
   }, 30000);
 });
