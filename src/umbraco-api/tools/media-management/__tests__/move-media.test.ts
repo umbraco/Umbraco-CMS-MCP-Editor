@@ -12,6 +12,7 @@ import moveMediaTool from "../put/move-media.js";
 
 const SOURCE_FOLDER_NAME = "_Test Move Media Source";
 const TARGET_FOLDER_NAME = "_Test Move Media Target";
+const SOURCE_FILE_NAME = "_Test Move Media File";
 const elicitation = createElicitation();
 
 describe("move-media", () => {
@@ -26,6 +27,7 @@ describe("move-media", () => {
   afterEach(async () => {
     await MediaManagementTestHelper.cleanupByName(SOURCE_FOLDER_NAME);
     await MediaManagementTestHelper.cleanupByName(TARGET_FOLDER_NAME);
+    await MediaManagementTestHelper.cleanupByName(SOURCE_FILE_NAME);
   }, 30000);
 
   beforeEach(() => {
@@ -35,6 +37,28 @@ describe("move-media", () => {
   it("should move a media folder into another folder", async () => {
     const source = await new MediaManagementBuilder()
       .withName(SOURCE_FOLDER_NAME)
+      .create();
+    elicitation.reset();
+    const target = await new MediaManagementBuilder()
+      .withName(TARGET_FOLDER_NAME)
+      .create();
+    elicitation.reset();
+
+    const result = await moveMediaTool.handler(
+      { id: source.getId(), targetParentId: target.getId() },
+      extra,
+    );
+
+    const data = getStructuredContent(result) as any;
+    expect(data).toBeDefined();
+    expect(data.message).toContain("Moved");
+    expect(data.id).toBe(source.getId());
+  }, 60000);
+
+  it("should move a media file into a folder", async () => {
+    const source = await new MediaManagementBuilder()
+      .withName(SOURCE_FILE_NAME)
+      .asFile()
       .create();
     elicitation.reset();
     const target = await new MediaManagementBuilder()
