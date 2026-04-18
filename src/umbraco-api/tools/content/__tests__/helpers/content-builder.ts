@@ -117,7 +117,7 @@ export class ContentBuilder {
     }
     await mcpClientManager.callTool("cms", "publish-document", {
       id: this.createdItem.id,
-      publishSchedules: [{ culture: null, schedule: null }],
+      data: { publishSchedules: [{ culture: null }] },
     });
     return this;
   }
