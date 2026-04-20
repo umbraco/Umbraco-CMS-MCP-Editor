@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { readFile } from "node:fs/promises";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
 
@@ -6,7 +7,7 @@ const inputSchema = {
   filePath: z.string().describe("Local file path of the file to upload"),
   name: z.string().describe("Display name for the media item"),
   parentId: z.string().uuid().optional().describe("ID of the target folder (omit to upload to the root)"),
-  mediaTypeId: z.string().uuid().optional().describe("ID of the media type to use. Call list-media-types first to find a valid ID."),
+  mediaTypeName: z.string().optional().describe("Media type name (e.g. 'Image', 'Article', 'Audio', 'Video', 'Vector Graphics', 'File'). Defaults to 'Image'."),
 };
 
 const outputSchema = z.object({
@@ -17,12 +18,12 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "upload-media",
-  description: "Upload a file from a local path to the media library. Optionally specify a target folder. Call list-media-types first to find a valid media type ID. You will be asked to confirm before uploading.",
+  description: "Upload a file from a local path to the media library. Optionally specify a target folder and media type name (defaults to 'Image'). You will be asked to confirm before uploading.",
   inputSchema,
   outputSchema,
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-  handler: async ({ filePath, name, parentId, mediaTypeId }, extra) => {
+  handler: async ({ filePath, name, parentId, mediaTypeName }, extra) => {
     // Step 1: Resolve location for confirmation message
     let location = "the root of the media library";
     if (parentId) {
@@ -38,12 +39,24 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       return createToolResult({ message: "Upload cancelled", id: "", name });
     }
 
-    // Step 3: Delegate to CMS
+    // Step 3: Read the file and base64-encode it for the chained create-media call.
+    // Using base64 avoids the UMBRACO_ALLOWED_MEDIA_PATHS requirement of sourceType "filePath".
+    let fileAsBase64: string;
+    try {
+      const buffer = await readFile(filePath);
+      fileAsBase64 = buffer.toString("base64");
+    } catch (err) {
+      return createToolResultError({
+        detail: `Failed to read file at "${filePath}": ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+
     const createResult = await mcpClientManager.callTool("cms", "create-media", {
+      sourceType: "base64",
       name,
-      parent: parentId ? { id: parentId } : null,
-      mediaType: mediaTypeId ? { id: mediaTypeId } : undefined,
-      file: filePath,
+      mediaTypeName: mediaTypeName ?? "Image",
+      fileAsBase64,
+      ...(parentId ? { parentId } : {}),
     });
     if (createResult.isError) return createToolResultError(createResult);
     const created = extractChainedResult(createResult);

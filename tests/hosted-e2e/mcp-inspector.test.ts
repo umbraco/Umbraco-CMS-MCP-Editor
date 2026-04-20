@@ -35,7 +35,7 @@ const READ_TOOLS = [
   "audit-page-seo", "audit-page-content", "report-empty-fields", "report-short-content", "report-media-missing-alt",
   "report-stale-content", "report-unpublished", "report-recently-changed", "report-content-by-type", "report-translation-coverage",
   "report-site-tree-summary", "report-orphan-pages", "report-deep-pages",
-  "report-unused-media", "report-large-media", "report-content-references",
+  "report-large-media", "report-content-references",
   "search-members", "get-member", "list-member-types",
   "list-member-groups",
   "report-member-count", "report-members-by-group", "report-member-activity",
@@ -90,8 +90,8 @@ test.describe("Hosted MCP E2E", () => {
 
     const oauthPage = await connectInspector(page, workerUrl, inspector.url);
     await handleOAuthFlow(page, oauthPage, undefined, {
-      email: "admin@test.com",
-      password: "SecurePass1234",
+      email: process.env.UMBRACO_ADMIN_EMAIL ?? "admin@test.com",
+      password: process.env.UMBRACO_ADMIN_PASSWORD ?? "SecurePass1234",
     });
 
     const tools = await getToolNames(page, ALL_TOOLS);
@@ -108,8 +108,8 @@ test.describe("Hosted MCP E2E", () => {
 
     const oauthPage = await connectInspector(page, workerUrl, inspector.url);
     await handleOAuthFlow(page, oauthPage, undefined, {
-      email: "admin@test.com",
-      password: "SecurePass1234",
+      email: process.env.UMBRACO_ADMIN_EMAIL ?? "admin@test.com",
+      password: process.env.UMBRACO_ADMIN_PASSWORD ?? "SecurePass1234",
     });
 
     await getToolNames(page, ALL_TOOLS);
@@ -128,8 +128,8 @@ test.describe("Hosted MCP E2E", () => {
 
     const oauthPage = await connectInspector(page, workerUrl, inspector.url);
     await handleOAuthFlow(page, oauthPage, undefined, {
-      email: "admin@test.com",
-      password: "SecurePass1234",
+      email: process.env.UMBRACO_ADMIN_EMAIL ?? "admin@test.com",
+      password: process.env.UMBRACO_ADMIN_PASSWORD ?? "SecurePass1234",
     });
 
     await getToolNames(page, ALL_TOOLS);

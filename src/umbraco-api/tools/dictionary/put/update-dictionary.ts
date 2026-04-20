@@ -56,7 +56,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     const updateResult = await mcpClientManager.callTool("cms", "update-dictionary-item", {
       id,
-      translations: mergedTranslations,
+      data: { name, translations: mergedTranslations },
     });
     if (updateResult.isError) return createToolResultError(updateResult);
 

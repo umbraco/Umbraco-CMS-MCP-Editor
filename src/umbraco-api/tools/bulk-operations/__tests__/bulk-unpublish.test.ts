@@ -1,0 +1,88 @@
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
+import {
+  setupTestEnvironment,
+  createMockRequestHandlerExtra,
+  getStructuredContent,
+  initBulkOperationsTestState,
+  createElicitation,
+  expectElicitationCancel,
+  BulkOperationsTestHelper,
+} from "./setup.js";
+import { ContentBuilder } from "../../content/__tests__/helpers/content-builder.js";
+import bulkUnpublishTool from "../post/bulk-unpublish.js";
+import bulkPublishTool from "../post/bulk-publish.js";
+
+const elicitation = createElicitation();
+
+describe("bulk-unpublish", () => {
+  setupTestEnvironment();
+
+  const extra = createMockRequestHandlerExtra();
+  let firstRootPageId: string;
+  let blogPageId: string;
+  let articleDocTypeId: string;
+  const createdIds: string[] = [];
+
+  beforeAll(async () => {
+    const state = await initBulkOperationsTestState(extra);
+    firstRootPageId = state.firstRootPageId;
+    blogPageId = state.blogPageId;
+    articleDocTypeId = state.articleDocTypeId;
+  }, 60000);
+
+  afterAll(async () => {
+    for (const id of createdIds.reverse()) {
+      await BulkOperationsTestHelper.deletePage(id);
+    }
+    elicitation.cleanup();
+  }, 60000);
+
+  beforeEach(() => {
+    elicitation.reset();
+  });
+
+  it("should bulk unpublish multiple pages", async () => {
+    // Create and publish two articles
+    const article1 = await new ContentBuilder()
+      .withName("_Test Bulk Unpublish 1")
+      .withDocumentType(articleDocTypeId)
+      .withParent(blogPageId)
+      .create();
+    createdIds.push(article1.getId());
+
+    const article2 = await new ContentBuilder()
+      .withName("_Test Bulk Unpublish 2")
+      .withDocumentType(articleDocTypeId)
+      .withParent(blogPageId)
+      .create();
+    createdIds.push(article2.getId());
+
+    // Publish them first
+    await bulkPublishTool.handler(
+      { ids: [article1.getId(), article2.getId()], includeDescendants: false },
+      extra,
+    );
+    elicitation.reset();
+
+    // Now unpublish both
+    const result = await bulkUnpublishTool.handler(
+      { ids: [article1.getId(), article2.getId()] },
+      extra,
+    );
+
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    expect(data.successCount).toBe(2);
+    expect(data.failureCount).toBe(0);
+  }, 60000);
+
+  it("should cancel when elicitation is rejected", async () => {
+    elicitation.rejectAll();
+    await expectElicitationCancel(() =>
+      bulkUnpublishTool.handler(
+        { ids: [firstRootPageId] },
+        extra,
+      ),
+    );
+  }, 30000);
+});

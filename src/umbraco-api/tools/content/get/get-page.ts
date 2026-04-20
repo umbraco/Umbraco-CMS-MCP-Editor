@@ -10,7 +10,7 @@ const inputSchema = {
 const outputSchema = z.object({
   id: z.string(),
   name: z.string(),
-  documentType: z.string(),
+  documentType: z.object({ id: z.string() }),
   values: z.array(z.object({ alias: z.string(), value: z.any() }).passthrough()).describe("Content field values"),
   variants: z.array(z.object({ name: z.string() }).passthrough()).describe("Language/culture variants"),
   urls: z.array(z.any()).optional().describe("Published URLs"),
@@ -59,7 +59,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     return createToolResult({
       id: doc.id,
       name: doc.variants?.[0]?.name ?? doc.name ?? "Unknown",
-      documentType: doc.documentType?.alias ?? "unknown",
+      documentType: { id: doc.documentType?.id },
       values: (doc.values ?? []).map((v: any) => ({
         ...v,
         value: summariseIfBlock(v.value),

@@ -41,13 +41,16 @@ npm run build          # Build with tsup
 npm run compile        # Type-check only
 npm run generate       # Generate API client from OpenAPI spec (Orval)
 npm run inspect        # Run MCP inspector
-npm run test           # Unit tests only
+npm run test           # All integration tests
+npm run test:one       # Single test file (requires --testPathPattern)
 npm run test:evals     # LLM eval tests (requires Claude Code subscription or ANTHROPIC_API_KEY)
 npm run test:all       # Both unit and eval tests
 npm run test:e2e       # Playwright E2E tests for hosted worker
 ```
 
-**Single test:** `npm test -- --testPathPattern=src/path/__tests__/file.test.ts`
+**Single test file:** `npm run test:one -- --testPathPattern='collection/__tests__/tool-name'`
+
+**Important:** Do NOT use `npm test --` to run a single file — it has a hardcoded `--testPathPattern=__tests__` that matches everything, so both patterns apply and all 126 suites run. Always use `npm run test:one` for single-file iteration.
 
 **Always use npm scripts** (`npm run compile`, `npm test`, `npm run build`) — never run `node`, `npx tsc`, or `jest` directly.
 
@@ -173,9 +176,13 @@ Custom fields defined in `config/server-config.ts`.
 - Run against a real Umbraco instance — no mocking
 - Require a running Umbraco instance with an API user configured (see below)
 - Call `setupTestEnvironment()` in describe block
-- Use `setupElicitationMock(jest.fn)` for write operations
+- Use `setupEditorElicitation(jest.fn)` from `src/testing/setup-elicitation.ts` for write operations (NOT `setupElicitationMock` from the SDK — it doesn't set the server ref needed by `confirmAction`)
 - Use `getStructuredContent(result)` to extract typed output
-- CMS-dependent tests return early with `console.warn` if CMS unavailable
+- Tests must create their own state — never skip because data doesn't exist. If a create fails, search for existing items as fallback
+- **Never rely on pre-existing Umbraco data** — CI runs against a fresh Umbraco install with only the demo site. Tests that snapshot list/report results from existing content will fail on CI because the data differs from local dev. Every test must use builders to create the specific data it needs, then snapshot/assert against that known data, and clean up afterwards
+- **Snapshot tests must be deterministic** — only snapshot data the test created itself. Use `createSnapshotResult()` with the created item's ID for normalization. For tools that report on all content (list-children, report-short-content, etc.), create test data, run the tool, then assert the created item appears in the results — don't snapshot the entire result
+- Clean up by ID (via `ContentTestHelper.cleanupById`) not by name search — name search can fail with large datasets
+- **Always run tests locally first** (`npm test`) and verify they pass before pushing to CI. Fix failures locally, don't rely on CI for iteration
 
 **Eval tests (`tests/evals/`):**
 - LLM-based acceptance tests using Claude Agent SDK

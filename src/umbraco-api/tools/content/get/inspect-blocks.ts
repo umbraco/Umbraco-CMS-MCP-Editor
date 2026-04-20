@@ -17,7 +17,6 @@ const outputSchema = z.object({
     blocks: z.array(z.object({
       contentKey: z.string().describe("The block's unique key — use this with edit-block"),
       contentTypeKey: z.string().describe("The block's element type ID"),
-      contentTypeAlias: z.string().optional().describe("The block's element type alias (if available)"),
       properties: z.array(z.object({
         alias: z.string(),
         value: z.any(),
@@ -47,11 +46,10 @@ function isRteWithBlocks(value: any): boolean {
   );
 }
 
-function extractBlocks(contentData: any[]): Array<{ contentKey: string; contentTypeKey: string; contentTypeAlias?: string; properties: Array<{ alias: string; value: any }> }> {
+function extractBlocks(contentData: any[]): Array<{ contentKey: string; contentTypeKey: string; properties: Array<{ alias: string; value: any }> }> {
   return contentData.map((block: any) => ({
     contentKey: block.key ?? "",
     contentTypeKey: block.contentTypeKey ?? "",
-    contentTypeAlias: block.contentTypeAlias ?? undefined,
     properties: Array.isArray(block.values)
       ? block.values.map((v: any) => ({ alias: v.alias ?? "", value: v.value }))
       : [],

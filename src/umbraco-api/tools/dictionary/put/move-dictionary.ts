@@ -45,7 +45,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     const moveResult = await mcpClientManager.callTool("cms", "move-dictionary-item", {
       id,
-      target: targetParentId ? { id: targetParentId } : null,
+      data: { target: targetParentId ? { id: targetParentId } : null },
     });
     if (moveResult.isError) return createToolResultError(moveResult);
 

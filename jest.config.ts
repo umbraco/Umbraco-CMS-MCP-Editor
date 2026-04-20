@@ -5,6 +5,7 @@ const config: JestConfigWithTsJest = {
   preset: "ts-jest/presets/js-with-ts-esm",
   testEnvironment: "node",
   maxWorkers: 1,
+  workerIdleMemoryLimit: '512MB', // Recycle worker to prevent OOM with ESM module loading
   extensionsToTreatAsEsm: [".ts"],
   moduleNameMapper: {
     "^(\\.{1,2}/.*)\\.js$": "$1",
@@ -25,6 +26,9 @@ const config: JestConfigWithTsJest = {
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json", "node"],
   collectCoverageFrom: ["src/**/*.ts", "!src/**/*.d.ts"],
   coverageDirectory: "coverage",
+  reporters: [
+    "default",
+  ],
 };
 
 export default config;

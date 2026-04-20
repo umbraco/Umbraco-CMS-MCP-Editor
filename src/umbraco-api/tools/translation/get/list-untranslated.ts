@@ -27,7 +27,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   annotations: { readOnlyHint: true },
   handler: async ({ culture, parentId, take, skip }) => {
     // Step 1: Fetch a batch of tree items
-    const toolName = parentId ? "get-tree-document-children" : "get-tree-document-root";
+    const toolName = parentId ? "get-document-children" : "get-document-root";
     const args: Record<string, unknown> = { cursor: encodeCursor({ s: 0, t: 100 }) };
     if (parentId) args.parentId = parentId;
 

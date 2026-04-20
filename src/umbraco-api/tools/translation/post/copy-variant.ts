@@ -69,8 +69,10 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // Step 7: Delegate to update-document
     const updateResult = await mcpClientManager.callTool("cms", "update-document", {
       id,
-      variants: updatedVariants,
-      values: mergedValues,
+      data: {
+        variants: updatedVariants,
+        values: mergedValues,
+      },
     });
     if (updateResult.isError) return createToolResultError(updateResult);
 

@@ -1,9 +1,10 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction, UmbracoManagementClient } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to restore from the recycle bin"),
+  parentId: z.string().uuid().optional().describe("The parent page ID to restore under. If not provided, the page is restored to the content root."),
 };
 
 const outputSchema = z.object({
@@ -14,26 +15,38 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "restore-page",
-  description: "Restore a content page from the recycle bin to its original location. You will be asked to confirm before restoring.",
+  description: "Restore a content page from the recycle bin. Optionally specify a parent page ID, otherwise it restores to the content root. You will be asked to confirm before restoring.",
   inputSchema,
   outputSchema,
   slices: ["update"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-  handler: async ({ id }, extra) => {
+  handler: async ({ id, parentId }, extra) => {
     // Step 1: Fetch page details for confirmation
+    let pageName = "Unknown";
     const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (docResult.isError) return createToolResultError(docResult);
-    const doc = extractChainedResult(docResult);
-    const pageName = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
+    if (!docResult.isError) {
+      const doc = extractChainedResult(docResult);
+      pageName = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
+    }
 
     // Step 2: Elicit confirmation
     if (!await confirmAction(extra, `Restore "${pageName}" from the recycle bin?`, { title: "Confirm restore" })) {
       return createToolResult({ message: "Restore cancelled", id, name: pageName });
     }
 
-    // Step 3: Restore from recycle bin
-    const restoreResult = await mcpClientManager.callTool("cms", "restore-document-from-recycle-bin", { id });
-    if (restoreResult.isError) return createToolResultError(restoreResult);
+    // Step 3: Restore from recycle bin — call the Umbraco API directly because
+    // the CMS dev tool hardcodes target: null which fails for documents
+    const target = parentId ? { id: parentId } : null;
+    try {
+      await UmbracoManagementClient({
+        url: `/umbraco/management/api/v1/recycle-bin/document/${id}/restore`,
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        data: { target },
+      });
+    } catch (error: any) {
+      return createToolResultError(error.message ?? String(error));
+    }
 
     return createToolResult({
       message: `Restored "${pageName}" from the recycle bin`,

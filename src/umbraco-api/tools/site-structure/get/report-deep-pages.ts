@@ -50,8 +50,8 @@ async function walkForDeepPages(
   if (scannedRef.count >= maxScan) return;
 
   const result = parentId
-    ? await mcpClientManager.callTool("cms", "get-tree-document-children", { parentId, cursor: encodeCursor({ s: 0, t: 100 }) })
-    : await mcpClientManager.callTool("cms", "get-tree-document-root", { cursor: encodeCursor({ s: 0, t: 100 }) });
+    ? await mcpClientManager.callTool("cms", "get-document-children", { parentId, cursor: encodeCursor({ s: 0, t: 100 }) })
+    : await mcpClientManager.callTool("cms", "get-document-root", { cursor: encodeCursor({ s: 0, t: 100 }) });
 
   if (result.isError) return;
   const data = extractChainedResult(result);
@@ -101,8 +101,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       if (scannedRef.count >= 500) return;
 
       const result = pid
-        ? await mcpClientManager.callTool("cms", "get-tree-document-children", { parentId: pid, cursor: encodeCursor({ s: 0, t: 100 }) })
-        : await mcpClientManager.callTool("cms", "get-tree-document-root", { cursor: encodeCursor({ s: 0, t: 100 }) });
+        ? await mcpClientManager.callTool("cms", "get-document-children", { parentId: pid, cursor: encodeCursor({ s: 0, t: 100 }) })
+        : await mcpClientManager.callTool("cms", "get-document-root", { cursor: encodeCursor({ s: 0, t: 100 }) });
 
       if (result.isError) return;
       const data = extractChainedResult(result);

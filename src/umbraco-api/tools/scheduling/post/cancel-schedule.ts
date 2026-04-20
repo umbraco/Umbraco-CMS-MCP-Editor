@@ -26,15 +26,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const doc = extractChainedResult(docResult);
     const pageName = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
 
-    // Check if a schedule exists; 404 (isError) means unpublished — no schedule present
-    const publishResult = await mcpClientManager.callTool("cms", "get-document-publish", { id });
-
-    if (publishResult.isError) {
-      return createToolResult({ message: "No scheduled publish found for this page", id, name: pageName });
-    }
-
-    const publishData = extractChainedResult(publishResult);
-    const variants: any[] = publishData?.variants ?? [];
+    // Schedules live on the draft variants; get-document-by-id returns them for both
+    // published and never-published pages (get-document-publish 404s on drafts).
+    const variants: any[] = doc?.variants ?? [];
 
     const hasSchedule = variants.some((v: any) => {
       if (culture && v.culture !== culture) return false;
@@ -49,9 +43,22 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       return createToolResult({ message: "Cancel schedule aborted", id, name: pageName });
     }
 
+    // Passing an empty publishSchedules array is a no-op in Umbraco — schedules
+    // stay intact. Submit an entry per affected variant without a schedule key
+    // (which the CMS accepts as "publish with no schedule", clearing the
+    // existing scheduledPublishDate/scheduledUnpublishDate).
+    const targetVariantCultures: Array<string | null> = culture
+      ? [culture]
+      : (variants.length ? variants.map((v: any) => v.culture ?? null) : [null]);
+
     const cancelResult = await mcpClientManager.callTool("cms", "publish-document", {
       id,
-      data: { publishSchedules: [] },
+      data: {
+        publishSchedules: targetVariantCultures.map(c => ({
+          culture: c,
+          schedule: { publishTime: null, unpublishTime: null },
+        })),
+      },
     });
     if (cancelResult.isError) return createToolResultError(cancelResult);
 

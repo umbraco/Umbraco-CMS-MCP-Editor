@@ -1,0 +1,26 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`get-media should get media item details by ID 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "mediaType": {
+      "alias": "",
+      "id": "00000000-0000-0000-0000-000000000000",
+    },
+    "name": "Social Icons",
+    "urls": [],
+    "values": [],
+    "variants": [
+      {
+        "createDate": "NORMALIZED_DATE",
+        "culture": null,
+        "name": "Social Icons",
+        "segment": null,
+        "updateDate": "NORMALIZED_DATE",
+      },
+    ],
+  },
+}
+`;

@@ -1,0 +1,15 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`edit-page should edit a page 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "message": "Updated 1 field(s) on "_Test Edit Page" (saved, not published)",
+    "name": "_Test Edit Page",
+    "updatedFields": [
+      "title",
+    ],
+  },
+}
+`;

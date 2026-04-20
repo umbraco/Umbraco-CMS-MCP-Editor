@@ -13,3 +13,10 @@ import { resetStore } from "./store.js";
 if (process.env.USE_MOCK_API === "true") {
   setupMswServer(server, resetStore);
 }
+
+// Connect CMS in-process — bypasses subprocess spawning for each test suite
+if (process.env.USE_IN_PROCESS_CMS === "true") {
+  const { connectInProcess } = await import("../testing/in-process-cms.js");
+  const { mcpClientManager } = await import("../umbraco-api/mcp-client.js");
+  connectInProcess(mcpClientManager);
+}

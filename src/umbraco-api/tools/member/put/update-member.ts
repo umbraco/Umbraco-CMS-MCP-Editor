@@ -43,15 +43,26 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     }
 
     // Step 3: Delegate to CMS MCP
-    const updateArgs: Record<string, unknown> = { id };
-    if (name !== undefined) updateArgs.name = name;
-    if (email !== undefined) updateArgs.email = email;
-    if (isApproved !== undefined) updateArgs.isApproved = isApproved;
-    if (isLockedOut !== undefined) updateArgs.isLockedOut = isLockedOut;
-    if (groups !== undefined) updateArgs.groups = groups;
-    if (values !== undefined) updateArgs.values = values;
+    // CMS API requires username and email even for partial updates.
+    // Name must be in variants array, not as a top-level field.
+    const existingUsername = member.username ?? "";
+    const existingEmail = member.email ?? memberEmail;
+    const existingVariants = member.variants ?? [];
+    const existingValues = member.values ?? [];
 
-    const updateResult = await mcpClientManager.callTool("cms", "update-member", updateArgs);
+    const data: Record<string, unknown> = {
+      username: existingUsername,
+      email: email ?? existingEmail,
+      isApproved: isApproved ?? member.isApproved ?? true,
+      isLockedOut: isLockedOut ?? member.isLockedOut ?? false,
+      variants: name !== undefined
+        ? [{ culture: null, segment: null, name }]
+        : existingVariants,
+      values: values ?? existingValues,
+    };
+    if (groups !== undefined) data.groups = groups;
+
+    const updateResult = await mcpClientManager.callTool("cms", "update-member", { id, data });
     if (updateResult.isError) return createToolResultError(updateResult);
 
     return createToolResult({

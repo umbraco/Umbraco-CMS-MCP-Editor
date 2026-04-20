@@ -1,0 +1,38 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`search-media should return empty results for nonsense query 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "items": [],
+    "nextCursor": undefined,
+    "total": 0,
+  },
+}
+`;
+
+exports[`search-media should search media and return results 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "items": [
+      {
+        "id": "00000000-0000-0000-0000-000000000000",
+        "mediaType": {
+          "0": "F",
+          "1": "o",
+          "2": "l",
+          "3": "d",
+          "4": "e",
+          "5": "r",
+          "id": "00000000-0000-0000-0000-000000000000",
+        },
+        "name": "Sample Images",
+        "url": "",
+      },
+    ],
+    "nextCursor": undefined,
+    "total": 1,
+  },
+}
+`;
