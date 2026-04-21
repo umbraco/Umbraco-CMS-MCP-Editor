@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
 
 const inputSchema = {
@@ -25,16 +25,12 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "create-member",
-  description: "Create a new member account. Call list-member-types to find a valid member type ID and list-member-groups to find group IDs. You will be asked to confirm.",
+  description: "Create a new member account. Call list-member-types to find a valid member type ID and list-member-groups to find group IDs.",
   inputSchema,
   outputSchema,
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-  handler: async ({ email, username, name, password, memberTypeId, isApproved, groups, values }, extra) => {
-    if (!await confirmAction(extra, `Create member "${name}" (${email})?`, { title: "Confirm create member" })) {
-      return createToolResult({ message: "Create cancelled", id: "", name, email });
-    }
-
+  handler: async ({ email, username, name, password, memberTypeId, isApproved, groups, values }) => {
     const result = await mcpClientManager.callTool("cms", "create-member", {
       email,
       username,

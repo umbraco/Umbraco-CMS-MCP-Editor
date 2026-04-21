@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
 
 const inputSchema = {
@@ -21,16 +21,12 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "create-dictionary",
-  description: "Create a new dictionary item with translations. Dictionary keys typically use dot-notation (e.g. 'Header.Title', 'Buttons.ReadMore'). Use list-languages to find valid ISO codes for translations. You will be asked to confirm.",
+  description: "Create a new dictionary item with translations. Dictionary keys typically use dot-notation (e.g. 'Header.Title', 'Buttons.ReadMore'). Use list-languages to find valid ISO codes for translations.",
   inputSchema,
   outputSchema,
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-  handler: async ({ name, translations, parentId }, extra) => {
-    if (!await confirmAction(extra, `Create dictionary item "${name}" with ${translations.length} translation(s)?`, { title: "Confirm create dictionary item" })) {
-      return createToolResult({ message: "Create cancelled", id: "", name });
-    }
-
+  handler: async ({ name, translations, parentId }) => {
     const result = await mcpClientManager.callTool("cms", "create-dictionary", {
       name,
       translations,

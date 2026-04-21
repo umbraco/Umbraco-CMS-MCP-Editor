@@ -57,7 +57,7 @@ test.describe("Elicitation over Streamable HTTP", () => {
     }
   });
 
-  test("publish-page triggers elicitation over Streamable HTTP", async ({ page }) => {
+  test("unpublish-page triggers elicitation over Streamable HTTP", async ({ page }) => {
     test.setTimeout(120000);
 
     // Connect and authenticate
@@ -69,8 +69,8 @@ test.describe("Elicitation over Streamable HTTP", () => {
 
     await getToolNames(page, ALL_TOOLS);
 
-    // Select publish-page tool
-    await page.getByText("publish-page", { exact: true }).first().click();
+    // Select unpublish-page tool
+    await page.getByText("unpublish-page", { exact: true }).first().click();
     await page.waitForTimeout(500);
 
     // Fill the id field — the Inspector renders individual textbox per parameter
@@ -90,7 +90,7 @@ test.describe("Elicitation over Streamable HTTP", () => {
       await page.waitForTimeout(1000);
 
       const tabContent = await page.locator("body").textContent();
-      if (tabContent?.includes("Publish") || tabContent?.includes("confirm")) {
+      if (tabContent?.includes("Unpublish") || tabContent?.includes("confirm")) {
         elicitationFound = true;
         break;
       }
@@ -125,8 +125,8 @@ test.describe("Elicitation over Streamable HTTP", () => {
         await page.waitForTimeout(5000);
 
         const resultText = await page.locator("body").textContent();
-        const published = /[Pp]ublished/.test(resultText ?? "");
-        console.log(`Tool completed with Published: ${published}`);
+        const unpublished = /[Uu]npublished/.test(resultText ?? "");
+        console.log(`Tool completed with Unpublished: ${unpublished}`);
       }
     } else {
       console.log("Elicitation not found in tab — checking if tool errored or timed out");

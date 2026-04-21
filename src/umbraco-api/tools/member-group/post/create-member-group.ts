@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
 
 const inputSchema = {
@@ -14,18 +14,12 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "create-member-group",
-  description: "Create a new member group. Groups are referenced by name when assigning members via create-member or update-member. Use list-member-groups to check existing groups first. You will be asked to confirm.",
+  description: "Create a new member group. Groups are referenced by name when assigning members via create-member or update-member. Use list-member-groups to check existing groups first.",
   inputSchema,
   outputSchema,
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-  handler: async ({ name }, extra) => {
-    // Elicit confirmation
-    if (!await confirmAction(extra, `Create member group "${name}"?`, { title: "Confirm create member group" })) {
-      return createToolResult({ message: "Create cancelled", id: "", name });
-    }
-
-    // Delegate to CMS MCP
+  handler: async ({ name }) => {
     const createResult = await mcpClientManager.callTool("cms", "create-member-group", { name });
     if (createResult.isError) return createToolResultError(createResult);
 

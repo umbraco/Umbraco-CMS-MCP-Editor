@@ -1,22 +1,18 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
+import { describe, it, expect, beforeAll, afterAll } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
   initMemberTestState,
-  createElicitation,
-  expectElicitationCancel,
   TEST_MEMBER_EMAIL,
   TEST_MEMBER_USERNAME,
   TEST_MEMBER_NAME,
   TEST_MEMBER_PASSWORD,
 } from "./setup.js";
 import createMemberTool from "../post/create-member.js";
-import deleteMemberTool from "../delete/delete-member.js";
 import searchMembersTool from "../get/search-members.js";
 import getMemberTool from "../get/get-member.js";
-
-const elicitation = createElicitation();
+import { MemberTestHelper } from "./helpers/member-test-helper.js";
 
 describe("create-member", () => {
   setupTestEnvironment();
@@ -32,18 +28,11 @@ describe("create-member", () => {
 
   afterAll(async () => {
     if (createdMemberId) {
-      try {
-        elicitation.reset();
-        await deleteMemberTool.handler({ id: createdMemberId }, extra);
-      } catch { /* best-effort */ }
+      await MemberTestHelper.cleanup(createdMemberId);
     }
-    elicitation.cleanup();
   }, 30000);
 
-  beforeEach(() => { elicitation.reset(); });
-
   it("should create a new member", async () => {
-
     const result = await createMemberTool.handler(
       {
         email: TEST_MEMBER_EMAIL,
@@ -80,26 +69,5 @@ describe("create-member", () => {
     expect(data.email).toBe(TEST_MEMBER_EMAIL);
     expect(data.id).toBeTruthy();
     createdMemberId = data.id;
-  }, 30000);
-
-  it("should cancel create when elicitation is rejected", async () => {
-    if (!testMemberTypeId) return;
-
-    elicitation.rejectAll();
-    await expectElicitationCancel(() =>
-      createMemberTool.handler(
-        {
-          email: "should-not-be-created@example.com",
-          username: "should-not-be-created",
-          name: "Should Not Be Created",
-          password: TEST_MEMBER_PASSWORD,
-          memberTypeId: testMemberTypeId!,
-          isApproved: true,
-          groups: undefined,
-          values: undefined,
-        },
-        extra,
-      ),
-    );
   }, 30000);
 });

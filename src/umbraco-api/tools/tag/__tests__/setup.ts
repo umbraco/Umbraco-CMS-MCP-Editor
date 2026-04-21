@@ -30,7 +30,10 @@ let cachedState: TagTestState | null = null;
  * Initialise and cache shared tag test state.
  *
  * - Calls list-tags with no filter to get all tags
- * - Finds the first tag's group (if any) for use in filter tests
+ * - Finds the first tag's group if any exist. Null when the instance has
+ *   no tagged content — the group-filter test is explicitly skipped in
+ *   that case (not silently returned) since the starter kit doesn't seed
+ *   any tags.
  * - Caches the result so multiple test suites share the same lookup
  */
 export async function initTagTestState(
@@ -46,11 +49,7 @@ export async function initTagTestState(
   }
 
   const data = getStructuredContent(result) as any;
-  let existingTagGroup: string | null = null;
-
-  if (data?.items?.length > 0 && data.items[0].group) {
-    existingTagGroup = data.items[0].group;
-  }
+  const existingTagGroup: string | null = data?.items?.[0]?.group ?? null;
 
   const state: TagTestState = { existingTagGroup };
   cachedState = state;

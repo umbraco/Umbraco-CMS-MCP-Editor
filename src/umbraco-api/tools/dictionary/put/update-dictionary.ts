@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
 
 const inputSchema = {
@@ -21,12 +21,12 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "update-dictionary",
-  description: "Update translations for a dictionary item. Call get-dictionary first to see existing translations. You will be asked to confirm.",
+  description: "Update translations for a dictionary item. Call get-dictionary first to see existing translations.",
   inputSchema,
   outputSchema,
   slices: ["update"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
-  handler: async ({ id, translations }, extra) => {
+  handler: async ({ id, translations }) => {
     // Fetch existing item to get name and current translations
     const existingResult = await mcpClientManager.callTool("cms", "get-dictionary", { id });
     if (existingResult.isError) return createToolResultError(existingResult);
@@ -48,10 +48,6 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       if (!existingTranslations.some((t: any) => (t.isoCode ?? t.language?.isoCode) === isoCode)) {
         mergedTranslations.push({ isoCode, translation });
       }
-    }
-
-    if (!await confirmAction(extra, `Update translations for "${name}"?`, { title: "Confirm update dictionary" })) {
-      return createToolResult({ message: "Update cancelled", id, name, updatedLanguages: [] });
     }
 
     const updateResult = await mcpClientManager.callTool("cms", "update-dictionary-item", {

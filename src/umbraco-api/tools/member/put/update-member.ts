@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
 
 const inputSchema = {
@@ -24,25 +24,18 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "update-member",
-  description: "Update a member's profile, approval status, groups, or custom properties. Call get-member first to see current values. You will be asked to confirm.",
+  description: "Update a member's profile, approval status, groups, or custom properties. Call get-member first to see current values.",
   inputSchema,
   outputSchema,
   slices: ["update"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
-  handler: async ({ id, name, email, isApproved, isLockedOut, groups, values }, extra) => {
-    // Step 1: Fetch member details for confirmation
+  handler: async ({ id, name, email, isApproved, isLockedOut, groups, values }) => {
     const memberResult = await mcpClientManager.callTool("cms", "get-member", { id });
     if (memberResult.isError) return createToolResultError(memberResult);
     const member = extractChainedResult(memberResult);
     const memberName = member.variants?.[0]?.name ?? member.name ?? name ?? "Unknown";
     const memberEmail = member.email ?? email ?? "";
 
-    // Step 2: Elicit confirmation
-    if (!await confirmAction(extra, `Update member "${memberName}" (${memberEmail})?`, { title: "Confirm update member" })) {
-      return createToolResult({ message: "Update cancelled", id, name: memberName, email: memberEmail });
-    }
-
-    // Step 3: Delegate to CMS MCP
     // CMS API requires username and email even for partial updates.
     // Name must be in variants array, not as a top-level field.
     const existingUsername = member.username ?? "";

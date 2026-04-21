@@ -8,6 +8,14 @@
 import path from "path";
 import { configureEvals, ClaudeModels } from "@umbraco-cms/mcp-server-sdk/evals";
 
+// jest.setup.ts (loaded via setupFiles, before this file) sets
+// USE_IN_PROCESS_CMS=true so integration tests swap the CMS chain for an
+// in-process dispatcher. The eval subprocess has no in-process wiring and
+// needs real stdio chaining — and the Claude Agent SDK defaults its spawn
+// env to {...process.env}, so the flag would leak into dist/index.js unless
+// we remove it from process.env before any scenario runs.
+delete process.env.USE_IN_PROCESS_CMS;
+
 // Configure the eval framework for this MCP server
 configureEvals({
   // Path to the built MCP server

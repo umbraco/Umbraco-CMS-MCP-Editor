@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
 
 const inputSchema = {
@@ -17,24 +17,17 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "update-language",
-  description: "Update a language's settings (default, mandatory, fallback). You will be asked to confirm before updating.",
+  description: "Update a language's settings (default, mandatory, fallback).",
   inputSchema,
   outputSchema,
   slices: ["update"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
-  handler: async ({ isoCode, isDefault, isMandatory, fallbackIsoCode }, extra) => {
-    // Step 1: Fetch language details for confirmation
+  handler: async ({ isoCode, isDefault, isMandatory, fallbackIsoCode }) => {
     const langResult = await mcpClientManager.callTool("cms", "get-language-by-iso-code", { isoCode });
     if (langResult.isError) return createToolResultError(langResult);
     const lang = extractChainedResult(langResult);
     const name = lang.name ?? isoCode;
 
-    // Step 2: Elicit confirmation
-    if (!await confirmAction(extra, `Update settings for "${name}" (${isoCode})?`, { title: "Confirm update language" })) {
-      return createToolResult({ message: "Update cancelled", isoCode, name });
-    }
-
-    // Step 3: Perform update
     const result = await mcpClientManager.callTool("cms", "update-language", { isoCode, data: { name, isDefault, isMandatory, fallbackIsoCode } });
     if (result.isError) return createToolResultError(result);
 

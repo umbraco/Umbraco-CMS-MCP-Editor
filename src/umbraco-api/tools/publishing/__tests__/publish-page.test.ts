@@ -1,16 +1,12 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
+import { describe, it, expect, beforeAll } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
   initPublishingTestState,
-  createElicitation,
-  expectElicitationCancel,
   NON_EXISTENT_UUID,
 } from "./setup.js";
 import publishPageTool from "../post/publish-page.js";
-
-const elicitation = createElicitation();
 
 describe("publish-page", () => {
   setupTestEnvironment();
@@ -22,9 +18,6 @@ describe("publish-page", () => {
     const state = await initPublishingTestState(extra);
     testPageId = state.testPageId;
   }, 60000);
-
-  afterAll(() => { elicitation.cleanup(); });
-  beforeEach(() => { elicitation.reset(); });
 
   it("should publish a page", async () => {
     const result = await publishPageTool.handler(
@@ -45,12 +38,5 @@ describe("publish-page", () => {
       extra,
     );
     expect(result.isError).toBeTruthy();
-  }, 30000);
-
-  it("should cancel publish when elicitation is rejected", async () => {
-    elicitation.rejectAll();
-    await expectElicitationCancel(() =>
-      publishPageTool.handler({ id: testPageId, includeDescendants: false }, extra),
-    );
   }, 30000);
 });

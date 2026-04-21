@@ -9,14 +9,12 @@
  * - Valid credentials in .env file
  */
 
-import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach } from "@jest/globals";
+import { describe, it, expect, beforeAll, afterEach } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   createSnapshotResult,
   initContentTestState,
-  createElicitation,
-  expectElicitationCancel,
   ContentBuilder,
   ContentTestHelper,
 } from "./setup.js";
@@ -24,9 +22,6 @@ import editPageTool from "../put/edit-page.js";
 
 const TEST_PAGE_NAME = "_Test Edit Page";
 const TEST_EDIT_VALUES = [{ alias: "title", value: "Updated Title" }];
-const TEST_ELICITATION_VALUES = [{ alias: "title", value: "Should Not Change" }];
-
-const elicitation = createElicitation();
 
 describe("edit-page", () => {
   setupTestEnvironment();
@@ -42,20 +37,12 @@ describe("edit-page", () => {
     testDocumentTypeId = state.testDocumentTypeId;
   }, 60000);
 
-  afterAll(async () => {
-    elicitation.cleanup();
-  });
-
   afterEach(async () => {
     if (lastCreatedId) {
       await ContentTestHelper.cleanupById(lastCreatedId);
       lastCreatedId = undefined;
     }
   }, 30000);
-
-  beforeEach(() => {
-    elicitation.reset();
-  });
 
   it("should edit a page", async () => {
     const doc = await new ContentBuilder()
@@ -72,15 +59,5 @@ describe("edit-page", () => {
 
     expect(result.isError).toBeFalsy();
     expect(createSnapshotResult(result, doc.getId())).toMatchSnapshot();
-  }, 30000);
-
-  it("should cancel edit when elicitation is rejected", async () => {
-    elicitation.rejectAll();
-    await expectElicitationCancel(() =>
-      editPageTool.handler(
-        { id: testPageId, values: TEST_ELICITATION_VALUES },
-        extra,
-      ),
-    );
   }, 30000);
 });

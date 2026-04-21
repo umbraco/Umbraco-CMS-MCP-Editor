@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
 
 const inputSchema = {
@@ -15,34 +15,27 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "create-media-folder",
-  description: "Create a new folder in the media library. The returned ID can be used as parentId in upload-media or list-media-children. You will be asked to confirm before creating.",
+  description: "Create a new folder in the media library. The returned ID can be used as parentId in upload-media or list-media-children.",
   inputSchema,
   outputSchema,
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-  handler: async ({ name, parentId }, extra) => {
-    // Step 1: Resolve location for confirmation message
-    let location = "at the root";
-    if (parentId) {
-      const folderResult = await mcpClientManager.callTool("cms", "get-media-by-id", { id: parentId });
-      if (folderResult.isError) return createToolResultError(folderResult);
-      const folder = extractChainedResult(folderResult);
-      const parentName = folder.name ?? "Unknown";
-      location = `under "${parentName}"`;
-    }
-
-    // Step 2: Elicit confirmation
-    if (!await confirmAction(extra, `Create folder "${name}" ${location}?`, { title: "Confirm create folder" })) {
-      return createToolResult({ message: "Create folder cancelled", id: "", name });
-    }
-
-    // Step 3: Delegate to CMS
+  handler: async ({ name, parentId }) => {
     const createResult = await mcpClientManager.callTool("cms", "create-media-folder", {
       name,
       parent: parentId ? { id: parentId } : null,
     });
     if (createResult.isError) return createToolResultError(createResult);
     const created = extractChainedResult(createResult);
+
+    let location = "at the root";
+    if (parentId) {
+      const folderResult = await mcpClientManager.callTool("cms", "get-media-by-id", { id: parentId });
+      if (!folderResult.isError) {
+        const folder = extractChainedResult(folderResult);
+        location = `under "${folder.name ?? "Unknown"}"`;
+      }
+    }
 
     return createToolResult({
       message: `Created folder "${name}" ${location}`,

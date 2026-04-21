@@ -23,7 +23,7 @@ export const NON_EXISTENT_UUID = "00000000-0000-0000-0000-000000000000";
 
 interface RelationshipsTestState {
   testPageId: string;
-  testMediaId: string | null;
+  testMediaId: string;
 }
 
 let cachedState: RelationshipsTestState | null = null;
@@ -33,6 +33,8 @@ let cachedState: RelationshipsTestState | null = null;
  *
  * - Finds the first root page using the list-children editor tool
  * - Finds the first root media item using the list-media-children editor tool
+ *   (required — throws if the instance has no media, so tests fail loudly
+ *   instead of silently skipping)
  * - Caches the result so multiple test suites share the same lookup
  */
 export async function initRelationshipsTestState(
@@ -58,12 +60,13 @@ export async function initRelationshipsTestState(
 
   const testPageId: string = pageData.items[0].id;
 
-  let testMediaId: string | null = null;
-  if (!mediaResult.isError) {
-    const mediaData = getStructuredContent(mediaResult) as any;
-    if (mediaData?.items?.length > 0) {
-      testMediaId = mediaData.items[0].id;
-    }
+  if (mediaResult.isError) {
+    throw new Error("Failed to list root media: " + JSON.stringify(mediaResult));
+  }
+  const mediaData = getStructuredContent(mediaResult) as any;
+  const testMediaId: string | undefined = mediaData?.items?.[0]?.id;
+  if (!testMediaId) {
+    throw new Error("No root media items found — Umbraco instance has no media. Seed a media item before running relationships tests.");
   }
 
   const state: RelationshipsTestState = { testPageId, testMediaId };

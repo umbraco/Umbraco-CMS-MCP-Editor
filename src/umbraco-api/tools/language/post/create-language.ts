@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
 
 const inputSchema = {
@@ -18,17 +18,13 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "create-language",
-  description: "Add a new language to the Umbraco site. Use list-languages to see existing languages. You will be asked to confirm before creating.",
+  description: "Add a new language to the Umbraco site. Use list-languages to see existing languages.",
   inputSchema,
   outputSchema,
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-  handler: async ({ isoCode, name: displayName, isDefault, isMandatory, fallbackIsoCode }, extra) => {
+  handler: async ({ isoCode, name: displayName, isDefault, isMandatory, fallbackIsoCode }) => {
     const langName = displayName || isoCode;
-
-    if (!await confirmAction(extra, `Add language "${langName}" (${isoCode}) to the site?`, { title: "Confirm create language" })) {
-      return createToolResult({ message: "Create cancelled", isoCode, name: langName });
-    }
 
     const result = await mcpClientManager.callTool("cms", "create-language", { name: langName, isoCode, isDefault, isMandatory, fallbackIsoCode });
     if (result.isError) return createToolResultError(result);

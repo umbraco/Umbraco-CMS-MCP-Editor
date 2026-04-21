@@ -54,6 +54,17 @@ npm run test:e2e       # Playwright E2E tests for hosted worker
 
 **Always use npm scripts** (`npm run compile`, `npm test`, `npm run build`) — never run `node`, `npx tsc`, or `jest` directly.
 
+## Running Umbraco for tests
+
+Integration tests require a running Umbraco instance with an API user. Both are automated:
+
+- `npm run start:umbraco` starts Umbraco in the current worktree on a random port (first run triggers unattended install, which takes a few minutes).
+- The API user (`umbraco-back-office-mcp` / `1234567890`) is auto-created by `infrastructure/ci/create-api-user.mjs` as part of starting Umbraco in a worktree.
+
+Run Umbraco in the background, wait for `.demo-site-port` to exist and the base URL to respond, then run tests.
+
+**Before asking to create a PR, run ALL tests (`npm run test:all`) and confirm they pass.** `npm run compile` alone is not sufficient — integration tests are where regressions show up. If Umbraco isn't running, start it first.
+
 ## Source Structure
 
 ```

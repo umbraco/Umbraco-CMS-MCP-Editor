@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
 
 const inputSchema = {
@@ -21,27 +21,18 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "edit-page",
-  description: "Update specific fields on a content page. Changes are saved but NOT published. Call get-page first to discover valid property aliases for the page's document type. You will be asked to confirm before updating.",
+  description: "Update specific fields on a content page. Changes are saved but NOT published. Call get-page first to discover valid property aliases for the page's document type.",
   inputSchema,
   outputSchema,
   slices: ["update"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
-  handler: async ({ id, values }, extra) => {
-    // Step 1: Fetch page details for confirmation
+  handler: async ({ id, values }) => {
     const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
     if (docResult.isError) return createToolResultError(docResult);
     const doc = extractChainedResult(docResult);
     const pageName = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
-
-    // Step 2: Elicit confirmation listing field names
     const fieldNames = values.map((v) => v.alias);
-    const confirmMessage = `Update ${fieldNames.length} field(s) on "${pageName}": ${fieldNames.join(", ")}? Changes will be saved but not published.`;
 
-    if (!await confirmAction(extra, confirmMessage, { title: "Confirm edit", defaultValue: true })) {
-      return createToolResult({ message: "Edit cancelled", id, name: pageName, updatedFields: [] });
-    }
-
-    // Step 3: Delegate to update-document-properties (handles validation + merge internally)
     const updateResult = await mcpClientManager.callTool("cms", "update-document-properties", {
       id,
       properties: values.map(v => ({

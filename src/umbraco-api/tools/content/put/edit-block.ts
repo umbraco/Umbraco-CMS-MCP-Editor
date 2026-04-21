@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
 
 const inputSchema = {
@@ -24,27 +24,18 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "edit-block",
-  description: "Update properties within a specific block (BlockList, BlockGrid, or Rich Text block). Use inspect-blocks first to find the propertyAlias and contentKey. For non-block page properties, use edit-page instead. Culture/segment applies to the document property level — use separate calls for mixed-variant blocks. Changes are saved but NOT published. You will be asked to confirm before updating.",
+  description: "Update properties within a specific block (BlockList, BlockGrid, or Rich Text block). Use inspect-blocks first to find the propertyAlias and contentKey. For non-block page properties, use edit-page instead. Culture/segment applies to the document property level — use separate calls for mixed-variant blocks. Changes are saved but NOT published.",
   inputSchema,
   outputSchema,
   slices: ["update"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
-  handler: async ({ id, propertyAlias, contentKey, values, culture, segment }, extra) => {
-    // Step 1: Fetch page details for confirmation
+  handler: async ({ id, propertyAlias, contentKey, values, culture, segment }) => {
     const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
     if (docResult.isError) return createToolResultError(docResult);
     const doc = extractChainedResult(docResult);
     const pageName = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
-
-    // Step 2: Elicit confirmation listing field names
     const fieldNames = values.map((v) => v.alias);
-    const confirmMessage = `Update ${fieldNames.length} field(s) in block on "${pageName}" (property: ${propertyAlias}): ${fieldNames.join(", ")}? Changes will be saved but not published.`;
 
-    if (!await confirmAction(extra, confirmMessage, { title: "Confirm block edit", defaultValue: true })) {
-      return createToolResult({ message: "Edit cancelled", id, name: pageName, contentKey, updatedFields: [] });
-    }
-
-    // Step 3: Delegate to update-block-property via dev MCP
     const updateResult = await mcpClientManager.callTool("cms", "update-block-property", {
       documentId: id,
       propertyAlias,

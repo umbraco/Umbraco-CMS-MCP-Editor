@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
 
 const inputSchema = {
@@ -22,35 +22,12 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "create-page",
-  description: "Create a new content page as a draft. The page will NOT be published automatically. Call list-document-types first to find a valid documentTypeId. You will be asked to confirm before creating.",
+  description: "Create a new content page as a draft. The page will NOT be published automatically. Call list-document-types first to find a valid documentTypeId.",
   inputSchema,
   outputSchema,
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-  handler: async ({ name, documentTypeId, parentId, values }, extra) => {
-    const fieldCount = values?.length ?? 0;
-
-    // Resolve parent name for human-readable confirmation
-    let location = "at the root";
-    if (parentId) {
-      const parentResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: parentId });
-      if (!parentResult.isError) {
-        const parent = extractChainedResult(parentResult);
-        const parentName = parent?.variants?.[0]?.name ?? parent?.name ?? parentId;
-        location = `under "${parentName}"`;
-      } else {
-        location = `under parent ${parentId}`;
-      }
-    }
-
-    // Elicit confirmation
-    const confirmMessage = `Create page "${name}" ${location} with ${fieldCount} field(s)? The page will be saved as a draft (not published).`;
-
-    if (!await confirmAction(extra, confirmMessage, { title: "Confirm create", defaultValue: true })) {
-      return createToolResult({ message: "Create cancelled", id: "", name });
-    }
-
-    // Execute create via dev MCP
+  handler: async ({ name, documentTypeId, parentId, values }) => {
     const createArgs: Record<string, unknown> = {
       documentTypeId,
       name,

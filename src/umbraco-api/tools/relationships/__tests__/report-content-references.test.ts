@@ -12,7 +12,7 @@ describe("report-content-references", () => {
 
   const extra = createMockRequestHandlerExtra();
   let testPageId: string;
-  let testMediaId: string | null;
+  let testMediaId: string;
 
   beforeAll(async () => {
     const state = await initRelationshipsTestState(extra);
@@ -30,10 +30,6 @@ describe("report-content-references", () => {
   }, 30000);
 
   it("should return referencedBy and referenceCount for a media item", async () => {
-    if (!testMediaId) {
-      return;
-    }
-
     const result = await reportContentReferencesTool.handler(
       { id: testMediaId, type: "media" },
       extra,
