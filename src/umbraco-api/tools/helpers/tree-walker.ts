@@ -33,6 +33,11 @@ export interface WalkedPage {
  *
  * Fetches tree items (root or children), then calls get-document-by-id
  * for each to get full property values. Uses Promise.all for parallelism.
+ *
+ * @deprecated Do not use in new tools. N+1 enrichment + 100-item scan cap make
+ * this ineffective on real sites; the tools that depend on it were disabled in
+ * commit 24663b3 pending a filtered-pages endpoint. Build report/audit tools
+ * against per-item or filtered-list dev MCP endpoints instead.
  */
 export async function walkContentTree(
   options: TreeWalkOptions = {},
@@ -86,6 +91,10 @@ export async function walkContentTree(
 
 /**
  * Walk the media tree and return items.
+ *
+ * @deprecated Do not use in new tools. Same limits and rationale as
+ * {@link walkContentTree} — disabled pending a filtered-pages endpoint
+ * (commit 24663b3).
  */
 export async function walkMediaTree(
   options: TreeWalkOptions = {},
