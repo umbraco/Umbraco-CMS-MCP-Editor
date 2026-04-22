@@ -1,0 +1,31 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`save-and-publish publishes without values when none provided 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "message": "published "_Test Save Publish No Values"",
+    "name": "_Test Save Publish No Values",
+    "published": true,
+    "saved": false,
+    "updatedFields": [],
+  },
+}
+`;
+
+exports[`save-and-publish saves values and publishes in one call 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "message": "Saved 1 field(s) and published "_Test Save Publish With Values"",
+    "name": "_Test Save Publish With Values",
+    "published": true,
+    "saved": true,
+    "updatedFields": [
+      "title",
+    ],
+  },
+}
+`;

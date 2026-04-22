@@ -1,0 +1,16 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`get-document-type returns the property schema for a document type 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "alias": "content",
+    "description": "A flexible page type for general content, allowing rich text, images, and media to present information in a structured layout.",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "name": "Content",
+    "properties": [],
+    "variesByCulture": undefined,
+    "variesBySegment": undefined,
+  },
+}
+`;

@@ -1,0 +1,53 @@
+import { z } from "zod";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
+import { mcpClientManager } from "../../../mcp-client.js";
+
+const inputSchema = {
+  id: z.string().uuid().describe("UUID of the media type to retrieve"),
+};
+
+const outputSchema = z.object({
+  id: z.string(),
+  alias: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  properties: z.array(z.object({
+    alias: z.string(),
+    name: z.string(),
+    description: z.string().optional(),
+    dataTypeId: z.string().optional(),
+    variesByCulture: z.boolean().optional(),
+    variesBySegment: z.boolean().optional(),
+  })).describe("Editable property definitions for this media type — use the `alias` when calling edit-media"),
+});
+
+const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
+  name: "get-media-type",
+  description: "Get the full schema for a media type, including the list of editable properties (alias, name, description). Use before edit-media to discover which aliases can be set — e.g. 'altText' on an Image. Pair with list-media-types to find the type ID.",
+  inputSchema,
+  outputSchema,
+  slices: ["read"],
+  annotations: { readOnlyHint: true },
+  handler: async ({ id }) => {
+    const result = await mcpClientManager.callTool("cms", "get-media-type-by-id", { id });
+    if (result.isError) return createToolResultError(result);
+    const data = extractChainedResult(result);
+
+    return createToolResult({
+      id: data.id,
+      alias: data.alias ?? "",
+      name: data.name ?? data.alias ?? "Unknown",
+      description: data.description || undefined,
+      properties: (data.properties ?? []).map((p: any) => ({
+        alias: p.alias,
+        name: p.name ?? p.alias,
+        description: p.description || undefined,
+        dataTypeId: p.dataType?.id || undefined,
+        variesByCulture: p.variesByCulture || undefined,
+        variesBySegment: p.variesBySegment || undefined,
+      })),
+    });
+  },
+};
+
+export default withStandardDecorators(tool);

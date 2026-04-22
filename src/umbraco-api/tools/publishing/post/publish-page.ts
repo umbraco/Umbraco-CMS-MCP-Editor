@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
 
 const inputSchema = {
@@ -20,11 +20,17 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   outputSchema,
   slices: ["publish"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
-  handler: async ({ id, includeDescendants }) => {
+  handler: async ({ id, includeDescendants }, extra) => {
     const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
     if (docResult.isError) return createToolResultError(docResult);
     const doc = extractChainedResult(docResult);
     const pageName = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
+
+    if (includeDescendants) {
+      if (!await confirmAction(extra, `Publish "${pageName}" and all its descendants?`, { title: "Confirm publish with descendants" })) {
+        return createToolResult({ message: "Publish cancelled", id, name: pageName });
+      }
+    }
 
     const toolName = includeDescendants ? "publish-document-with-descendants" : "publish-document";
     const publishResult = await mcpClientManager.callTool("cms", toolName, { id, data: { publishSchedules: [] } });
