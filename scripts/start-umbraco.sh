@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 SITE_DIR="$PROJECT_DIR/demo-site"
 PORT_FILE="$PROJECT_DIR/.demo-site-port"
+PID_FILE="$PROJECT_DIR/.demo-site-pid"
 ENV_FILE="$PROJECT_DIR/.env"
 
 if ! ls "$SITE_DIR"/*.csproj >/dev/null 2>&1; then
@@ -15,11 +16,21 @@ if ! ls "$SITE_DIR"/*.csproj >/dev/null 2>&1; then
   exit 1
 fi
 
-# Clean up port file on exit
+# Kill children + any demo-site process rooted in this worktree on exit.
+# `dotnet run` forks a compiled `demo-site` binary that gets re-parented to
+# launchd when the script exits, so `pkill -P` alone isn't enough.
 cleanup() {
-  rm -f "$PORT_FILE"
+  rm -f "$PORT_FILE" "$PID_FILE"
+  pkill -P $$ 2>/dev/null || true
+  pkill -TERM -f "$SITE_DIR/bin/" 2>/dev/null || true
+  sleep 1
+  pkill -KILL -f "$SITE_DIR/bin/" 2>/dev/null || true
+  wait 2>/dev/null || true
 }
-trap cleanup EXIT
+trap cleanup EXIT INT TERM
+
+# Record this script's PID so stop-umbraco.sh / worktree-remove.sh can find us.
+echo "$$" > "$PID_FILE"
 
 echo "Starting Umbraco from demo-site/..."
 cd "$SITE_DIR"

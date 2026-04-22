@@ -28,11 +28,15 @@ First `dotnet run` in a new worktree triggers Umbraco unattended install in the 
 
 **Running the demo site in a worktree:**
 
-`npm run start:umbraco` — starts Umbraco on a random available port. The port is written to `.demo-site-port` and `UMBRACO_BASE_URL` in `.env` is updated automatically.
+`npm run start:umbraco` — starts Umbraco on a random available port. The port is written to `.demo-site-port`, the script PID to `.demo-site-pid`, and `UMBRACO_BASE_URL` in `.env` is updated automatically. Ctrl+C (or killing the script) now propagates to the `dotnet run` child and the compiled `demo-site` binary, so the worktree directory is left free for removal.
+
+`npm run stop:umbraco` — idempotent stop for the current worktree/project. Reads `.demo-site-pid` if present, plus any `demo-site/bin/...` binary still running, and clears the port/pid files.
 
 **Cleanup:**
 
-Use `ExitWorktree` with remove action, or the `/cleanup` skill. The hook drops the worktree database and removes the worktree directory.
+Use `ExitWorktree` with remove action, or the `/cleanup` skill. The `WorktreeRemove` hook now uses `lsof +D` and path-based `pgrep` to find every process holding files in the worktree (not just `dotnet run`) before removing — so demo-site binaries that got re-parented to launchd still get killed. It also drops the worktree's SQL Server database.
+
+If you removed a worktree outside the hook (plain `git worktree remove`) and left orphaned processes, run `npm run stop:umbraco` from inside the stale directory first, or kill holders by path: `pkill -f .claude/worktrees/<slug>`.
 
 ## Commands
 

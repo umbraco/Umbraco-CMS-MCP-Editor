@@ -22,10 +22,31 @@ DB_NAME="umbraco-mcp-editor-$DIR_SLUG"
 
 echo "Removing worktree: $DIR_SLUG" >&2
 
-# --- Kill running demo-site process ---
-if pgrep -f "dotnet.*$WORKTREE_PATH/demo-site" >/dev/null 2>&1; then
-  echo "Killing demo-site process..." >&2
-  pkill -f "dotnet.*$WORKTREE_PATH/demo-site" 2>/dev/null || true
+# --- Kill anything rooted in or holding files in the worktree ---
+# `dotnet run` + compiled `demo-site` binary + any stdio MCP probe spawned
+# in the worktree can all keep the directory busy. Catch them three ways:
+#   1. Anything whose argv mentions the worktree path (pgrep -f)
+#   2. Anything with open file handles inside the worktree (lsof +D)
+#   3. The specific demo-site binary path (covers re-parented orphans)
+kill_holders() {
+  local signal="$1"
+  local pids
+  pids=$( {
+    pgrep -f "$WORKTREE_PATH" 2>/dev/null
+    lsof -t +D "$WORKTREE_PATH" 2>/dev/null
+    pgrep -f "$WORKTREE_PATH/demo-site/bin/" 2>/dev/null
+  } | sort -u | tr '\n' ' ')
+  if [ -n "$pids" ]; then
+    echo "Sending $signal to: $pids" >&2
+    echo "$pids" | xargs kill -"$signal" 2>/dev/null || true
+    return 0
+  fi
+  return 1
+}
+
+if kill_holders TERM; then
+  sleep 2
+  kill_holders KILL >/dev/null 2>&1 || true
   sleep 1
 fi
 

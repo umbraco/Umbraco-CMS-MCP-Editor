@@ -17,6 +17,7 @@
     "compile": "tsc --noEmit",
     "watch": "tsup --config tsup.config.ts --watch",
     "start:umbraco": "bash scripts/start-umbraco.sh",
+    "stop:umbraco": "bash scripts/stop-umbraco.sh",
     "inspect": "npx @modelcontextprotocol/inspector node dist/index.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPattern=__tests__ --runInBand --forceExit",
     "test:one": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --forceExit",
