@@ -70,23 +70,17 @@ const allTools = [
   // Content Health
   "audit-page-seo",
   "audit-page-content",
-  "report-empty-fields",
-  "report-short-content",
-  "report-media-missing-alt",
-  // Content Reporting
-  "report-stale-content",
-  "report-unpublished",
-  "report-recently-changed",
-  "report-content-by-type",
-  "report-translation-coverage",
+  // DISABLED (tree walk, scanLimit=100): "report-empty-fields", "report-short-content", "report-media-missing-alt"
+  // Content Reporting — DISABLED at collection level (tree walk, scanLimit=100–500):
+  // "report-stale-content", "report-unpublished", "report-recently-changed",
+  // "report-content-by-type", "report-translation-coverage"
   // Site Structure
   "report-site-tree-summary",
   "report-deep-pages",
-  // Media Health
-  "report-large-media",
+  // Media Health — DISABLED at collection level (tree walk, scanLimit=100): "report-large-media"
   // Relationships
   "report-content-references",
-  "report-orphan-pages",
+  // DISABLED (tree walk, scanLimit=100): "report-orphan-pages"
   "report-outbound-links",
   // Bulk Operations
   "bulk-publish",
@@ -110,9 +104,8 @@ const allTools = [
   "report-member-count",
   "report-members-by-group",
   "report-member-activity",
-  // Scheduling
+  // Scheduling — DISABLED (tree walk, scanLimit=100): "list-scheduled-content"
   "get-publish-status",
-  "list-scheduled-content",
   "schedule-publish",
   "cancel-schedule",
   // Redirects
@@ -153,7 +146,8 @@ describe("Content Health and Reporting Workflows", () => {
     timeout
   );
 
-  it(
+  // SKIPPED: report-stale-content is disabled (tree walk, scanLimit=100).
+  it.skip(
     "editor finds stale content",
     runScenarioTest({
       prompt:
@@ -179,7 +173,8 @@ describe("Content Health and Reporting Workflows", () => {
     timeout
   );
 
-  it(
+  // SKIPPED: report-media-missing-alt is disabled (tree walk, scanLimit=100).
+  it.skip(
     "editor checks media alt text",
     runScenarioTest({
       prompt:
@@ -192,7 +187,8 @@ describe("Content Health and Reporting Workflows", () => {
     timeout
   );
 
-  it(
+  // SKIPPED: report-translation-coverage is disabled (tree walk, scanLimit=100).
+  it.skip(
     "editor checks translation coverage",
     runScenarioTest({
       prompt:

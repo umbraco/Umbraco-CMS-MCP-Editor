@@ -10,7 +10,11 @@ const collection: ToolCollectionExport = {
     displayName: "Scheduling",
     description: "View and manage scheduled content publishing",
   },
-  tools: () => [getPublishStatusTool, listScheduledContentTool, schedulePublishTool, cancelScheduleTool],
+  // list-scheduled-content walks the content tree (N+1 get-document-by-id, scanLimit=100)
+  // and is disabled until a filtered-pages endpoint is available. Import kept so the tool
+  // file still type-checks.
+  // Full list: [getPublishStatusTool, listScheduledContentTool, schedulePublishTool, cancelScheduleTool]
+  tools: () => [getPublishStatusTool, schedulePublishTool, cancelScheduleTool],
 };
 
 export default collection;

@@ -24,15 +24,19 @@ const ALL_TOOLS = [
   "create-variant", "copy-variant", "list-untranslated",
   "list-dictionary", "search-dictionary", "get-dictionary", "create-dictionary", "update-dictionary", "move-dictionary",
   "list-tags",
-  "audit-page-seo", "audit-page-content", "report-empty-fields", "report-short-content", "report-media-missing-alt",
-  "report-stale-content", "report-unpublished", "report-recently-changed", "report-content-by-type", "report-translation-coverage",
-  "report-site-tree-summary", "report-orphan-pages", "report-deep-pages",
-  "report-unused-media", "report-large-media", "report-content-references",
+  // Tree-walking tools disabled pending filtered-pages endpoint:
+  // "report-empty-fields", "report-short-content", "report-media-missing-alt",
+  // "report-stale-content", "report-unpublished", "report-recently-changed",
+  // "report-content-by-type", "report-translation-coverage", "report-orphan-pages",
+  // "report-large-media", "list-scheduled-content"
+  "audit-page-seo", "audit-page-content",
+  "report-site-tree-summary", "report-deep-pages",
+  "report-unused-media", "report-content-references",
   "bulk-publish", "bulk-unpublish", "bulk-schedule-publish", "bulk-set-property", "bulk-move",
   "search-members", "get-member", "list-member-types", "create-member", "update-member", "delete-member",
   "list-member-groups", "create-member-group", "delete-member-group",
   "report-member-count", "report-members-by-group", "report-member-activity",
-  "get-publish-status", "list-scheduled-content", "schedule-publish", "cancel-schedule",
+  "get-publish-status", "schedule-publish", "cancel-schedule",
   "list-redirects", "get-redirect", "delete-redirect", "get-redirect-status",
 ];
 

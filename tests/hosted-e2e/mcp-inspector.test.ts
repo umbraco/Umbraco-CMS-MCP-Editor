@@ -32,14 +32,18 @@ const READ_TOOLS = [
   "list-untranslated",
   "list-dictionary", "search-dictionary", "get-dictionary",
   "list-tags",
-  "audit-page-seo", "audit-page-content", "report-empty-fields", "report-short-content", "report-media-missing-alt",
-  "report-stale-content", "report-unpublished", "report-recently-changed", "report-content-by-type", "report-translation-coverage",
-  "report-site-tree-summary", "report-orphan-pages", "report-deep-pages",
-  "report-large-media", "report-content-references",
+  // Tree-walking tools disabled pending filtered-pages endpoint:
+  // "report-empty-fields", "report-short-content", "report-media-missing-alt",
+  // "report-stale-content", "report-unpublished", "report-recently-changed",
+  // "report-content-by-type", "report-translation-coverage", "report-orphan-pages",
+  // "report-large-media", "list-scheduled-content"
+  "audit-page-seo", "audit-page-content",
+  "report-site-tree-summary", "report-deep-pages",
+  "report-content-references",
   "search-members", "get-member", "list-member-types",
   "list-member-groups",
   "report-member-count", "report-members-by-group", "report-member-activity",
-  "get-publish-status", "list-scheduled-content",
+  "get-publish-status",
   "list-redirects", "get-redirect", "get-redirect-status",
 ];
 

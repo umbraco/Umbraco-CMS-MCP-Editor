@@ -11,7 +11,11 @@ const collection: ToolCollectionExport = {
     displayName: "Content Health",
     description: "Content quality auditing and SEO analysis",
   },
-  tools: () => [auditPageSeoTool, auditPageContentTool, reportEmptyFieldsTool, reportShortContentTool, reportMediaMissingAltTool],
+  // report-empty-fields, report-short-content, and report-media-missing-alt walk the
+  // content/media tree (N+1 get-document-by-id, scanLimit=100) and are disabled until a
+  // filtered-pages endpoint is available. Imports kept so the tool files still type-check.
+  // Full list: [auditPageSeoTool, auditPageContentTool, reportEmptyFieldsTool, reportShortContentTool, reportMediaMissingAltTool]
+  tools: () => [auditPageSeoTool, auditPageContentTool],
 };
 
 export default collection;
