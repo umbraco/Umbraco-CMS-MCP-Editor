@@ -40,6 +40,7 @@ import memberReportingCollection from "./umbraco-api/tools/member-reporting/inde
 import schedulingCollection from "./umbraco-api/tools/scheduling/index.js";
 import redirectCollection from "./umbraco-api/tools/redirect/index.js";
 import relationshipsCollection from "./umbraco-api/tools/relationships/index.js";
+import publicAccessCollection from "./umbraco-api/tools/public-access/index.js";
 import notificationsCollection from "./umbraco-api/tools/notifications/index.js";
 
 export const collections = [
@@ -64,6 +65,7 @@ export const collections = [
   schedulingCollection,
   redirectCollection,
   relationshipsCollection,
+  publicAccessCollection,
   notificationsCollection,
 ];
 

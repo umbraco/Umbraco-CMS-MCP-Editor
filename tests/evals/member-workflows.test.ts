@@ -114,6 +114,10 @@ const allTools = [
   "get-redirect",
   "delete-redirect",
   "get-redirect-status",
+  // Public Access
+  "get-public-access",
+  "set-public-access",
+  "remove-public-access",
   // Notifications (hosted-only — exposed in evals for coverage)
   "get-content-notifications",
   "set-content-notifications",
@@ -196,6 +200,30 @@ describe("Member Workflows", () => {
       tools: ["list-member-groups"],
       requiredTools: ["list-member-groups"],
       successPattern: /group|member/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "public access create, read, remove",
+    runScenarioTest({
+      prompt:
+        "Pick the first root-level content page (use list-children with no parentId). " +
+        "First use get-public-access to report whether it has restrictions. " +
+        "Then use list-member-groups to find an existing member group — if none exist, use create-member-group to make one called 'Eval Test Group'. " +
+        "Then use set-public-access to restrict the page to that group, using the same page as both login and error page. " +
+        "Then use get-public-access to confirm the restriction was applied. " +
+        "Finally use remove-public-access to clear the restriction.",
+      tools: allTools,
+      requiredTools: [
+        "list-children",
+        "list-member-groups",
+        "set-public-access",
+        "get-public-access",
+        "remove-public-access",
+      ],
+      successPattern: /public access|restriction|group|removed|set|cleared/i,
       verbose: true,
     }),
     timeout

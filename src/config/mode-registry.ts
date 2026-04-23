@@ -103,6 +103,12 @@ export const toolModes: ToolModeDefinition[] = [
     collections: ['relationships']
   },
   {
+    name: 'public-access',
+    displayName: 'Public Access',
+    description: 'Restrict content pages to members of specific groups (member-gated content)',
+    collections: ['public-access']
+  },
+  {
     name: 'notifications',
     displayName: 'Content Notifications',
     description: 'Manage per-user email notification subscriptions on content pages (hosted-only)',

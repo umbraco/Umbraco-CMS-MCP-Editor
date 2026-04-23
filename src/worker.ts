@@ -106,6 +106,7 @@ export class UmbracoMcpAgent extends McpAgent<HostedMcpEnv, unknown, AuthProps> 
           "Umb.Document.Create", "Umb.Document.Read", "Umb.Document.Update",
           "Umb.Document.Delete", "Umb.Document.Publish", "Umb.Document.Unpublish",
           "Umb.Document.Move", "Umb.Document.Sort", "Umb.Document.Duplicate",
+          "Umb.Document.PublicAccess",
         ],
         allowedSections: [
           "Umb.Section.Content", "Umb.Section.Media", "Umb.Section.Settings",

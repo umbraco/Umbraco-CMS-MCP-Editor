@@ -115,6 +115,10 @@ const allTools = [
   "get-redirect",
   "delete-redirect",
   "get-redirect-status",
+  // Public Access
+  "get-public-access",
+  "set-public-access",
+  "remove-public-access",
   // Notifications (hosted-only — exposed in evals for coverage)
   "get-content-notifications",
   "set-content-notifications",
