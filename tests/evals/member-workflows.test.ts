@@ -200,4 +200,17 @@ describe("Member Workflows", () => {
     }),
     timeout
   );
+
+  it(
+    "unlock member and reset password",
+    runScenarioTest({
+      prompt:
+        "A member named 'eval' is locked out and forgot their password. Find them with search-members, then use update-member to unlock the account and set a temporary password of 'TempPass123!'. They'll change it on next login.",
+      tools: allTools,
+      requiredTools: ["search-members", "update-member"],
+      successPattern: /unlock|password|reset|updated|temporary/i,
+      verbose: true,
+    }),
+    timeout
+  );
 });
