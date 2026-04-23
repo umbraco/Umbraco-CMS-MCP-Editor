@@ -114,6 +114,9 @@ const allTools = [
   "get-redirect",
   "delete-redirect",
   "get-redirect-status",
+  // Notifications (hosted-only — exposed in evals for coverage)
+  "get-content-notifications",
+  "set-content-notifications",
 ];
 
 describe("Write Workflows", () => {
@@ -221,6 +224,22 @@ describe("Write Workflows", () => {
       tools: allTools,
       requiredTools: ["inspect-blocks", "edit-block", "publish-page"],
       successPattern: /publish|updated|block|live/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "manage content notification subscriptions",
+    runScenarioTest({
+      prompt:
+        "Find the homepage with search-content, then use get-content-notifications to see the current subscriptions, then use set-content-notifications to subscribe to every available action on that page. Finally confirm with get-content-notifications that the subscriptions were saved.",
+      tools: allTools,
+      requiredTools: [
+        "get-content-notifications",
+        "set-content-notifications",
+      ],
+      successPattern: /subscrib|notific|saved|confirm|action/i,
       verbose: true,
     }),
     timeout

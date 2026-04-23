@@ -115,6 +115,9 @@ const allTools = [
   "get-redirect",
   "delete-redirect",
   "get-redirect-status",
+  // Notifications (hosted-only — exposed in evals for coverage)
+  "get-content-notifications",
+  "set-content-notifications",
 ];
 
 describe("Translation and Tag Workflows", () => {

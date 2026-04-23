@@ -102,6 +102,12 @@ export const toolModes: ToolModeDefinition[] = [
     description: 'View inbound/outbound references, relationship mapping, and external link inventory',
     collections: ['relationships']
   },
+  {
+    name: 'notifications',
+    displayName: 'Content Notifications',
+    description: 'Manage per-user email notification subscriptions on content pages (hosted-only)',
+    collections: ['notifications']
+  },
 ];
 
 /**
