@@ -9,7 +9,11 @@ exports[`get-page should get page details by ID 1`] = `
     },
     "id": "00000000-0000-0000-0000-000000000000",
     "name": "_Test Get Page",
-    "urls": [],
+    "previewUrl": {
+      "requiresBackofficeAuth": true,
+      "url": "<preview-url>",
+    },
+    "publishedUrls": [],
     "values": [],
     "variants": [
       {

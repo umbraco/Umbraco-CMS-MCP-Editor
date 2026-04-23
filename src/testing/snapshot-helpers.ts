@@ -12,6 +12,8 @@ import { createSnapshotResult } from "@umbraco-cms/mcp-server-sdk/testing";
 const NORMALIZED_DATE = "NORMALIZED_DATE";
 const NORMALIZED_UUID = "00000000-0000-0000-0000-000000000000";
 const NORMALIZED_VALUE = "[NORMALIZED_VALUE]";
+const NORMALIZED_PREVIEW_URL = "<preview-url>";
+const NORMALIZED_PUBLISHED_URL = "<published-url>";
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Umbraco appends " (N)" to duplicate names — strip the suffix for stable snapshots */
@@ -62,6 +64,21 @@ function normalizeEditorFields(obj: any): any {
   // Normalize mutable property values (objects with alias + editorAlias + value)
   if (isPropertyValueEntry(normalized)) {
     normalized.value = NORMALIZED_VALUE;
+  }
+
+  // Normalize the `url` string inside a previewUrl { url, requiresBackofficeAuth }
+  // object to a placeholder — keeps snapshots port-independent across worktrees.
+  if (typeof normalized.url === "string" && normalized.requiresBackofficeAuth === true) {
+    normalized.url = NORMALIZED_PREVIEW_URL;
+  }
+
+  // Normalize each entry in a publishedUrls array to a placeholder — avoids
+  // coupling snapshots to port or URL segment drift (names with " (N)" suffixes
+  // yield different segments between runs).
+  if (Array.isArray(normalized.publishedUrls)) {
+    normalized.publishedUrls = normalized.publishedUrls.map((u: unknown) =>
+      typeof u === "string" ? NORMALIZED_PUBLISHED_URL : u
+    );
   }
 
   for (const field of EDITOR_DATE_FIELDS) {

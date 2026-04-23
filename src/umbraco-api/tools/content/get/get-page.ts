@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition , extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
+import { buildPreviewUrl, flattenPublishedUrls, previewUrlSchema, publishedUrlsSchema } from "../../helpers/preview-url.js";
 
 
 const inputSchema = {
@@ -13,7 +14,8 @@ const outputSchema = z.object({
   documentType: z.object({ id: z.string() }),
   values: z.array(z.object({ alias: z.string(), value: z.any() }).passthrough()).describe("Content field values"),
   variants: z.array(z.object({ name: z.string() }).passthrough()).describe("Language/culture variants"),
-  urls: z.array(z.any()).optional().describe("Published URLs"),
+  previewUrl: previewUrlSchema,
+  publishedUrls: publishedUrlsSchema,
 });
 
 /**
@@ -65,7 +67,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         value: summariseIfBlock(v.value),
       })),
       variants: doc.variants ?? [],
-      urls: doc.urls ?? [],
+      previewUrl: buildPreviewUrl(doc.id),
+      publishedUrls: flattenPublishedUrls(doc.urls),
     });
   },
 };

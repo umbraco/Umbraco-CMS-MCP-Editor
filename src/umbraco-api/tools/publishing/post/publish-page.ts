@@ -32,8 +32,17 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       }
     }
 
+    // publish-document requires one publishSchedules entry per culture to
+    // actually publish — an empty array is a no-op in Umbraco. Derive from the
+    // doc's variants (invariant content yields a single `culture: null` entry).
+    const variantCultures: Array<string | null> = (doc?.variants ?? []).length
+      ? doc.variants.map((v: any) => v.culture ?? null)
+      : [null];
     const toolName = includeDescendants ? "publish-document-with-descendants" : "publish-document";
-    const publishResult = await mcpClientManager.callTool("cms", toolName, { id, data: { publishSchedules: [] } });
+    const publishResult = await mcpClientManager.callTool("cms", toolName, {
+      id,
+      data: { publishSchedules: variantCultures.map(c => ({ culture: c })) },
+    });
     if (publishResult.isError) return createToolResultError(publishResult);
 
     return createToolResult({

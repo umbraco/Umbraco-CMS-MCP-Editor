@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
+import { fetchPublishedUrls, publishedUrlsSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to save and publish"),
@@ -20,6 +21,7 @@ const outputSchema = z.object({
   saved: z.boolean(),
   published: z.boolean(),
   updatedFields: z.array(z.string()),
+  publishedUrls: publishedUrlsSchema,
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
@@ -46,6 +48,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
           saved: false,
           published: false,
           updatedFields: [],
+          publishedUrls: [],
         });
       }
     }
@@ -65,8 +68,17 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       saved = true;
     }
 
+    // publish-document requires one publishSchedules entry per culture to
+    // actually publish — an empty array is a no-op in Umbraco. Derive from the
+    // doc's variants (invariant content yields a single `culture: null` entry).
+    const variantCultures: Array<string | null> = (doc?.variants ?? []).length
+      ? doc.variants.map((v: any) => v.culture ?? null)
+      : [null];
     const publishToolName = includeDescendants ? "publish-document-with-descendants" : "publish-document";
-    const publishResult = await mcpClientManager.callTool("cms", publishToolName, { id, data: { publishSchedules: [] } });
+    const publishResult = await mcpClientManager.callTool("cms", publishToolName, {
+      id,
+      data: { publishSchedules: variantCultures.map(c => ({ culture: c })) },
+    });
     if (publishResult.isError) {
       const err = createToolResultError(publishResult);
       if (saved) {
@@ -77,10 +89,13 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
           saved: true,
           published: false,
           updatedFields: fieldNames,
+          publishedUrls: [],
         });
       }
       return err;
     }
+
+    const publishedUrls = await fetchPublishedUrls(id);
 
     const savedPart = saved ? `Saved ${fieldNames.length} field(s) and ` : "";
     const descPart = includeDescendants ? " and all descendants" : "";
@@ -91,6 +106,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       saved,
       published: true,
       updatedFields: fieldNames,
+      publishedUrls,
     });
   },
 };

@@ -9,7 +9,11 @@ exports[`create-page should create a draft page 1`] = `
     },
     "id": "00000000-0000-0000-0000-000000000000",
     "name": "_Test Create Page",
-    "urls": [],
+    "previewUrl": {
+      "requiresBackofficeAuth": true,
+      "url": "<preview-url>",
+    },
+    "publishedUrls": [],
     "values": [],
     "variants": [
       {

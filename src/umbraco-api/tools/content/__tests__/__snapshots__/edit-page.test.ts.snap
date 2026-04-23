@@ -7,6 +7,10 @@ exports[`edit-page should edit a page 1`] = `
     "id": "00000000-0000-0000-0000-000000000000",
     "message": "Updated 1 field(s) on "_Test Edit Page" (saved, not published)",
     "name": "_Test Edit Page",
+    "previewUrl": {
+      "requiresBackofficeAuth": true,
+      "url": "<preview-url>",
+    },
     "updatedFields": [
       "title",
     ],

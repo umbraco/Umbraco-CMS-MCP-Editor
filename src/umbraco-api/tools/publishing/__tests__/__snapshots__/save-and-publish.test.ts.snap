@@ -8,6 +8,9 @@ exports[`save-and-publish publishes without values when none provided 1`] = `
     "message": "published "_Test Save Publish No Values"",
     "name": "_Test Save Publish No Values",
     "published": true,
+    "publishedUrls": [
+      "<published-url>",
+    ],
     "saved": false,
     "updatedFields": [],
   },
@@ -22,6 +25,9 @@ exports[`save-and-publish saves values and publishes in one call 1`] = `
     "message": "Saved 1 field(s) and published "_Test Save Publish With Values"",
     "name": "_Test Save Publish With Values",
     "published": true,
+    "publishedUrls": [
+      "<published-url>",
+    ],
     "saved": true,
     "updatedFields": [
       "title",

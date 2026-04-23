@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "../../../mcp-client.js";
+import { buildPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to edit"),
@@ -17,6 +18,7 @@ const outputSchema = z.object({
   id: z.string(),
   name: z.string(),
   updatedFields: z.array(z.string()),
+  previewUrl: previewUrlSchema,
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
@@ -49,6 +51,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       id,
       name: pageName,
       updatedFields: fieldNames,
+      previewUrl: buildPreviewUrl(id),
     });
   },
 };
