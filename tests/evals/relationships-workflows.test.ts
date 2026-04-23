@@ -31,6 +31,7 @@ const allTools = [
   // Versioning
   "list-versions",
   "rollback-page",
+  "get-page-change-history",
   // Media
   "search-media",
   "list-media-children",
@@ -42,6 +43,7 @@ const allTools = [
   "delete-media",
   "restore-media",
   "bulk-move-media",
+  "get-media-change-history",
   // Blueprints
   "list-blueprints",
   "get-blueprint",

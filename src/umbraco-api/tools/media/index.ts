@@ -4,6 +4,7 @@ import listMediaChildrenTool from "./get/list-media-children.js";
 import getMediaTool from "./get/get-media.js";
 import listMediaTypesTool from "./get/list-media-types.js";
 import getMediaTypeTool from "./get/get-media-type.js";
+import getMediaChangeHistoryTool from "./get/get-media-change-history.js";
 import reportMediaReferencesTool from "./get/report-media-references.js";
 
 const collection: ToolCollectionExport = {
@@ -12,7 +13,7 @@ const collection: ToolCollectionExport = {
     displayName: "Media",
     description: "Browse, search, and view media items",
   },
-  tools: () => [searchMediaTool, listMediaChildrenTool, getMediaTool, listMediaTypesTool, getMediaTypeTool, reportMediaReferencesTool],
+  tools: () => [searchMediaTool, listMediaChildrenTool, getMediaTool, listMediaTypesTool, getMediaTypeTool, getMediaChangeHistoryTool, reportMediaReferencesTool],
 };
 
 export default collection;
