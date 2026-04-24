@@ -114,6 +114,12 @@ export const toolModes: ToolModeDefinition[] = [
     description: 'Manage per-user email notification subscriptions on content pages (hosted-only)',
     collections: ['notifications']
   },
+  {
+    name: 'recycle-bin',
+    displayName: 'Recycle Bin',
+    description: 'List the content or media recycle bin and permanently delete items or empty the bin (irreversible)',
+    collections: ['recycle-bin']
+  },
 ];
 
 /**

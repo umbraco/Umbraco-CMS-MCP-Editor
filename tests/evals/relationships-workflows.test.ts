@@ -44,6 +44,10 @@ const allTools = [
   "restore-media",
   "bulk-move-media",
   "get-media-change-history",
+  // Recycle Bin
+  "list-recycle-bin",
+  "permanent-delete-recycle-bin-item",
+  "empty-recycle-bin",
   // Blueprints
   "list-blueprints",
   "get-blueprint",

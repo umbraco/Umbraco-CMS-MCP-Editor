@@ -44,6 +44,7 @@ import redirectCollection from "./umbraco-api/tools/redirect/index.js";
 import relationshipsCollection from "./umbraco-api/tools/relationships/index.js";
 import publicAccessCollection from "./umbraco-api/tools/public-access/index.js";
 import notificationsCollection from "./umbraco-api/tools/notifications/index.js";
+import recycleBinCollection from "./umbraco-api/tools/recycle-bin/index.js";
 
 // Import MCP client manager (servers registered at import time via mcp-client.ts)
 import { mcpClientManager } from "./umbraco-api/mcp-client.js";
@@ -115,6 +116,7 @@ const collections: ToolCollectionExport[] = [
   relationshipsCollection,
   publicAccessCollection,
   notificationsCollection,
+  recycleBinCollection,
 ];
 let registeredToolCount = 0;
 

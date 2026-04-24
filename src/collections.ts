@@ -42,6 +42,7 @@ import redirectCollection from "./umbraco-api/tools/redirect/index.js";
 import relationshipsCollection from "./umbraco-api/tools/relationships/index.js";
 import publicAccessCollection from "./umbraco-api/tools/public-access/index.js";
 import notificationsCollection from "./umbraco-api/tools/notifications/index.js";
+import recycleBinCollection from "./umbraco-api/tools/recycle-bin/index.js";
 
 export const collections = [
   contentCollection,
@@ -67,6 +68,7 @@ export const collections = [
   relationshipsCollection,
   publicAccessCollection,
   notificationsCollection,
+  recycleBinCollection,
 ];
 
 export { allModes, allModeNames } from "./config/mode-registry.js";

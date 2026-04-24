@@ -45,6 +45,10 @@ const allTools = [
   "restore-media",
   "bulk-move-media",
   "get-media-change-history",
+  // Recycle Bin
+  "list-recycle-bin",
+  "permanent-delete-recycle-bin-item",
+  "empty-recycle-bin",
   // Blueprints
   "list-blueprints",
   "get-blueprint",
@@ -233,7 +237,6 @@ describe("Write Workflows", () => {
     timeout
   );
 
-  it(
     "manage content notification subscriptions",
     runScenarioTest({
       prompt:
@@ -245,6 +248,25 @@ describe("Write Workflows", () => {
       ],
       successPattern: /subscrib|notific|saved|confirm|action/i,
       verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "recycle bin: list and cancel empty when confirmation declined",
+    runScenarioTest({
+      prompt:
+        "First call list-recycle-bin with type 'content' to see what's in the content recycle bin. Then try to empty-recycle-bin for type 'content'. When the elicitation asks you to confirm, decline it. Finally, state whether the bin was emptied or not.",
+      tools: allTools,
+      requiredTools: ["list-recycle-bin", "empty-recycle-bin"],
+      successPattern: /cancel|declin|not empt|still|aborted|empty/i,
+      verbose: true,
+      options: {
+        onElicitation: async () => ({
+          action: "decline",
+          content: {},
+        }),
+      },
     }),
     timeout
   );
