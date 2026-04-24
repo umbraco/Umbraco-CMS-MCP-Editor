@@ -10,6 +10,8 @@ MCP server template for Umbraco add-ons using the @umbraco-cms/mcp-server-sdk.
 npm install
 ```
 
+On first clone, run `npm run umbraco:bootstrap` to create `demo-site/` from `demo-site-template/`. Then start the CMS with `npm run start:umbraco`.
+
 ### 2. Configure Environment
 
 Copy `.env.example` to `.env` and fill in your Umbraco connection details:

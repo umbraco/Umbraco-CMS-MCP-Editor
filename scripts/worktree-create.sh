@@ -73,23 +73,51 @@ else
   git -C "$PROJECT_DIR" worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME" "$BASE_BRANCH" >&2
 fi
 
-# --- Copy .env ---
-if [ -f "$PROJECT_DIR/.env" ]; then
-  cp "$PROJECT_DIR/.env" "$WORKTREE_PATH/.env"
-  echo "Copied: .env" >&2
-fi
+# --- Copy files/directories listed in .worktreeinclude ---
+INCLUDE_FILE="$PROJECT_DIR/.worktreeinclude"
+if [ -f "$INCLUDE_FILE" ]; then
+  while IFS= read -r line; do
+    # Strip leading/trailing whitespace
+    entry="$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    # Skip blank and comment lines
+    [ -z "$entry" ] && continue
+    [[ "$entry" == \#* ]] && continue
 
-# --- Copy demo-site (gitignored, so not in worktree by default) ---
-if [ -d "$PROJECT_DIR/demo-site" ]; then
-  echo "Copying demo-site to worktree..." >&2
-  rsync -a \
-    --exclude='bin/' \
-    --exclude='obj/' \
-    --exclude='umbraco/Data/*.sqlite*' \
-    --exclude='umbraco/Logs/' \
-    --exclude='appsettings.local.json' \
-    "$PROJECT_DIR/demo-site/" "$WORKTREE_PATH/demo-site/" >&2
-  echo "Copied demo-site (excluding build artifacts and data)" >&2
+    src="$PROJECT_DIR/$entry"
+    dst="$WORKTREE_PATH/$entry"
+
+    if [ -f "$src" ]; then
+      mkdir -p "$(dirname "$dst")"
+      cp "$src" "$dst"
+      echo "Copied file: $entry" >&2
+    elif [ -d "$src" ]; then
+      echo "Copying directory: $entry" >&2
+      rsync -a \
+        --exclude='bin/' \
+        --exclude='obj/' \
+        --exclude='umbraco/Data/*.sqlite*' \
+        --exclude='umbraco/Logs/' \
+        --exclude='appsettings.local.json' \
+        "$src/" "$dst/" >&2
+    else
+      echo "Warning: .worktreeinclude entry not found: $entry" >&2
+    fi
+  done < "$INCLUDE_FILE"
+else
+  # Fallback: preserve prior behaviour if .worktreeinclude is missing
+  # (e.g. running this hook from an older branch).
+  if [ -f "$PROJECT_DIR/.env" ]; then
+    cp "$PROJECT_DIR/.env" "$WORKTREE_PATH/.env"
+    echo "Copied: .env (fallback)" >&2
+  fi
+  if [ -d "$PROJECT_DIR/demo-site" ]; then
+    rsync -a \
+      --exclude='bin/' --exclude='obj/' \
+      --exclude='umbraco/Data/*.sqlite*' --exclude='umbraco/Logs/' \
+      --exclude='appsettings.local.json' \
+      "$PROJECT_DIR/demo-site/" "$WORKTREE_PATH/demo-site/" >&2
+    echo "Copied: demo-site/ (fallback)" >&2
+  fi
 fi
 
 # --- Create SQL Server database ---

@@ -8,7 +8,7 @@
  * can find and operate on published content.
  *
  * Usage:
- *   node infrastructure/ci/publish-root-content.mjs [baseUrl]
+ *   node scripts/publish-root-content.mjs [baseUrl]
  *
  * Requires the MCP API user to already exist (run create-api-user.mjs first).
  */
