@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the blueprint to retrieve"),
@@ -35,29 +35,23 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["read"],
   annotations: { readOnlyHint: true },
   handler: async ({ id }) => {
-    const result = await mcpClientManager.callTool("cms", "get-document-blueprint", { id });
-    if (result.isError) return createToolResultError(result);
-    const data = extractChainedResult(result);
+    const result = await chainCms("get-document-blueprint", { id });
+    if (!result.ok) return result.errorResult;
+    const data = result.data;
 
-    const documentType = data.documentType
-      ? {
-          id: data.documentType.id ?? undefined,
-          alias: data.documentType.alias ?? undefined,
-          name: data.documentType.name ?? undefined,
-        }
+    const dt = data.documentType as { id?: string; alias?: string; name?: string } | undefined;
+    const documentType = dt
+      ? { id: dt.id ?? undefined, alias: dt.alias ?? undefined, name: dt.name ?? undefined }
       : undefined;
 
-    const name =
-      data.name ??
-      data.variants?.[0]?.name ??
-      "Unknown";
+    const name = data.variants?.[0]?.name ?? "Unknown";
 
     return createToolResult({
       id: data.id,
       name,
       documentType,
       values: data.values ?? [],
-      variants: (data.variants ?? []).map((v: any) => ({
+      variants: (data.variants ?? []).map((v) => ({
         name: v.name ?? undefined,
         culture: v.culture ?? null,
         segment: v.segment ?? null,

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   isoCode: z.string().describe("ISO language code of the language to update (e.g. en-US)"),
@@ -23,13 +23,21 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["update"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   handler: async ({ isoCode, isDefault, isMandatory, fallbackIsoCode }) => {
-    const langResult = await mcpClientManager.callTool("cms", "get-language-by-iso-code", { isoCode });
-    if (langResult.isError) return createToolResultError(langResult);
-    const lang = extractChainedResult(langResult);
+    const langResult = await chainCms("get-language-by-iso-code", { isoCode });
+    if (!langResult.ok) return langResult.errorResult;
+    const lang = langResult.data;
     const name = lang.name ?? isoCode;
 
-    const result = await mcpClientManager.callTool("cms", "update-language", { isoCode, data: { name, isDefault, isMandatory, fallbackIsoCode } });
-    if (result.isError) return createToolResultError(result);
+    const result = await chainCms("update-language", {
+      isoCode,
+      data: {
+        name,
+        isDefault: isDefault ?? lang.isDefault ?? false,
+        isMandatory: isMandatory ?? lang.isMandatory ?? false,
+        fallbackIsoCode: fallbackIsoCode ?? lang.fallbackIsoCode ?? undefined,
+      },
+    });
+    if (!result.ok) return result.errorResult;
 
     return createToolResult({
       message: `Language "${name}" (${isoCode}) updated successfully`,

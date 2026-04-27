@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import {
   validateBulkIds,
   fetchBulkItemDetails,
@@ -36,11 +36,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["publish"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   handler: async ({ ids, includeDescendants }, extra) => {
-    // 1. Validate cap
     const validationError = validateBulkIds(ids);
     if (validationError) return createToolResult(validationError as BulkOperationOutput);
 
-    // 2. Fetch details for confirmation + rollback
     const items = await fetchBulkItemDetails(ids);
     if (items.length === 0) {
       return createToolResult({
@@ -52,11 +50,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    // 3. Build confirmation listing every name
     const nameList = items.map(i => `- ${i.name}`).join("\n");
     const message = `Publish these ${items.length} pages?\n${nameList}`;
 
-    // 4. Confirm
     if (!await confirmAction(extra, message, { title: "Confirm bulk publish", defaultValue: false })) {
       return createToolResult({
         message: "Cancelled",
@@ -67,20 +63,19 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    // 5. Execute sequentially
-    const toolName = includeDescendants ? "publish-document-with-descendants" : "publish-document";
     const results = await executeBulkSequentially(items, async (item) => {
-      const result = await mcpClientManager.callTool("cms", toolName, {
-        id: item.id,
-        data: { publishSchedules: [] },
-      });
-      if (result.isError) {
-        return extractChainedResult(result)?.detail ?? "Publish failed";
+      const result = includeDescendants
+        ? await chainCms("publish-document-with-descendants", {
+            id: item.id,
+            data: { includeUnpublishedDescendants: false, cultures: [] },
+          })
+        : await chainCms("publish-document", { id: item.id, data: { publishSchedules: [] } });
+      if (!result.ok) {
+        return result.errorResult.content?.[0]?.text ?? "Publish failed";
       }
       return null;
     });
 
-    // 6. Return summary
     return createToolResult(buildBulkOutput("Published", results));
   },
 };

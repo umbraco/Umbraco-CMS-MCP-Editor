@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import { buildPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
@@ -29,22 +29,19 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["update"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   handler: async ({ id, values }) => {
-    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (docResult.isError) return createToolResultError(docResult);
-    const doc = extractChainedResult(docResult);
-    const pageName = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
+    const docResult = await chainCms("get-document-by-id", { id });
+    if (!docResult.ok) return docResult.errorResult;
+    const pageName = docResult.data.variants?.[0]?.name ?? "Unknown";
     const fieldNames = values.map((v) => v.alias);
 
-    const updateResult = await mcpClientManager.callTool("cms", "update-document-properties", {
-      id,
-      properties: values.map(v => ({
-        alias: v.alias,
-        value: v.value,
-        culture: v.culture ?? null,
-        segment: v.segment ?? null,
-      })),
-    });
-    if (updateResult.isError) return createToolResultError(updateResult);
+    const properties = values.map(v => ({
+      alias: v.alias,
+      value: v.value,
+      culture: v.culture ?? null,
+      segment: v.segment ?? null,
+    })) as [(typeof values)[number] & { culture: string | null; segment: string | null }, ...((typeof values)[number] & { culture: string | null; segment: string | null })[]];
+    const updateResult = await chainCms("update-document-properties", { id, properties });
+    if (!updateResult.ok) return updateResult.errorResult;
 
     return createToolResult({
       message: `Updated ${fieldNames.length} field(s) on "${pageName}" (saved, not published)`,

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {};
 
@@ -32,13 +32,14 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     let cursor: string | undefined = encodeCursor({ s: 0, t: PAGE_SIZE });
 
     while (allMembers.length < MEMBER_CAP) {
-      const result = await mcpClientManager.callTool("cms", "find-member", { cursor });
-      if (result.isError) return createToolResultError(result);
-      const data = extractChainedResult(result);
+      const result = await chainCms("find-member", { cursor: cursor as string | undefined, orderBy: "username" });
+      if (!result.ok) return result.errorResult;
+      const data: any = result.data;
       const items: any[] = data.items ?? [];
       allMembers.push(...items);
-      if (!data.nextCursor || items.length === 0) break;
-      cursor = data.nextCursor;
+      const nextCursor: string | null | undefined = data.nextCursor;
+      if (!nextCursor || items.length === 0) break;
+      cursor = nextCursor;
     }
 
     // Group by member type
@@ -49,9 +50,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     }
 
     // Fetch all member groups to build group name list
-    const groupResult = await mcpClientManager.callTool("cms", "get-all-member-groups", {});
-    if (groupResult.isError) return createToolResultError(groupResult);
-    const groupData = extractChainedResult(groupResult);
+    const groupResult = await chainCms("get-all-member-groups", {});
+    if (!groupResult.ok) return groupResult.errorResult;
+    const groupData = groupResult.data;
     const allGroups: any[] = groupData.items ?? [];
 
     // Count members per group using the member's groups array

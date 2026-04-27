@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import { fetchPublishedUrls, publishedUrlsSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
@@ -32,10 +32,10 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["publish", "update"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   handler: async ({ id, values, includeDescendants }, extra) => {
-    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (docResult.isError) return createToolResultError(docResult);
-    const doc = extractChainedResult(docResult);
-    const pageName = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
+    const docResult = await chainCms("get-document-by-id", { id });
+    if (!docResult.ok) return docResult.errorResult;
+    const doc = docResult.data;
+    const pageName = doc.variants?.[0]?.name ?? "Unknown";
     const fieldNames = (values ?? []).map((v) => v.alias);
 
     // Match the UI: publishing with descendants has unknown scope, so confirm it.
@@ -55,35 +55,39 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     let saved = false;
     if (values && values.length > 0) {
-      const updateResult = await mcpClientManager.callTool("cms", "update-document-properties", {
-        id,
-        properties: values.map(v => ({
-          alias: v.alias,
-          value: v.value,
-          culture: v.culture ?? null,
-          segment: v.segment ?? null,
-        })),
-      });
-      if (updateResult.isError) return createToolResultError(updateResult);
+      const properties = values.map(v => ({
+        alias: v.alias,
+        value: v.value,
+        culture: v.culture ?? null,
+        segment: v.segment ?? null,
+      })) as [(typeof values)[number], ...(typeof values)[number][]];
+      const updateResult = await chainCms("update-document-properties", { id, properties });
+      if (!updateResult.ok) return updateResult.errorResult;
       saved = true;
     }
 
     // publish-document requires one publishSchedules entry per culture to
     // actually publish — an empty array is a no-op in Umbraco. Derive from the
     // doc's variants (invariant content yields a single `culture: null` entry).
-    const variantCultures: Array<string | null> = (doc?.variants ?? []).length
-      ? doc.variants.map((v: any) => v.culture ?? null)
+    const variantCultures: Array<string | null> = (doc.variants ?? []).length
+      ? doc.variants.map(v => v.culture ?? null)
       : [null];
-    const publishToolName = includeDescendants ? "publish-document-with-descendants" : "publish-document";
-    const publishResult = await mcpClientManager.callTool("cms", publishToolName, {
-      id,
-      data: { publishSchedules: variantCultures.map(c => ({ culture: c })) },
-    });
-    if (publishResult.isError) {
-      const err = createToolResultError(publishResult);
+    const publishResult = includeDescendants
+      ? await chainCms("publish-document-with-descendants", {
+          id,
+          data: {
+            includeUnpublishedDescendants: false,
+            cultures: variantCultures.filter((c): c is string => c !== null),
+          },
+        })
+      : await chainCms("publish-document", {
+          id,
+          data: { publishSchedules: variantCultures.map(c => ({ culture: c })) },
+        });
+    if (!publishResult.ok) {
       if (saved) {
         return createToolResult({
-          message: `Saved ${fieldNames.length} field(s) on "${pageName}" but publish failed: ${(err as any).content?.[0]?.text ?? "unknown error"}`,
+          message: `Saved ${fieldNames.length} field(s) on "${pageName}" but publish failed: ${publishResult.errorResult.content?.[0]?.text ?? "unknown error"}`,
           id,
           name: pageName,
           saved: true,
@@ -92,7 +96,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
           publishedUrls: [],
         });
       }
-      return err;
+      return publishResult.errorResult;
     }
 
     const publishedUrls = await fetchPublishedUrls(id);

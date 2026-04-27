@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the content page to remove public access restrictions from"),
@@ -23,8 +23,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       return createToolResult({ message: "Remove cancelled", id });
     }
 
-    const result = await mcpClientManager.callTool("cms", "delete-document-public-access", { id });
-    if (result.isError) return createToolResultError(result);
+    const result = await chainCms("delete-document-public-access", { id });
+    if (!result.ok) return result.errorResult;
 
     return createToolResult({
       message: "Removed public access restrictions",

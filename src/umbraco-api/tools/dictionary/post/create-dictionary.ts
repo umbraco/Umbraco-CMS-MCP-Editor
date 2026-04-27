@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   name: z.string().describe("The dictionary key name"),
@@ -27,18 +27,16 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   handler: async ({ name, translations, parentId }) => {
-    const result = await mcpClientManager.callTool("cms", "create-dictionary", {
+    const result = await chainCms("create-dictionary", {
       name,
       translations,
-      parent: parentId ? { id: parentId } : null,
+      parentId,
     });
 
-    if (result.isError) return createToolResultError(result);
-    const data = extractChainedResult(result);
-
+    if (!result.ok) return result.errorResult;
     return createToolResult({
       message: `Created dictionary item "${name}"`,
-      id: data.id ?? "",
+      id: result.data.id,
       name,
     });
   },

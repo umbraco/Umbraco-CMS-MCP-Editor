@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("UUID of the dictionary item to update"),
@@ -28,33 +28,33 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   handler: async ({ id, translations }) => {
     // Fetch existing item to get name and current translations
-    const existingResult = await mcpClientManager.callTool("cms", "get-dictionary", { id });
-    if (existingResult.isError) return createToolResultError(existingResult);
-    const existing = extractChainedResult(existingResult);
+    const existingResult = await chainCms("get-dictionary", { id });
+    if (!existingResult.ok) return existingResult.errorResult;
+    const existing = existingResult.data;
 
     const name: string = existing.name ?? "Unknown";
-    const existingTranslations: any[] = existing.translations ?? [];
+    const existingTranslations = existing.translations ?? [];
 
     // Merge: keep existing translations, replacing any that are in the update set
     const updateMap = new Map(translations.map((t) => [t.isoCode, t.translation]));
-    const mergedTranslations = existingTranslations.map((t: any) => {
-      const isoCode = t.isoCode ?? t.language?.isoCode ?? "";
+    const mergedTranslations: { isoCode: string; translation: string }[] = existingTranslations.map((t) => {
+      const isoCode = t.isoCode ?? "";
       return updateMap.has(isoCode)
-        ? { isoCode, translation: updateMap.get(isoCode) }
+        ? { isoCode, translation: updateMap.get(isoCode)! }
         : { isoCode, translation: t.translation ?? "" };
     });
     // Add any new ISO codes not already in existing
     for (const [isoCode, translation] of updateMap) {
-      if (!existingTranslations.some((t: any) => (t.isoCode ?? t.language?.isoCode) === isoCode)) {
+      if (!existingTranslations.some((t) => t.isoCode === isoCode)) {
         mergedTranslations.push({ isoCode, translation });
       }
     }
 
-    const updateResult = await mcpClientManager.callTool("cms", "update-dictionary-item", {
+    const updateResult = await chainCms("update-dictionary-item", {
       id,
       data: { name, translations: mergedTranslations },
     });
-    if (updateResult.isError) return createToolResultError(updateResult);
+    if (!updateResult.ok) return updateResult.errorResult;
 
     return createToolResult({
       message: `Updated translations for "${name}"`,

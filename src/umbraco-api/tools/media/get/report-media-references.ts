@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import { buildChainedCursor } from "../../helpers/tree-walker.js";
 
 const inputSchema = {
@@ -28,13 +28,12 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["read"],
   annotations: { readOnlyHint: true },
   handler: async ({ id, take, skip }) => {
-    const result = await mcpClientManager.callTool("cms", "get-media-by-id-referenced-by", { id, cursor: buildChainedCursor(skip, take) });
-    if (result.isError) return createToolResultError(result);
-    const data = extractChainedResult(result);
+    const result = await chainCms("get-media-by-id-referenced-by", { id, cursor: buildChainedCursor(skip, take) });
+    if (!result.ok) return result.errorResult;
 
-    const items = (data.items ?? []).map((item: any) => {
-      const name = item.variants?.[0]?.name ?? item.name ?? "(unnamed)";
+    const items = result.data.items.map((item) => {
       if (item.$type === "DocumentReferenceResponseModel") {
+        const name = item.variants?.[0]?.name ?? item.name ?? "(unnamed)";
         return {
           id: item.id,
           name,
@@ -44,12 +43,12 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         };
       }
       if (item.$type === "DocumentTypePropertyTypeReferenceResponseModel") {
-        return { id: item.id, name, kind: "documentTypeProperty" as const };
+        return { id: item.id, name: item.name ?? "(unnamed)", kind: "documentTypeProperty" as const };
       }
-      return { id: item.id, name, kind: "other" as const };
+      return { id: item.id, name: item.name ?? "(unnamed)", kind: "other" as const };
     });
 
-    return createToolResult({ total: data.total ?? 0, items });
+    return createToolResult({ total: result.data.total, items });
   },
 };
 

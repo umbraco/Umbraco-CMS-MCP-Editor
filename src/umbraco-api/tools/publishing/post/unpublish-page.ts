@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to unpublish"),
@@ -20,10 +20,10 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["publish"],
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   handler: async ({ id }, extra) => {
-    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (docResult.isError) return createToolResultError(docResult);
-    const doc = extractChainedResult(docResult);
-    const pageName = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
+    const docResult = await chainCms("get-document-by-id", { id });
+    if (!docResult.ok) return docResult.errorResult;
+    const doc = docResult.data;
+    const pageName = doc.variants?.[0]?.name ?? "Unknown";
 
     if (!await confirmAction(extra, `Unpublish "${pageName}"? This will remove it from the live website.`, {
       title: "Confirm unpublish", defaultValue: false,
@@ -32,11 +32,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     }
 
     // Pass cultures: null for invariant content ([] is rejected by the API)
-    const cultures = (doc.variants ?? []).filter((v: any) => v.culture).map((v: any) => v.culture);
-    const result = await mcpClientManager.callTool("cms", "unpublish-document", {
+    const cultures = (doc.variants ?? []).filter(v => v.culture).map(v => v.culture as string);
+    const result = await chainCms("unpublish-document", {
       id, data: { cultures: cultures.length > 0 ? cultures : null },
     });
-    if (result.isError) return createToolResultError(result);
+    if (!result.ok) return result.errorResult;
 
     return createToolResult({ message: `Unpublished "${pageName}" — it is now a draft only`, id, name: pageName });
   },

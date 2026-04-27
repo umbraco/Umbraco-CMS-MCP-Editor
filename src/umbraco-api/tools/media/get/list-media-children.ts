@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import { buildChainedCursor } from "../../helpers/tree-walker.js";
 
 const inputSchema = {
@@ -30,28 +30,29 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["tree"],
   annotations: { readOnlyHint: true },
   handler: async ({ parentId, take, skip }) => {
+    const cursor = buildChainedCursor(skip, take);
     const result = parentId
-      ? await mcpClientManager.callTool("cms", "get-media-children", { parentId, cursor: buildChainedCursor(skip, take) })
-      : await mcpClientManager.callTool("cms", "get-media-root", { cursor: buildChainedCursor(skip, take) });
+      ? await chainCms("get-media-children", { parentId, cursor })
+      : await chainCms("get-media-root", { cursor });
 
-    if (result.isError) return createToolResultError(result);
-    const data = extractChainedResult(result);
+    if (!result.ok) return result.errorResult;
 
     return createToolResult({
-      items: (data.items ?? []).map((item: any) => {
-        const alias: string = typeof item.mediaType === "string"
-          ? item.mediaType
-          : (item.mediaType?.alias ?? item.mediaType?.name ?? "");
+      items: (result.data.items ?? []).map((item) => {
+        const mediaTypeRaw = item.mediaType as string | { alias?: string; name?: string } | undefined;
+        const alias: string = typeof mediaTypeRaw === "string"
+          ? mediaTypeRaw
+          : (mediaTypeRaw?.alias ?? mediaTypeRaw?.name ?? "");
         const isFolder = (alias || "").toLowerCase().includes("folder");
         return {
           id: item.id,
-          name: item.variants?.[0]?.name ?? item.name ?? "Unknown",
+          name: item.variants?.[0]?.name ?? "Unknown",
           mediaType: alias,
           hasChildren: item.hasChildren ?? false,
           isFolder,
         };
       }),
-      total: data.total ?? 0,
+      total: result.data.total ?? 0,
     });
   },
 };

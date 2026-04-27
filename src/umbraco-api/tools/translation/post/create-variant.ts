@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to add a language variant to"),
@@ -28,13 +28,13 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   handler: async ({ id, culture, values }) => {
-    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (docResult.isError) return createToolResultError(docResult);
-    const doc = extractChainedResult(docResult);
+    const docResult = await chainCms("get-document-by-id", { id });
+    if (!docResult.ok) return docResult.errorResult;
+    const doc = docResult.data;
 
     const existingVariants: any[] = doc.variants ?? [];
     const existingValues: any[] = doc.values ?? [];
-    const pageName = existingVariants[0]?.name ?? doc.name ?? "Unknown";
+    const pageName = existingVariants[0]?.name ?? "Unknown";
 
     const variantExists = existingVariants.some((v: any) => v.culture === culture);
     if (variantExists) {
@@ -49,14 +49,14 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       segment: v.segment ?? null,
     }));
 
-    const updateResult = await mcpClientManager.callTool("cms", "update-document", {
+    const updateResult = await chainCms("update-document", {
       id,
       data: {
         variants: [...existingVariants, newVariant],
         values: [...existingValues, ...newCultureValues],
       },
     });
-    if (updateResult.isError) return createToolResultError(updateResult);
+    if (!updateResult.ok) return updateResult.errorResult;
 
     return createToolResult({
       message: `Created ${culture} variant for "${pageName}"`,

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   pageId: z.string().uuid().describe("The ID of the source page to save as a blueprint"),
@@ -22,19 +22,22 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   handler: async ({ pageId, name }) => {
     let pageName = pageId;
-    const pageResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: pageId });
-    if (!pageResult.isError) {
-      const page = extractChainedResult(pageResult);
-      pageName = page?.variants?.[0]?.name ?? page?.name ?? pageId;
+    const pageResult = await chainCms("get-document-by-id", { id: pageId });
+    if (pageResult.ok) {
+      pageName = pageResult.data.variants?.[0]?.name ?? pageId;
     }
 
-    const createResult = await mcpClientManager.callTool("cms", "create-document-blueprint-from-document", {
+    const createResult = await chainCms("create-document-blueprint-from-document", {
       document: { id: pageId },
       name,
     });
-    if (createResult.isError) return createToolResultError(createResult);
+    if (!createResult.ok) return createResult.errorResult;
 
-    const created = extractChainedResult(createResult);
+    // The dev MCP does not declare an outputSchema for this tool, so chainCms
+    // returns the data as `unknown`, and may return undefined if the upstream
+    // response had no parseable structuredContent. Narrow defensively at this
+    // single boundary.
+    const created = createResult.data as { id?: string } | undefined;
     const createdId = created?.id ?? "";
 
     return createToolResult({

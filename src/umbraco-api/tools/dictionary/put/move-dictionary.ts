@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("UUID of the dictionary item to move"),
@@ -22,32 +22,30 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   handler: async ({ id, targetParentId }, extra) => {
     // Fetch item name and optionally the target name in parallel
-    const fetches: [Promise<any>, Promise<any> | null] = [
-      mcpClientManager.callTool("cms", "get-dictionary", { id }),
-      targetParentId ? mcpClientManager.callTool("cms", "get-dictionary", { id: targetParentId }) : Promise.resolve(null),
-    ];
-    const [itemResult, targetResult] = await Promise.all(fetches);
+    const [itemResult, targetResult] = await Promise.all([
+      chainCms("get-dictionary", { id }),
+      targetParentId ? chainCms("get-dictionary", { id: targetParentId }) : Promise.resolve(null),
+    ]);
 
-    if (itemResult.isError) return createToolResultError(itemResult);
-    const item = extractChainedResult(itemResult);
-    const name: string = item.name ?? "Unknown";
+    if (!itemResult.ok) return itemResult.errorResult;
+    const name = itemResult.data.name;
 
     let targetLabel = "the root";
     if (targetParentId) {
-      if (targetResult && targetResult.isError) return createToolResultError(targetResult);
-      const target = targetResult ? extractChainedResult(targetResult) : null;
-      targetLabel = target ? `"${target.name ?? "Unknown"}"` : "the root";
+      if (targetResult && !targetResult.ok) return targetResult.errorResult;
+      const target = targetResult?.ok ? targetResult.data : null;
+      targetLabel = target ? `"${target.name}"` : "the root";
     }
 
     if (!await confirmAction(extra, `Move dictionary item "${name}" to ${targetLabel}?`, { title: "Confirm move dictionary" })) {
       return createToolResult({ message: "Move cancelled", id, name });
     }
 
-    const moveResult = await mcpClientManager.callTool("cms", "move-dictionary-item", {
+    const moveResult = await chainCms("move-dictionary-item", {
       id,
       data: { target: targetParentId ? { id: targetParentId } : null },
     });
-    if (moveResult.isError) return createToolResultError(moveResult);
+    if (!moveResult.ok) return moveResult.errorResult;
 
     return createToolResult({
       message: `Moved "${name}" to ${targetLabel}`,

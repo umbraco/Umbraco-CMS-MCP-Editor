@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   email: z.string().email().describe("The email address for the new member"),
@@ -31,7 +31,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   handler: async ({ email, username, name, password, memberTypeId, isApproved, groups, values }) => {
-    const result = await mcpClientManager.callTool("cms", "create-member", {
+    const result = await chainCms("create-member", {
       email,
       username,
       password,
@@ -47,12 +47,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       groups: groups ?? null,
     });
 
-    if (result.isError) return createToolResultError(result);
-    const created = extractChainedResult(result);
+    if (!result.ok) return result.errorResult;
 
     return createToolResult({
       message: `Created member "${name}" (${email})`,
-      id: created?.id ?? "",
+      id: result.data.id,
       name,
       email,
     });

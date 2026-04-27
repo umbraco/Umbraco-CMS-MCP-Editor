@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   name: z.string().describe("The name of the page to create"),
@@ -28,7 +28,26 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   handler: async ({ name, documentTypeId, parentId, values }) => {
-    const createArgs: Record<string, unknown> = {
+    // CreateDocumentInput requires editorAlias on each value. The LLM only
+    // supplies the property alias, so resolve editorAlias by looking up the
+    // document type's properties → their data types → editorAlias.
+    const editorAliasByPropertyAlias = new Map<string, string>();
+    if (values && values.length > 0) {
+      const docTypeResult = await chainCms("get-document-type-by-id", { id: documentTypeId });
+      if (!docTypeResult.ok) return docTypeResult.errorResult;
+      const dataTypeIds = Array.from(new Set(docTypeResult.data.properties.map(p => p.dataType.id)));
+      const dataTypesResult = await chainCms("get-data-types-by-id-array", { id: dataTypeIds });
+      if (!dataTypesResult.ok) return dataTypesResult.errorResult;
+      const editorAliasByDataTypeId = new Map(
+        dataTypesResult.data.items.map(dt => [dt.id, dt.editorAlias]),
+      );
+      for (const prop of docTypeResult.data.properties) {
+        const editorAlias = editorAliasByDataTypeId.get(prop.dataType.id);
+        if (editorAlias) editorAliasByPropertyAlias.set(prop.alias, editorAlias);
+      }
+    }
+
+    const createResult = await chainCms("create-document", {
       documentTypeId,
       name,
       values: (values ?? []).map(v => ({
@@ -36,15 +55,12 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         value: v.value,
         culture: v.culture ?? null,
         segment: v.segment ?? null,
+        editorAlias: editorAliasByPropertyAlias.get(v.alias) ?? "",
       })),
-    };
-    if (parentId) createArgs.parentId = parentId;
-
-    const createResult = await mcpClientManager.callTool("cms", "create-document", createArgs);
-    if (createResult.isError) return createToolResultError(createResult);
-
-    const created = extractChainedResult(createResult);
-    const createdId = created?.id ?? "";
+      ...(parentId ? { parentId } : {}),
+    });
+    if (!createResult.ok) return createResult.errorResult;
+    const createdId = createResult.data.id;
 
     return createToolResult({
       message: `Created draft page "${name}"`,

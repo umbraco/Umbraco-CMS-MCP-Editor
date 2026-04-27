@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the media item to get change history for"),
@@ -24,10 +24,9 @@ async function resolveUserNames(userIds: string[]): Promise<Map<string, string>>
   const results = await Promise.all(
     uniqueIds.map(async (id) => {
       try {
-        const userResult = await mcpClientManager.callTool("cms", "get-user-by-id", { id });
-        if (userResult.isError) return [id, id] as const;
-        const user = extractChainedResult(userResult);
-        return [id, user?.name ?? id] as const;
+        const userResult = await chainCms("get-user-by-id", { id });
+        if (!userResult.ok) return [id, id] as const;
+        return [id, userResult.data.name ?? id] as const;
       } catch {
         return [id, id] as const;
       }
@@ -44,33 +43,31 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["list"],
   annotations: { readOnlyHint: true },
   handler: async ({ id, skip, take }) => {
-    const mediaResult = await mcpClientManager.callTool("cms", "get-media-by-id", { id });
-    if (mediaResult.isError) return createToolResultError(mediaResult);
-    const media = extractChainedResult(mediaResult);
-    const name = media?.variants?.[0]?.name ?? media?.name ?? "Unknown";
+    const mediaResult = await chainCms("get-media-by-id", { id });
+    if (!mediaResult.ok) return mediaResult.errorResult;
+    const name = mediaResult.data.variants?.[0]?.name ?? "Unknown";
 
-    const auditResult = await mcpClientManager.callTool("cms", "get-media-audit-log", {
+    const auditResult = await chainCms("get-media-audit-log", {
       id,
-      data: { skip, take },
+      cursor: encodeCursor({ s: skip, t: take }),
     });
-    if (auditResult.isError) return createToolResultError(auditResult);
-    const auditData = extractChainedResult(auditResult);
+    if (!auditResult.ok) return auditResult.errorResult;
 
-    const items: any[] = auditData?.items ?? [];
-    const userIds = items.map((entry) => entry?.user?.id).filter((id): id is string => typeof id === "string");
+    const items = auditResult.data.items;
+    const userIds = items.map((entry) => entry.user.id).filter((uid): uid is string => typeof uid === "string");
     const userNames = await resolveUserNames(userIds);
 
-    const entries = items.map((entry: any) => ({
-      user: userNames.get(entry?.user?.id) ?? entry?.user?.id ?? "Unknown",
-      timestamp: entry?.timestamp ?? "",
-      action: entry?.logType ?? "Unknown",
-      description: entry?.comment ?? "",
+    const entries = items.map((entry) => ({
+      user: userNames.get(entry.user.id) ?? entry.user.id ?? "Unknown",
+      timestamp: entry.timestamp,
+      action: entry.logType,
+      description: entry.comment ?? "",
     }));
 
     return createToolResult({
       name,
       entries,
-      total: auditData?.total ?? entries.length,
+      total: auditResult.data.total,
     });
   },
 };

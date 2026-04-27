@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to copy a variant on"),
@@ -26,13 +26,13 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   handler: async ({ id, sourceCulture, targetCulture }, extra) => {
     // Step 1: Fetch page details
-    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (docResult.isError) return createToolResultError(docResult);
-    const doc = extractChainedResult(docResult);
+    const docResult = await chainCms("get-document-by-id", { id });
+    if (!docResult.ok) return docResult.errorResult;
+    const doc = docResult.data;
 
     const existingVariants: any[] = doc.variants ?? [];
     const existingValues: any[] = doc.values ?? [];
-    const pageName = existingVariants[0]?.name ?? doc.name ?? "Unknown";
+    const pageName = existingVariants[0]?.name ?? "Unknown";
 
     // Step 2: Find values for the source culture
     const sourceValues = existingValues.filter((v: any) => v.culture === sourceCulture);
@@ -67,14 +67,14 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       : [...existingVariants, { culture: targetCulture, name: pageName, segment: null }];
 
     // Step 7: Delegate to update-document
-    const updateResult = await mcpClientManager.callTool("cms", "update-document", {
+    const updateResult = await chainCms("update-document", {
       id,
       data: {
         variants: updatedVariants,
         values: mergedValues,
       },
     });
-    if (updateResult.isError) return createToolResultError(updateResult);
+    if (!updateResult.ok) return updateResult.errorResult;
 
     return createToolResult({
       message: `Copied ${sourceCulture} content to ${targetCulture} for "${pageName}" (${copiedFields.length} field(s))`,

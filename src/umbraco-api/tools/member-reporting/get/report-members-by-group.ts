@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import { buildChainedCursor } from "../../helpers/tree-walker.js";
 
 const inputSchema = {
@@ -31,12 +31,13 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   handler: async ({ groupName, take, skip }) => {
     // Attempt group-filtered search. The CMS find-member API may support memberGroupName filtering.
     // If not, we fall back to fetching all members and filtering client-side.
-    const result = await mcpClientManager.callTool("cms", "find-member", {
+    const result = await chainCms("find-member", {
       memberGroupName: groupName,
       cursor: buildChainedCursor(skip, take),
+      orderBy: "username",
     });
-    if (result.isError) return createToolResultError(result);
-    const data = extractChainedResult(result);
+    if (!result.ok) return result.errorResult;
+    const data = result.data;
     const items: any[] = data.items ?? [];
 
     // If the API returned an unfiltered result set (doesn't support memberGroupName),

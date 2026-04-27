@@ -1,11 +1,6 @@
 import { z } from "zod";
-import {
-  withStandardDecorators,
-  createToolResult,
-  createToolResultError,
-  ToolDefinition,
-} from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import { isHostedRuntime } from "../../helpers/runtime.js";
 
 const inputSchema = {
@@ -28,11 +23,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   enabled: isHostedRuntime,
   handler: async ({ id, subscribedActionIds }) => {
-    const result = await mcpClientManager.callTool("cms", "put-document-notifications", {
+    const result = await chainCms("put-document-notifications", {
       id,
       data: { subscribedActionIds },
     });
-    if (result.isError) return createToolResultError(result);
+    if (!result.ok) return result.errorResult;
 
     const count = subscribedActionIds.length;
     return createToolResult({

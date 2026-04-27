@@ -5,8 +5,8 @@
  * with 10-item hard cap, per-item confirmation, sequential execution, and rollback support.
  */
 
-import { extractChainedResult, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../mcp-client.js";
+import { encodeCursor } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../cms-chain.js";
 
 const MAX_BULK_ITEMS = 10;
 
@@ -40,15 +40,15 @@ export async function fetchBulkItemDetails(ids: string[]): Promise<BulkItemDetai
   const details = await Promise.all(
     ids.map(async (id): Promise<BulkItemDetail | null> => {
       try {
-        const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-        if (docResult.isError) return null;
-        const doc = extractChainedResult(docResult);
-        const name = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
+        const docResult = await chainCms("get-document-by-id", { id });
+        if (!docResult.ok) return null;
+        const doc = docResult.data;
+        const name = doc.variants?.[0]?.name ?? "Unknown";
 
-        const versionResult = await mcpClientManager.callTool("cms", "get-document-version", {
+        const versionResult = await chainCms("get-document-version", {
           documentId: id, cursor: encodeCursor({ s: 0, t: 1 }),
         });
-        const versionData = versionResult.isError ? null : extractChainedResult(versionResult);
+        const versionData: any = versionResult.ok ? versionResult.data : null;
         const currentVersionId = versionData?.items?.[0]?.id ?? "";
 
         return { id, name, currentVersionId };

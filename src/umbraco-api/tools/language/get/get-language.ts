@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   isoCode: z.string().describe("ISO language code (e.g. en-US)"),
@@ -22,9 +22,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["read"],
   annotations: { readOnlyHint: true },
   handler: async ({ isoCode }) => {
-    const result = await mcpClientManager.callTool("cms", "get-language-by-iso-code", { isoCode });
-    if (result.isError) return createToolResultError(result);
-    const data = extractChainedResult(result);
+    const result = await chainCms("get-language-by-iso-code", { isoCode });
+    if (!result.ok) return result.errorResult;
+    const data = result.data;
     return createToolResult({
       isoCode: data.isoCode,
       name: data.name,

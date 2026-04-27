@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction, extractChainedResult, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import {
   validateBulkIds,
   type BulkItemDetail,
@@ -85,24 +85,29 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["update"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   handler: async ({ ids, contentTypeKey, propertyAlias, values, culture, segment }, extra) => {
-    // 1. Validate cap
     const validationError = validateBulkIds(ids);
-    if (validationError) return createToolResult({ ...validationError, totalBlocksUpdated: 0 } as any);
+    if (validationError) return createToolResult({
+      message: validationError.message,
+      results: [],
+      successCount: validationError.successCount,
+      failureCount: validationError.failureCount,
+      skippedCount: validationError.skippedCount,
+      totalBlocksUpdated: 0,
+    });
 
-    // 2. Fetch details + find matching blocks per page (single fetch per document)
     const items: BulkItemDetail[] = [];
     const pageBlocks = new Map<string, BlockMatch[]>();
 
     for (const id of ids) {
-      const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-      if (docResult.isError) continue;
-      const doc = extractChainedResult(docResult);
-      const name = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
+      const docResult = await chainCms("get-document-by-id", { id });
+      if (!docResult.ok) continue;
+      const doc = docResult.data;
+      const name = doc.variants?.[0]?.name ?? "Unknown";
 
-      const versionResult = await mcpClientManager.callTool("cms", "get-document-version", {
+      const versionResult = await chainCms("get-document-version", {
         documentId: id, cursor: encodeCursor({ s: 0, t: 1 }),
       });
-      const versionData = versionResult.isError ? null : extractChainedResult(versionResult);
+      const versionData: any = versionResult.ok ? versionResult.data : null;
       const currentVersionId = versionData?.items?.[0]?.id ?? "";
 
       items.push({ id, name, currentVersionId });
@@ -123,7 +128,6 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const totalBlocks = Array.from(pageBlocks.values()).reduce((sum, blocks) => sum + blocks.length, 0);
     const pagesWithBlocks = items.filter(i => (pageBlocks.get(i.id)?.length ?? 0) > 0);
 
-    // 3. Confirm
     const fieldNames = values.map((v) => v.alias);
     const nameList = items.map(i => {
       const count = pageBlocks.get(i.id)?.length ?? 0;
@@ -142,7 +146,6 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    // 4. Execute sequentially, fail-fast
     const results: Array<{
       id: string;
       name: string;
@@ -179,27 +182,34 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         continue;
       }
 
-      const updateResult = await mcpClientManager.callTool("cms", "update-block-property", {
+      const propsTuple = values.map(v => ({ alias: v.alias, value: v.value })) as [
+        { alias: string; value: any }, ...{ alias: string; value: any }[]
+      ];
+      const updates = blocks.map(block => ({
+        contentKey: block.contentKey,
+        blockType: "content" as const,
+        properties: propsTuple,
+      })) as [
+        { contentKey: string; blockType: "content"; properties: typeof propsTuple },
+        ...{ contentKey: string; blockType: "content"; properties: typeof propsTuple }[]
+      ];
+      const updateResult = await chainCms("update-block-property", {
         documentId: item.id,
         propertyAlias,
         culture: culture ?? null,
         segment: segment ?? null,
-        updates: blocks.map(block => ({
-          contentKey: block.contentKey,
-          blockType: "content",
-          properties: values.map(v => ({ alias: v.alias, value: v.value })),
-        })),
+        updates,
       });
 
-      if (updateResult.isError) {
-        const errorDetail = extractChainedResult(updateResult)?.detail ?? "Block update failed";
+      if (!updateResult.ok) {
+        const errorText = updateResult.errorResult.content?.[0]?.text ?? "Block update failed";
         results.push({
           id: item.id,
           name: item.name,
           success: false,
           blocksUpdated: 0,
           previousVersionId: item.currentVersionId || undefined,
-          error: typeof errorDetail === "string" ? errorDetail : "Block update failed",
+          error: typeof errorText === "string" ? errorText : "Block update failed",
         });
         stopped = true;
       } else {
@@ -214,7 +224,6 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       }
     }
 
-    // 5. Return summary
     const successCount = results.filter(r => r.success).length;
     const failureCount = results.filter(r => !r.success && r.error !== "Skipped — previous item failed").length;
     const skippedCount = results.filter(r => r.error === "Skipped — previous item failed").length;

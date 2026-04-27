@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the media item to edit"),
@@ -32,15 +32,12 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       return createToolResultError({ detail: "Provide at least one of `name` or `values` to update." });
     }
 
-    const mediaResult = await mcpClientManager.callTool("cms", "get-media-by-id", { id });
-    if (mediaResult.isError) return createToolResultError(mediaResult);
-    const media = extractChainedResult(mediaResult);
-    const currentName: string = media.variants?.[0]?.name ?? media.name ?? "Unknown";
+    const mediaResult = await chainCms("get-media-by-id", { id });
+    if (!mediaResult.ok) return mediaResult.errorResult;
+    const currentName: string = mediaResult.data.variants?.[0]?.name ?? "Unknown";
 
-    // update-media is a full PUT — merge the incoming values with existing ones so
-    // properties the caller didn't touch are preserved.
     const mergedValues = new Map<string, any>();
-    for (const v of media.values ?? []) {
+    for (const v of mediaResult.data.values) {
       mergedValues.set(`${v.alias}|${v.culture ?? ""}|${v.segment ?? ""}`, v);
     }
     for (const v of values ?? []) {
@@ -53,14 +50,14 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     }
 
     const mergedVariants = name
-      ? media.variants.map((v: any, i: number) => i === 0 ? { ...v, name } : v)
-      : media.variants;
+      ? mediaResult.data.variants.map((v, i) => i === 0 ? { ...v, name } : v)
+      : mediaResult.data.variants;
 
-    const updateResult = await mcpClientManager.callTool("cms", "update-media", {
+    const updateResult = await chainCms("update-media", {
       id,
       data: { values: Array.from(mergedValues.values()), variants: mergedVariants },
     });
-    if (updateResult.isError) return createToolResultError(updateResult);
+    if (!updateResult.ok) return updateResult.errorResult;
 
     const updatedFields: string[] = [
       ...(name && name !== currentName ? ["name"] : []),

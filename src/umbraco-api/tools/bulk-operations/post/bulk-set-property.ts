@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import {
   validateBulkIds,
   fetchBulkItemDetails,
@@ -39,11 +39,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["update"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   handler: async ({ ids, alias, value, culture, segment }, extra) => {
-    // 1. Validate cap
     const validationError = validateBulkIds(ids);
     if (validationError) return createToolResult(validationError as BulkOperationOutput);
 
-    // 2. Fetch details for confirmation + rollback
     const items = await fetchBulkItemDetails(ids);
     if (items.length === 0) {
       return createToolResult({
@@ -55,12 +53,10 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    // 3. Build confirmation listing every name
     const valuePreview = JSON.stringify(value).substring(0, 100);
     const nameList = items.map(i => `- ${i.name}`).join("\n");
     const message = `Set '${alias}' to '${valuePreview}' on these ${items.length} pages?\n${nameList}`;
 
-    // 4. Confirm
     if (!await confirmAction(extra, message, { title: "Confirm bulk set property", defaultValue: true })) {
       return createToolResult({
         message: "Cancelled",
@@ -71,19 +67,17 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    // 5. Execute sequentially
     const results = await executeBulkSequentially(items, async (item) => {
-      const result = await mcpClientManager.callTool("cms", "update-document-properties", {
+      const result = await chainCms("update-document-properties", {
         id: item.id,
         properties: [{ alias, value, culture: culture ?? null, segment: segment ?? null }],
       });
-      if (result.isError) {
-        return extractChainedResult(result)?.detail ?? "Property update failed";
+      if (!result.ok) {
+        return result.errorResult.content?.[0]?.text ?? "Property update failed";
       }
       return null;
     });
 
-    // 6. Return summary
     return createToolResult(buildBulkOutput("Updated", results));
   },
 };

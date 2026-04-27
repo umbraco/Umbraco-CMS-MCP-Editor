@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import {
   validateBulkIds,
   executeBulkSequentially,
@@ -34,18 +34,15 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["move"],
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   handler: async ({ ids, targetParentId }, extra) => {
-    // 1. Validate cap
     const validationError = validateBulkIds(ids);
     if (validationError) return createToolResult(validationError as BulkOperationOutput);
 
-    // 2. Fetch media names in parallel
     const itemDetails = await Promise.all(
       ids.map(async (id) => {
         try {
-          const result = await mcpClientManager.callTool("cms", "get-media-by-id", { id });
-          if (result.isError) return { id, name: "Unknown", currentVersionId: "" };
-          const media = extractChainedResult(result);
-          return { id, name: media.name ?? "Unknown", currentVersionId: "" };
+          const result = await chainCms("get-media-by-id", { id });
+          if (!result.ok) return { id, name: "Unknown", currentVersionId: "" };
+          return { id, name: result.data.variants?.[0]?.name ?? "Unknown", currentVersionId: "" };
         } catch {
           return { id, name: "Unknown", currentVersionId: "" };
         }
@@ -62,19 +59,16 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    // 3. Fetch target folder name
     let targetName = targetParentId;
     try {
-      const targetResult = await mcpClientManager.callTool("cms", "get-media-by-id", { id: targetParentId });
-      if (!targetResult.isError) {
-        const target = extractChainedResult(targetResult);
-        targetName = target.name ?? targetParentId;
+      const targetResult = await chainCms("get-media-by-id", { id: targetParentId });
+      if (targetResult.ok) {
+        targetName = targetResult.data.variants?.[0]?.name ?? targetParentId;
       }
     } catch {
       // Fall back to showing the ID
     }
 
-    // 4. Confirm
     const nameList = itemDetails.map(i => `- ${i.name}`).join("\n");
     const message = `Move these ${itemDetails.length} media items to '${targetName}'?\n${nameList}`;
 
@@ -88,19 +82,17 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    // 5. Execute sequentially
     const results = await executeBulkSequentially(itemDetails, async (item) => {
-      const result = await mcpClientManager.callTool("cms", "move-media", {
+      const result = await chainCms("move-media", {
         id: item.id,
-        target: { id: targetParentId },
+        data: { target: { id: targetParentId } },
       });
-      if (result.isError) {
-        return extractChainedResult(result)?.detail ?? "Move failed";
+      if (!result.ok) {
+        return result.errorResult.content?.[0]?.text ?? "Move failed";
       }
       return null;
     });
 
-    // 6. Build output — override message to say "media items" instead of "pages"
     const output = buildBulkOutput("Moved", results);
     output.message = output.message.replace("pages", "media items");
     return createToolResult(output);

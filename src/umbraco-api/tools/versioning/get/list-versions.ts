@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition , extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import { buildChainedCursor } from "../../helpers/tree-walker.js";
 
 
@@ -31,31 +31,29 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   annotations: { readOnlyHint: true },
   handler: async ({ id, skip, take }) => {
     // Fetch page details for context
-    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (docResult.isError) return createToolResultError(docResult);
-    const doc = extractChainedResult(docResult);
-    const name = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
+    const docResult = await chainCms("get-document-by-id", { id });
+    if (!docResult.ok) return docResult.errorResult;
+    const name = docResult.data.variants?.[0]?.name ?? "Unknown";
 
     // Fetch version history
-    const versionResult = await mcpClientManager.callTool("cms", "get-document-version", {
+    const versionResult = await chainCms("get-document-version", {
       documentId: id,
       cursor: buildChainedCursor(skip, take),
     });
-    if (versionResult.isError) return createToolResultError(versionResult);
-    const versionData = extractChainedResult(versionResult);
+    if (!versionResult.ok) return versionResult.errorResult;
 
-    const versions = (versionData.items ?? []).map((v: any) => ({
-      versionId: v.id ?? v.versionId,
-      date: v.date ?? v.versionDate ?? v.createDate ?? "Unknown",
-      user: v.user?.name ?? v.userName ?? undefined,
-      isCurrentPublished: v.isCurrentPublishedVersion ?? undefined,
-      isCurrentDraft: v.isCurrentDraftVersion ?? undefined,
+    const versions = versionResult.data.items.map((v) => ({
+      versionId: v.id,
+      date: v.versionDate,
+      user: undefined as string | undefined,
+      isCurrentPublished: v.isCurrentPublishedVersion,
+      isCurrentDraft: v.isCurrentDraftVersion,
     }));
 
     return createToolResult({
       name,
       versions,
-      total: versionData.total ?? versions.length,
+      total: versionResult.data.total,
     });
   },
 };

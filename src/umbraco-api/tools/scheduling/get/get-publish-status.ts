@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to check publish status for"),
@@ -31,14 +31,14 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["read"],
   annotations: { readOnlyHint: true },
   handler: async ({ id }) => {
-    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (docResult.isError) return createToolResultError(docResult);
-    const doc = extractChainedResult(docResult);
-    const name = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
+    const docResult = await chainCms("get-document-by-id", { id });
+    if (!docResult.ok) return docResult.errorResult;
+    const doc = docResult.data;
+    const name = doc.variants?.[0]?.name ?? "Unknown";
 
-    const publishResult = await mcpClientManager.callTool("cms", "get-document-publish", { id });
+    const publishResult = await chainCms("get-document-publish", { id });
 
-    if (publishResult.isError) {
+    if (!publishResult.ok) {
       // 404 means the page has never been published — not an error
       return createToolResult({
         id,
@@ -49,8 +49,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    const publishData = extractChainedResult(publishResult);
-    const variants = (publishData?.variants ?? []).map((v: any) => ({
+    const variants = (publishResult.data.variants ?? []).map((v) => ({
       name: v.name ?? "",
       culture: v.culture ?? null,
       state: v.state ?? "Unknown",
@@ -59,8 +58,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       scheduledUnpublishDate: v.scheduledUnpublishDate ?? null,
     }));
 
-    const isPublished = variants.some((v: any) => v.state === "Published");
-    const overallState = publishData?.state ?? (isPublished ? "Published" : "NotPublished");
+    const isPublished = variants.some((v) => v.state === "Published");
+    const overallState = isPublished ? "Published" : "NotPublished";
 
     return createToolResult({
       id,

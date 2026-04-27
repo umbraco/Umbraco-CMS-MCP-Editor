@@ -175,8 +175,7 @@ Custom fields defined in `config/server-config.ts`.
 - One file per tool in operation-type subfolder (`get/`, `post/`, etc.)
 - Export default with `withStandardDecorators(tool)`
 - Input/output schemas use Zod — hand-written for clarity, not generated
-- Use `mcpClientManager.callTool("cms", ...)` to call chained CMS tools
-- Use `extractChainedResult(result)` to unwrap chained responses
+- Use `chainCms(toolName, args)` from `src/umbraco-api/cms-chain.ts` to call chained CMS tools — typed end-to-end via `@umbraco-cms/mcp-dev/tool-types`. Returns `{ ok: true; data } | { ok: false; errorResult }`. Prefer this over raw `mcpClientManager.callTool("cms", …)` + `extractChainedResult` (those still exist for niche cases but lose type safety).
 - Use `confirmAction(extra, message, { title, defaultValue })` for write operations
 - Set `slices` array for filtering categorisation
 - Set `annotations` for MCP hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`)

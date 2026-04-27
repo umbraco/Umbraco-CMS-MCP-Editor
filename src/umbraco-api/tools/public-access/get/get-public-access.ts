@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the content page to read public access settings for"),
@@ -26,9 +26,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["read"],
   annotations: { readOnlyHint: true },
   handler: async ({ id }) => {
-    const result = await mcpClientManager.callTool("cms", "get-document-public-access", { id });
+    const result = await chainCms("get-document-public-access", { id });
 
-    if (result.isError) {
+    if (!result.ok) {
       // No restrictions configured returns 404 from the CMS — treat as "no rules"
       return createToolResult({
         hasRestrictions: false,
@@ -40,13 +40,12 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    const data = extractChainedResult(result);
-    const groups = (data?.groups ?? []).map((g: any) => ({ id: g.id ?? "", name: g.name ?? "" }));
-    const memberUserNames = (data?.members ?? []).map((m: any) =>
-      (m?.variants?.[0]?.name as string | undefined) ?? ""
-    ).filter((n: string) => n.length > 0);
-    const loginPageId = data?.loginDocument?.id ?? null;
-    const errorPageId = data?.errorDocument?.id ?? null;
+    const groups = (result.data.groups ?? []).map((g) => ({ id: g.id, name: g.name }));
+    const memberUserNames = result.data.members
+      .map((m) => m.variants?.[0]?.name ?? "")
+      .filter((n) => n.length > 0);
+    const loginPageId = result.data.loginDocument?.id ?? null;
+    const errorPageId = result.data.errorDocument?.id ?? null;
 
     const summaryParts: string[] = [];
     if (groups.length > 0) summaryParts.push(`groups: ${groups.map((g: { name: string }) => g.name).join(", ")}`);

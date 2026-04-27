@@ -1,12 +1,6 @@
 import { z } from "zod";
-import {
-  withStandardDecorators,
-  createToolResult,
-  createToolResultError,
-  ToolDefinition,
-  extractChainedResult,
-} from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import { isHostedRuntime } from "../../helpers/runtime.js";
 
 const inputSchema = {
@@ -34,16 +28,13 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   annotations: { readOnlyHint: true },
   enabled: isHostedRuntime,
   handler: async ({ id }) => {
-    const result = await mcpClientManager.callTool("cms", "get-document-notifications", { id });
-    if (result.isError) return createToolResultError(result);
+    const result = await chainCms("get-document-notifications", { id });
+    if (!result.ok) return result.errorResult;
 
-    const data = extractChainedResult(result);
-    const rawItems: any[] = Array.isArray(data) ? data : data?.items ?? [];
-
-    const subscriptions = rawItems.map((item) => ({
-      actionId: item.actionId ?? "",
-      alias: item.alias ?? "",
-      subscribed: item.subscribed === true,
+    const subscriptions = result.data.items.map((item) => ({
+      actionId: item.actionId,
+      alias: item.alias,
+      subscribed: item.subscribed,
     }));
 
     const subscribedActionIds = subscriptions

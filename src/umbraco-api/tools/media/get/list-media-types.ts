@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   parentId: z.string().uuid().optional().describe("UUID of the parent folder to check allowed child types, or omit to list types allowed at root"),
@@ -27,21 +27,19 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   annotations: { readOnlyHint: true },
   handler: async ({ parentId }) => {
     const result = parentId
-      ? await mcpClientManager.callTool("cms", "get-media-type-allowed-children", { id: parentId })
-      : await mcpClientManager.callTool("cms", "get-media-type-allowed-at-root", {});
+      ? await chainCms("get-media-type-allowed-children", { id: parentId })
+      : await chainCms("get-media-type-allowed-at-root", {});
 
-    if (result.isError) return createToolResultError(result);
-    const data = extractChainedResult(result);
+    if (!result.ok) return result.errorResult;
 
-    const items: any[] = Array.isArray(data) ? data : (data.items ?? []);
     return createToolResult({
-      items: items.map((item: any) => ({
+      items: (result.data.items ?? []).map((item) => ({
         id: item.id,
-        alias: item.alias ?? "",
+        alias: (item as { alias?: string }).alias ?? "",
         name: item.name ?? "",
         icon: item.icon ?? "",
       })),
-      total: data.total ?? items.length,
+      total: result.data.total ?? 0,
     });
   },
 };

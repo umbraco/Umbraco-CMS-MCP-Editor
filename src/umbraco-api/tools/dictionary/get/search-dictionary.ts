@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   query: z.string().describe("Search term to match against dictionary item key names"),
@@ -24,17 +24,15 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["search"],
   annotations: { readOnlyHint: true },
   handler: async ({ query }) => {
-    const result = await mcpClientManager.callTool("cms", "find-dictionary", { query });
+    const result = await chainCms("find-dictionary", { filter: query });
 
-    if (result.isError) return createToolResultError(result);
-    const data = extractChainedResult(result);
-
+    if (!result.ok) return result.errorResult;
     return createToolResult({
-      items: (data.items ?? []).map((item: any) => ({
+      items: (result.data.items ?? []).map((item) => ({
         id: item.id,
         name: item.name ?? "Unknown",
       })),
-      total: data.total ?? 0,
+      total: result.data.total ?? 0,
     });
   },
 };

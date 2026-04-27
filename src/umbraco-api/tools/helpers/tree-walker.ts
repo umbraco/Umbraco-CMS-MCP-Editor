@@ -6,8 +6,8 @@
  * Used by reporting and auditing tools.
  */
 
-import { mcpClientManager } from "../../mcp-client.js";
-import { extractChainedResult, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../cms-chain.js";
+import { encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 
 export interface TreeWalkOptions {
   /** Scope to a subtree (omit for root) */
@@ -44,19 +44,15 @@ export async function walkContentTree(
 ): Promise<WalkedPage[]> {
   const { parentId, scanLimit = 100 } = options;
 
-  const toolName = parentId ? "get-document-children" : "get-document-root";
-  const baseArgs: Record<string, unknown> = {};
-  if (parentId) baseArgs.parentId = parentId;
-
   const treeItems: any[] = [];
   let cursor: string | undefined = encodeCursor({ s: 0, t: Math.min(scanLimit, 100) });
 
   while (treeItems.length < scanLimit) {
-    const callArgs: Record<string, unknown> = { ...baseArgs };
-    if (cursor) callArgs.cursor = cursor;
-    const treeResult = await mcpClientManager.callTool("cms", toolName, callArgs);
-    if (treeResult.isError) break;
-    const treeData = extractChainedResult(treeResult);
+    const treeResult = parentId
+      ? await chainCms("get-document-children", { parentId, cursor: cursor as string | undefined })
+      : await chainCms("get-document-root", { cursor: cursor as string | undefined });
+    if (!treeResult.ok) break;
+    const treeData: any = treeResult.data;
     treeItems.push(...(treeData?.items ?? []));
     if (!treeData?.nextCursor) break;
     cursor = treeData.nextCursor;
@@ -65,20 +61,24 @@ export async function walkContentTree(
   const enriched = await Promise.all(
     treeItems.map(async (item: any): Promise<WalkedPage | null> => {
       try {
-        const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: item.id });
-        if (docResult.isError) return null;
-        const doc = extractChainedResult(docResult);
-        const variant = doc.variants?.[0] ?? {};
+        const docResult = await chainCms("get-document-by-id", { id: item.id });
+        if (!docResult.ok) return null;
+        const doc = docResult.data;
+        const variant = doc.variants?.[0];
+        // GetDocumentByIdOutput doesn't include `urls` or documentType.name/alias —
+        // they're present at runtime but not in the upstream Zod schema.
+        const extra = doc as { urls?: { url?: string }[] };
+        const dt = doc.documentType as { name?: string; alias?: string };
 
         return {
           id: doc.id,
-          name: variant.name ?? doc.name ?? "Unknown",
-          url: doc.urls?.[0]?.url ?? "",
-          documentType: doc.documentType?.name ?? "",
-          documentTypeAlias: doc.documentType?.alias ?? "",
+          name: variant?.name ?? "Unknown",
+          url: extra.urls?.[0]?.url ?? "",
+          documentType: dt?.name ?? "",
+          documentTypeAlias: dt?.alias ?? "",
           values: doc.values ?? [],
           variants: doc.variants ?? [],
-          state: variant.state ?? doc.state ?? "unknown",
+          state: variant?.state ?? "unknown",
         };
       } catch {
         return null;
@@ -101,19 +101,15 @@ export async function walkMediaTree(
 ): Promise<any[]> {
   const { parentId, scanLimit = 100 } = options;
 
-  const toolName = parentId ? "get-media-children" : "get-media-root";
-  const baseArgs: Record<string, unknown> = {};
-  if (parentId) baseArgs.parentId = parentId;
-
   const allItems: any[] = [];
   let cursor: string | undefined = encodeCursor({ s: 0, t: Math.min(scanLimit, 100) });
 
   while (allItems.length < scanLimit) {
-    const callArgs: Record<string, unknown> = { ...baseArgs };
-    if (cursor) callArgs.cursor = cursor;
-    const result = await mcpClientManager.callTool("cms", toolName, callArgs);
-    if (result.isError) break;
-    const data = extractChainedResult(result);
+    const result = parentId
+      ? await chainCms("get-media-children", { parentId, cursor: cursor as string | undefined })
+      : await chainCms("get-media-root", { cursor: cursor as string | undefined });
+    if (!result.ok) break;
+    const data: any = result.data;
     allItems.push(...(data?.items ?? []));
     if (!data?.nextCursor) break;
     cursor = data.nextCursor;

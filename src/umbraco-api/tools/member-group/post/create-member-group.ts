@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   name: z.string().describe("The name of the new member group"),
@@ -20,15 +20,12 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   handler: async ({ name }) => {
-    const createResult = await mcpClientManager.callTool("cms", "create-member-group", { name });
-    if (createResult.isError) return createToolResultError(createResult);
-
-    const created = extractChainedResult(createResult);
-    const createdId = created?.id ?? "";
+    const createResult = await chainCms("create-member-group", { name });
+    if (!createResult.ok) return createResult.errorResult;
 
     return createToolResult({
       message: `Created member group "${name}"`,
-      id: createdId,
+      id: createResult.data.id,
       name,
     });
   },

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import { chainedTools, itemName, formatNamePreview } from "../helpers.js";
 
 const inputSchema = {
@@ -24,13 +24,12 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const tools = chainedTools(type);
 
     // Step 1: Peek at the bin so the elicitation can name what will be destroyed.
-    const peekResult = await mcpClientManager.callTool("cms", tools.listRoot, {
+    const peekResult = await chainCms(tools.listRoot, {
       cursor: encodeCursor({ s: 0, t: 10 }),
     });
-    if (peekResult.isError) return createToolResultError(peekResult);
-    const peekData = extractChainedResult(peekResult);
-    const topLevelCount: number = peekData?.total ?? 0;
-    const sampleNames: string[] = (peekData?.items ?? []).map((i: any) => itemName(i));
+    if (!peekResult.ok) return peekResult.errorResult;
+    const topLevelCount: number = peekResult.data.total ?? 0;
+    const sampleNames: string[] = (peekResult.data.items ?? []).map((i) => itemName(i));
 
     if (topLevelCount === 0) {
       return createToolResult({
@@ -65,8 +64,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     }
 
     // Step 4: Execute.
-    const emptyResult = await mcpClientManager.callTool("cms", tools.empty, {});
-    if (emptyResult.isError) return createToolResultError(emptyResult);
+    const emptyResult = await chainCms(tools.empty, {});
+    if (!emptyResult.ok) return emptyResult.errorResult;
 
     return createToolResult({
       message: `Emptied the ${kindLabel} recycle bin — permanently deleted ${topLevelCount} top-level item${topLevelCount === 1 ? "" : "s"} and all nested descendants`,

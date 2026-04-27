@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("UUID of the media item to retrieve"),
@@ -33,26 +33,23 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   annotations: { readOnlyHint: true },
   handler: async ({ id }) => {
     const [mediaResult, urlResult] = await Promise.all([
-      mcpClientManager.callTool("cms", "get-media-by-id", { id }),
-      mcpClientManager.callTool("cms", "get-media-urls", { id: [id] }),
+      chainCms("get-media-by-id", { id }),
+      chainCms("get-media-urls", { id: [id] }),
     ]);
 
-    if (mediaResult.isError) return createToolResultError(mediaResult);
-    if (urlResult.isError) return createToolResultError(urlResult);
+    if (!mediaResult.ok) return mediaResult.errorResult;
+    if (!urlResult.ok) return urlResult.errorResult;
 
-    const media = extractChainedResult(mediaResult);
-    const urlData = extractChainedResult(urlResult);
-    const urlItems: any[] = Array.isArray(urlData) ? urlData : (urlData?.items ?? urlData ?? []);
-
-    const urlEntry = urlItems.find?.((u: any) => u.id === id);
-    const urls: string[] = urlEntry?.urls ?? [];
+    const media = mediaResult.data;
+    const urlEntry = (urlResult.data.items ?? []).find((u) => u.id === id);
+    const urls: string[] = (urlEntry?.urlInfos ?? [])
+      .map((u) => u.url)
+      .filter((u): u is string => typeof u === "string");
 
     return createToolResult({
       id: media.id,
-      name: media.variants?.[0]?.name ?? media.name ?? "Unknown",
-      mediaType: typeof media.mediaType === "string"
-        ? media.mediaType
-        : (media.mediaType?.alias ?? media.mediaType?.name ?? ""),
+      name: media.variants?.[0]?.name ?? "Unknown",
+      mediaType: (media.mediaType as { alias?: string })?.alias ?? "",
       urls,
       values: media.values ?? [],
       variants: media.variants ?? [],

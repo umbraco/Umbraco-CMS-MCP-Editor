@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the redirect to delete"),
@@ -21,9 +21,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   handler: async ({ id }, extra) => {
     // Step 1: Fetch redirect details for confirmation
-    const itemResult = await mcpClientManager.callTool("cms", "get-redirect-by-id", { id });
-    if (itemResult.isError) return createToolResultError(itemResult);
-    const item = extractChainedResult(itemResult);
+    const itemResult = await chainCms("get-redirect-by-id", { id });
+    if (!itemResult.ok) return itemResult.errorResult;
+    // The dev MCP types this as { items: [...] } but the runtime response is the
+    // single redirect at the top level. Narrow at this single boundary.
+    const item = itemResult.data as { originalUrl?: string; url?: string; destinationUrl?: string; destinationPath?: string };
     const originalUrl = item.originalUrl ?? item.url ?? "Unknown";
     const destinationUrl = item.destinationUrl ?? item.destinationPath ?? "Unknown";
 
@@ -33,8 +35,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     }
 
     // Step 3: Delete the redirect
-    const deleteResult = await mcpClientManager.callTool("cms", "delete-redirect", { id });
-    if (deleteResult.isError) return createToolResultError(deleteResult);
+    const deleteResult = await chainCms("delete-redirect", { id });
+    if (!deleteResult.ok) return deleteResult.errorResult;
 
     return createToolResult({
       message: `Deleted redirect from "${originalUrl}"`,

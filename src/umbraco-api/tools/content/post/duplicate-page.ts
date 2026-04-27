@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to duplicate"),
@@ -24,25 +24,23 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   handler: async ({ id, targetParentId, includeDescendants, relateToOriginal }) => {
-    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (docResult.isError) return createToolResultError(docResult);
-    const doc = extractChainedResult(docResult);
-    const sourceName: string = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
+    const docResult = await chainCms("get-document-by-id", { id });
+    if (!docResult.ok) return docResult.errorResult;
+    const sourceName: string = docResult.data.variants?.[0]?.name ?? "Unknown";
 
-    const copyResult = await mcpClientManager.callTool("cms", "copy-document", {
+    const copyResult = await chainCms("copy-document", {
       idToCopy: id,
       ...(targetParentId ? { parentId: targetParentId } : {}),
       includeDescendants,
       relateToOriginal,
     });
-    if (copyResult.isError) return createToolResultError(copyResult);
-    const copy = extractChainedResult(copyResult);
+    if (!copyResult.ok) return copyResult.errorResult;
 
     const destPart = targetParentId ? "" : " at the content root";
     const descPart = includeDescendants ? " with all descendants" : "";
     return createToolResult({
       message: `Duplicated "${sourceName}"${descPart}${destPart}`,
-      id: copy.id,
+      id: copyResult.data.id,
       sourceId: id,
       sourceName,
     });

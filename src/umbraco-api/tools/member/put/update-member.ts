@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the member to update"),
@@ -33,34 +33,31 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["update"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   handler: async ({ id, name, email, username, newPassword, isTwoFactorEnabled, isApproved, isLockedOut, groups, values }, extra) => {
-    const memberResult = await mcpClientManager.callTool("cms", "get-member", { id });
-    if (memberResult.isError) return createToolResultError(memberResult);
-    const member = extractChainedResult(memberResult);
-    const memberName = member.variants?.[0]?.name ?? member.name ?? name ?? "Unknown";
+    const memberResult = await chainCms("get-member", { id });
+    if (!memberResult.ok) return memberResult.errorResult;
+    const member = memberResult.data;
+    const memberName = member.variants?.[0]?.name ?? name ?? "Unknown";
     const memberEmail = member.email ?? email ?? "";
 
-    // CMS API requires username and email even for partial updates.
-    // Name must be in variants array, not as a top-level field.
     const existingUsername = member.username ?? "";
     const existingEmail = member.email ?? memberEmail;
     const existingVariants = member.variants ?? [];
     const existingValues = member.values ?? [];
 
-    const data: Record<string, unknown> = {
+    type UpdateMemberData = Parameters<typeof chainCms<"update-member">>[1]["data"];
+    const data: UpdateMemberData = {
       username: username ?? existingUsername,
       email: email ?? existingEmail,
       isApproved: isApproved ?? member.isApproved ?? true,
       isLockedOut: isLockedOut ?? member.isLockedOut ?? false,
+      isTwoFactorEnabled: isTwoFactorEnabled ?? member.isTwoFactorEnabled ?? false,
       variants: name !== undefined
         ? [{ culture: null, segment: null, name }]
         : existingVariants,
       values: values ?? existingValues,
     };
     if (groups !== undefined) data.groups = groups;
-    if (isTwoFactorEnabled !== undefined) data.isTwoFactorEnabled = isTwoFactorEnabled;
 
-    // Password change is destructive — gate behind a stronger confirmation
-    // (unchecked by default) so a mis-fired reset can't silently lock out a real member.
     let passwordChanged = false;
     if (newPassword !== undefined) {
       const passwordConfirmed = await confirmAction(
@@ -74,8 +71,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       }
     }
 
-    const updateResult = await mcpClientManager.callTool("cms", "update-member", { id, data });
-    if (updateResult.isError) return createToolResultError(updateResult);
+    const updateResult = await chainCms("update-member", { id, data });
+    if (!updateResult.ok) return updateResult.errorResult;
 
     const passwordSuffix = newPassword !== undefined
       ? passwordChanged ? " (password changed)" : " (password reset cancelled)"

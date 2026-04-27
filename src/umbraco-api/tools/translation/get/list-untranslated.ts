@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   culture: z.string().describe("The language ISO code to check for (e.g. 'da-DK'). Pages missing this variant will be returned. Call list-languages to find valid culture codes."),
@@ -27,21 +27,20 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   annotations: { readOnlyHint: true },
   handler: async ({ culture, parentId, take, skip }) => {
     // Step 1: Fetch a batch of tree items
-    const toolName = parentId ? "get-document-children" : "get-document-root";
-    const args: Record<string, unknown> = { cursor: encodeCursor({ s: 0, t: 100 }) };
-    if (parentId) args.parentId = parentId;
-
-    const treeResult = await mcpClientManager.callTool("cms", toolName, args);
-    if (treeResult.isError) return createToolResultError(treeResult);
-    const treeData = extractChainedResult(treeResult);
+    const cursor = encodeCursor({ s: 0, t: 100 });
+    const treeResult = parentId
+      ? await chainCms("get-document-children", { parentId, cursor })
+      : await chainCms("get-document-root", { cursor });
+    if (!treeResult.ok) return treeResult.errorResult;
+    const treeData = treeResult.data;
     const treeItems: any[] = treeData.items ?? [];
 
     // Step 2: For each item, fetch full document to check variants
     const docResults = await Promise.all(
       treeItems.map(async (item: any) => {
-        const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: item.id });
-        if (docResult.isError) return null;
-        const doc = extractChainedResult(docResult);
+        const docResult = await chainCms("get-document-by-id", { id: item.id });
+        if (!docResult.ok) return null;
+        const doc = docResult.data;
         return { id: item.id, doc };
       })
     );
@@ -57,7 +56,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         const variants: any[] = doc.variants ?? [];
         return {
           id: doc.id,
-          name: variants[0]?.name ?? doc.name ?? "Unknown",
+          name: variants[0]?.name ?? "Unknown",
           availableCultures: variants.map((v: any) => v.culture).filter(Boolean),
         };
       });

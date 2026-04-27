@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition , extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import { buildChainedCursor } from "../../helpers/tree-walker.js";
 
 
@@ -28,19 +28,21 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["list"],
   annotations: { readOnlyHint: true },
   handler: async ({ take, skip }) => {
-    const result = await mcpClientManager.callTool("cms", "get-document-type-root", { cursor: buildChainedCursor(skip, take) });
-    if (result.isError) return createToolResultError(result);
-    const data = extractChainedResult(result);
+    const result = await chainCms("get-document-type-root", { cursor: buildChainedCursor(skip, take) });
+    if (!result.ok) return result.errorResult;
 
     return createToolResult({
-      items: (data.items ?? []).map((item: any) => ({
-        id: item.id,
-        alias: item.alias ?? "unknown",
-        name: item.name ?? item.alias ?? "Unknown",
-        description: item.description || undefined,
-        icon: item.icon || undefined,
-      })),
-      total: data.total ?? 0,
+      items: (result.data.items ?? []).map((item) => {
+        const extra = item as { alias?: string; description?: string };
+        return {
+          id: item.id,
+          alias: extra.alias ?? "unknown",
+          name: item.name ?? extra.alias ?? "Unknown",
+          description: extra.description || undefined,
+          icon: item.icon || undefined,
+        };
+      }),
+      total: result.data.total ?? 0,
     });
   },
 };

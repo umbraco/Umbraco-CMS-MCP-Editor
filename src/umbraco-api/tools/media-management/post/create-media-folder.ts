@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   name: z.string().describe("Name of the new folder"),
@@ -21,25 +21,20 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   handler: async ({ name, parentId }) => {
-    const createResult = await mcpClientManager.callTool("cms", "create-media-folder", {
-      name,
-      parent: parentId ? { id: parentId } : null,
-    });
-    if (createResult.isError) return createToolResultError(createResult);
-    const created = extractChainedResult(createResult);
+    const createResult = await chainCms("create-media-folder", { name, parentId });
+    if (!createResult.ok) return createResult.errorResult;
 
     let location = "at the root";
     if (parentId) {
-      const folderResult = await mcpClientManager.callTool("cms", "get-media-by-id", { id: parentId });
-      if (!folderResult.isError) {
-        const folder = extractChainedResult(folderResult);
-        location = `under "${folder.name ?? "Unknown"}"`;
+      const folderResult = await chainCms("get-media-by-id", { id: parentId });
+      if (folderResult.ok) {
+        location = `under "${folderResult.data.variants?.[0]?.name ?? "Unknown"}"`;
       }
     }
 
     return createToolResult({
       message: `Created folder "${name}" ${location}`,
-      id: created.id ?? "",
+      id: createResult.data.id,
       name,
     });
   },

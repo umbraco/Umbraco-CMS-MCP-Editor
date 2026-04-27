@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import { chainedTools, itemName, probeSubtree, formatNamePreview, SUBTREE_PROBE_LIMIT } from "../helpers.js";
 
 const inputSchema = {
@@ -27,18 +27,18 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     // Step 1: Look the item up so the elicitation can name it rather than show a GUID.
     const itemResult = type === "media"
-      ? await mcpClientManager.callTool("cms", "get-media-by-id", { id })
-      : await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (itemResult.isError) return createToolResultError(itemResult);
-    const item = extractChainedResult(itemResult);
+      ? await chainCms("get-media-by-id", { id })
+      : await chainCms("get-document-by-id", { id });
+    if (!itemResult.ok) return itemResult.errorResult;
+    const item = itemResult.data;
     const name = itemName(item);
 
     // Step 2: Resolve the original parent id when the API can tell us.
     let originalParentId: string | null = null;
-    const parentResult = await mcpClientManager.callTool("cms", tools.originalParent, { id });
-    if (!parentResult.isError) {
-      const parentData = extractChainedResult(parentResult);
-      originalParentId = parentData?.id ?? null;
+    const parentResult = await chainCms(tools.originalParent, { id });
+    if (parentResult.ok) {
+      // extractChainedResult may return undefined for empty bodies — narrow defensively.
+      originalParentId = (parentResult.data as { id?: string } | undefined)?.id ?? null;
     }
     const locationSuffix = originalParentId
       ? ` (originally under ${originalParentId})`
@@ -76,8 +76,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     }
 
     // Step 6: Execute.
-    const deleteResult = await mcpClientManager.callTool("cms", tools.permanentDelete, { id });
-    if (deleteResult.isError) return createToolResultError(deleteResult);
+    const deleteResult = await chainCms(tools.permanentDelete, { id });
+    if (!deleteResult.ok) return deleteResult.errorResult;
 
     return createToolResult({
       message: hasChildren

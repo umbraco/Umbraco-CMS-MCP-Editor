@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to publish"),
@@ -21,10 +21,10 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["publish"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   handler: async ({ id, includeDescendants }, extra) => {
-    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (docResult.isError) return createToolResultError(docResult);
-    const doc = extractChainedResult(docResult);
-    const pageName = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
+    const docResult = await chainCms("get-document-by-id", { id });
+    if (!docResult.ok) return docResult.errorResult;
+    const doc = docResult.data;
+    const pageName = doc.variants?.[0]?.name ?? "Unknown";
 
     if (includeDescendants) {
       if (!await confirmAction(extra, `Publish "${pageName}" and all its descendants?`, { title: "Confirm publish with descendants" })) {
@@ -35,15 +35,22 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // publish-document requires one publishSchedules entry per culture to
     // actually publish — an empty array is a no-op in Umbraco. Derive from the
     // doc's variants (invariant content yields a single `culture: null` entry).
-    const variantCultures: Array<string | null> = (doc?.variants ?? []).length
-      ? doc.variants.map((v: any) => v.culture ?? null)
+    const variantCultures: Array<string | null> = (doc.variants ?? []).length
+      ? doc.variants.map(v => v.culture ?? null)
       : [null];
-    const toolName = includeDescendants ? "publish-document-with-descendants" : "publish-document";
-    const publishResult = await mcpClientManager.callTool("cms", toolName, {
-      id,
-      data: { publishSchedules: variantCultures.map(c => ({ culture: c })) },
-    });
-    if (publishResult.isError) return createToolResultError(publishResult);
+    const publishResult = includeDescendants
+      ? await chainCms("publish-document-with-descendants", {
+          id,
+          data: {
+            includeUnpublishedDescendants: false,
+            cultures: variantCultures.filter((c): c is string => c !== null),
+          },
+        })
+      : await chainCms("publish-document", {
+          id,
+          data: { publishSchedules: variantCultures.map(c => ({ culture: c })) },
+        });
+    if (!publishResult.ok) return publishResult.errorResult;
 
     return createToolResult({
       message: includeDescendants ? `Published "${pageName}" and all child pages` : `Published "${pageName}"`,

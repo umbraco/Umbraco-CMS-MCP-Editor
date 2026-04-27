@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page containing the block"),
@@ -30,13 +30,15 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["update"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   handler: async ({ id, propertyAlias, contentKey, values, culture, segment }) => {
-    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (docResult.isError) return createToolResultError(docResult);
-    const doc = extractChainedResult(docResult);
-    const pageName = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
+    const docResult = await chainCms("get-document-by-id", { id });
+    if (!docResult.ok) return docResult.errorResult;
+    const pageName = docResult.data.variants?.[0]?.name ?? "Unknown";
     const fieldNames = values.map((v) => v.alias);
 
-    const updateResult = await mcpClientManager.callTool("cms", "update-block-property", {
+    const propsTuple = values.map(v => ({ alias: v.alias, value: v.value })) as [
+      { alias: string; value: any }, ...{ alias: string; value: any }[]
+    ];
+    const updateResult = await chainCms("update-block-property", {
       documentId: id,
       propertyAlias,
       culture: culture ?? null,
@@ -44,10 +46,10 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       updates: [{
         contentKey,
         blockType: "content",
-        properties: values.map(v => ({ alias: v.alias, value: v.value })),
+        properties: propsTuple,
       }],
     });
-    if (updateResult.isError) return createToolResultError(updateResult);
+    if (!updateResult.ok) return updateResult.errorResult;
 
     return createToolResult({
       message: `Updated ${fieldNames.length} field(s) in block on "${pageName}" (saved, not published)`,

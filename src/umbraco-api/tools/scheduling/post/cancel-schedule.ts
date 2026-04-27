@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page whose scheduled publish should be cancelled"),
@@ -21,16 +21,16 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["publish"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   handler: async ({ id, culture }, extra) => {
-    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (docResult.isError) return createToolResultError(docResult);
-    const doc = extractChainedResult(docResult);
-    const pageName = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
+    const docResult = await chainCms("get-document-by-id", { id });
+    if (!docResult.ok) return docResult.errorResult;
+    const doc = docResult.data;
+    const pageName = doc.variants?.[0]?.name ?? "Unknown";
 
     // Schedules live on the draft variants; get-document-by-id returns them for both
     // published and never-published pages (get-document-publish 404s on drafts).
-    const variants: any[] = doc?.variants ?? [];
+    const variants = doc.variants ?? [];
 
-    const hasSchedule = variants.some((v: any) => {
+    const hasSchedule = variants.some((v) => {
       if (culture && v.culture !== culture) return false;
       return (v.scheduledPublishDate != null) || (v.scheduledUnpublishDate != null);
     });
@@ -49,9 +49,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // existing scheduledPublishDate/scheduledUnpublishDate).
     const targetVariantCultures: Array<string | null> = culture
       ? [culture]
-      : (variants.length ? variants.map((v: any) => v.culture ?? null) : [null]);
+      : (variants.length ? variants.map((v) => v.culture ?? null) : [null]);
 
-    const cancelResult = await mcpClientManager.callTool("cms", "publish-document", {
+    const cancelResult = await chainCms("publish-document", {
       id,
       data: {
         publishSchedules: targetVariantCultures.map(c => ({
@@ -60,7 +60,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         })),
       },
     });
-    if (cancelResult.isError) return createToolResultError(cancelResult);
+    if (!cancelResult.ok) return cancelResult.errorResult;
 
     return createToolResult({
       message: `Cancelled scheduled publish for "${pageName}"`,

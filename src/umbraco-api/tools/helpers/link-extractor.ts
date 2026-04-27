@@ -5,8 +5,7 @@
  * Detects content/media picker UUIDs, rich text links, and external URLs.
  */
 
-import { mcpClientManager } from "../../mcp-client.js";
-import { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../cms-chain.js";
 
 // UUID v4 pattern for detecting picker references
 const UUID_REGEX = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
@@ -292,15 +291,18 @@ export async function resolveOutboundIds(
   await Promise.all(
     filtered.map(async (refId) => {
       try {
-        const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: refId });
-        if (!docResult.isError) {
-          const refDoc = extractChainedResult(docResult);
-          const refVariant = refDoc.variants?.[0] ?? {};
+        const docResult = await chainCms("get-document-by-id", { id: refId });
+        if (docResult.ok) {
+          const refDoc = docResult.data;
+          // GetDocumentByIdOutput doesn't include `urls` or documentType.alias —
+          // runtime fields, not in the upstream Zod schema.
+          const docExtra = refDoc as { urls?: { url?: string }[] };
+          const docType = refDoc.documentType as { alias?: string };
           internalPages.push({
             id: refId,
-            name: refVariant.name ?? refDoc.name ?? "Unknown",
-            url: refDoc.urls?.[0]?.url ?? "",
-            documentType: refDoc.documentType?.alias ?? "",
+            name: refDoc.variants?.[0]?.name ?? "Unknown",
+            url: docExtra.urls?.[0]?.url ?? "",
+            documentType: docType?.alias ?? "",
           });
           return;
         }
@@ -309,13 +311,15 @@ export async function resolveOutboundIds(
       }
 
       try {
-        const mediaResult = await mcpClientManager.callTool("cms", "get-media-by-id", { id: refId });
-        if (!mediaResult.isError) {
-          const refMedia = extractChainedResult(mediaResult);
+        const mediaResult = await chainCms("get-media-by-id", { id: refId });
+        if (mediaResult.ok) {
+          const refMedia = mediaResult.data;
+          // GetMediaByIdOutput doesn't include mediaType.alias — runtime field, not in the upstream Zod schema.
+          const mediaType = refMedia.mediaType as { alias?: string };
           media.push({
             id: refId,
-            name: refMedia.variants?.[0]?.name ?? refMedia.name ?? "Unknown",
-            mediaType: refMedia.mediaType?.alias ?? refMedia.contentTypeAlias ?? "",
+            name: refMedia.variants?.[0]?.name ?? "Unknown",
+            mediaType: mediaType?.alias ?? "",
           });
         }
       } catch {

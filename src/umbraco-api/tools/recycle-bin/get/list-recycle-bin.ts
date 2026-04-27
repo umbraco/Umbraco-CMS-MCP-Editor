@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import { buildChainedCursor } from "../../helpers/tree-walker.js";
 import { chainedTools, itemName } from "../helpers.js";
 
@@ -31,19 +31,18 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   handler: async ({ type, parentId, take, skip }) => {
     const tools = chainedTools(type);
     const cursor = buildChainedCursor(skip, take);
-    const args: Record<string, unknown> = { cursor };
-    if (parentId) args.parentId = parentId;
 
-    const chainedName = parentId ? tools.listChildren : tools.listRoot;
-    const result = await mcpClientManager.callTool("cms", chainedName, args);
-    if (result.isError) return createToolResultError(result);
-    const data = extractChainedResult(result);
+    const result = parentId
+      ? await chainCms(tools.listChildren, { parentId, cursor })
+      : await chainCms(tools.listRoot, { cursor });
+    if (!result.ok) return result.errorResult;
 
     return createToolResult({
-      items: (data.items ?? []).map((item: any) => {
+      items: (result.data.items ?? []).map((item) => {
+        const typed = item as { mediaType?: { icon?: string }; documentType?: { icon?: string } };
         const icon = type === "media"
-          ? (item.mediaType?.icon ?? undefined)
-          : (item.documentType?.icon ?? undefined);
+          ? (typed.mediaType?.icon ?? undefined)
+          : (typed.documentType?.icon ?? undefined);
         return {
           id: item.id,
           name: itemName(item),
@@ -51,7 +50,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
           hasChildren: item.hasChildren ?? false,
         };
       }),
-      total: data.total ?? 0,
+      total: result.data.total ?? 0,
     });
   },
 };

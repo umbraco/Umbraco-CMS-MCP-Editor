@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the member to retrieve"),
@@ -29,20 +29,20 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["read"],
   annotations: { readOnlyHint: true },
   handler: async ({ id }) => {
-    const result = await mcpClientManager.callTool("cms", "get-member", { id });
-    if (result.isError) return createToolResultError(result);
-    const data = extractChainedResult(result);
+    const result = await chainCms("get-member", { id });
+    if (!result.ok) return result.errorResult;
+    const data = result.data;
     return createToolResult({
       id: data.id ?? id,
-      name: data.variants?.[0]?.name ?? data.name ?? "Unknown",
+      name: data.variants?.[0]?.name ?? "Unknown",
       email: data.email ?? "",
       username: data.username ?? "",
-      memberType: data.memberType?.alias ?? data.memberType ?? "",
+      memberType: (data.memberType as { alias?: string })?.alias ?? "",
       isApproved: data.isApproved ?? false,
       isLockedOut: data.isLockedOut ?? false,
       isTwoFactorEnabled: data.isTwoFactorEnabled ?? false,
       groups: data.groups ?? [],
-      values: (data.values ?? []).map((v: any) => ({ alias: v.alias, value: v.value })),
+      values: (data.values ?? []).map((v) => ({ alias: v.alias, value: v.value })),
       lastLoginDate: data.lastLoginDate ?? null,
       lastPasswordChangeDate: data.lastPasswordChangeDate ?? null,
     });

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition , extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import { buildChainedCursor } from "../../helpers/tree-walker.js";
 
 
@@ -23,19 +23,18 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["tree"],
   annotations: { readOnlyHint: true },
   handler: async ({ parentId, take, skip }) => {
-    const toolName = parentId ? "get-document-children" : "get-document-root";
-    const args: Record<string, unknown> = { cursor: buildChainedCursor(skip, take) };
-    if (parentId) args.parentId = parentId;
-    const result = await mcpClientManager.callTool("cms", toolName, args);
-    if (result.isError) return createToolResultError(result);
-    const data = extractChainedResult(result);
+    const cursor = buildChainedCursor(skip, take);
+    const result = parentId
+      ? await chainCms("get-document-children", { parentId, cursor })
+      : await chainCms("get-document-root", { cursor });
+    if (!result.ok) return result.errorResult;
     return createToolResult({
-      items: (data.items ?? []).map((item: any) => ({
+      items: (result.data.items ?? []).map((item) => ({
         id: item.id,
-        name: item.variants?.[0]?.name ?? item.name ?? "Unknown",
-        hasChildren: item.hasChildren ?? false,
+        name: item.variants[0]?.name ?? "Unknown",
+        hasChildren: item.hasChildren,
       })),
-      total: data.total ?? 0,
+      total: result.data.total,
     });
   },
 };

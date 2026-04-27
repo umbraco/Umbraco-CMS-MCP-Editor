@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, confirmAction, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The page ID to rollback"),
@@ -24,20 +24,18 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   handler: async ({ id, versionId, culture }, extra) => {
     // Step 1: Fetch page details for human-readable confirmation
-    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (docResult.isError) return createToolResultError(docResult);
-    const doc = extractChainedResult(docResult);
-    const pageName = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
+    const docResult = await chainCms("get-document-by-id", { id });
+    if (!docResult.ok) return docResult.errorResult;
+    const pageName = docResult.data.variants?.[0]?.name ?? "Unknown";
 
     // Step 1b: Validate the version belongs to this page
     const pageSize = 100;
-    const versionsResult = await mcpClientManager.callTool("cms", "get-document-version", {
-      documentId: id, skip: 0, take: pageSize,
+    const versionsResult = await chainCms("get-document-version", {
+      documentId: id, cursor: encodeCursor({ s: 0, t: pageSize }),
     });
-    if (!versionsResult.isError) {
-      const versionsData = extractChainedResult(versionsResult);
-      const items = versionsData.items ?? [];
-      const versionIds = items.map((v: any) => v.id ?? v.versionId);
+    if (versionsResult.ok) {
+      const items = versionsResult.data.items ?? [];
+      const versionIds = items.map((v) => v.id);
       // Only reject if we fetched all versions (items < pageSize) and the ID wasn't found.
       // If we got a full page, the version may exist beyond what we fetched — skip the check.
       if (items.length < pageSize && versionIds.length > 0 && !versionIds.includes(versionId)) {
@@ -55,13 +53,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     }
 
     // Step 3: Execute rollback
-    const rollbackArgs: Record<string, unknown> = { id: versionId };
-    if (culture) {
-      rollbackArgs.culture = culture;
-    }
-
-    const rollbackResult = await mcpClientManager.callTool("cms", "create-document-version-rollback", rollbackArgs);
-    if (rollbackResult.isError) return createToolResultError(rollbackResult);
+    const rollbackResult = await chainCms("create-document-version-rollback", {
+      id: versionId,
+      ...(culture ? { culture } : {}),
+    });
+    if (!rollbackResult.ok) return rollbackResult.errorResult;
 
     return createToolResult({
       message: `Rolled back "${pageName}" to a previous version. The draft has been updated. Publish the page to make this version live.`,

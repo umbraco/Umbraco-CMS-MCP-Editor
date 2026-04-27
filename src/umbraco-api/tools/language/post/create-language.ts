@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   isoCode: z.string().describe("ISO language code to add (e.g. fr-FR)"),
@@ -26,14 +26,18 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   handler: async ({ isoCode, name: displayName, isDefault, isMandatory, fallbackIsoCode }) => {
     const langName = displayName || isoCode;
 
-    const result = await mcpClientManager.callTool("cms", "create-language", { name: langName, isoCode, isDefault, isMandatory, fallbackIsoCode });
-    if (result.isError) return createToolResultError(result);
-    const data = extractChainedResult(result);
-
+    const result = await chainCms("create-language", {
+      name: langName,
+      isoCode,
+      isDefault: isDefault ?? false,
+      isMandatory: isMandatory ?? false,
+      fallbackIsoCode,
+    });
+    if (!result.ok) return result.errorResult;
     return createToolResult({
-      message: `Language "${data.name ?? isoCode}" added successfully`,
-      isoCode: data.isoCode ?? isoCode,
-      name: data.name ?? isoCode,
+      message: `Language "${langName}" (${isoCode}) added successfully`,
+      isoCode: result.data.isoCode,
+      name: langName,
     });
   },
 };

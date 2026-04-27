@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import {
   validateBulkIds,
   fetchBulkItemDetails,
@@ -36,11 +36,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["publish"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   handler: async ({ ids, publishDate }, extra) => {
-    // 1. Validate cap
     const validationError = validateBulkIds(ids);
     if (validationError) return createToolResult(validationError as BulkOperationOutput);
 
-    // 2. Fetch details for confirmation + rollback
     const items = await fetchBulkItemDetails(ids);
     if (items.length === 0) {
       return createToolResult({
@@ -52,11 +50,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    // 3. Build confirmation listing every name
     const nameList = items.map(i => `- ${i.name}`).join("\n");
     const message = `Schedule these ${items.length} pages to publish on ${publishDate}?\n${nameList}`;
 
-    // 4. Confirm
     if (!await confirmAction(extra, message, { title: "Confirm bulk schedule publish", defaultValue: false })) {
       return createToolResult({
         message: "Cancelled",
@@ -67,19 +63,17 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    // 5. Execute sequentially
     const results = await executeBulkSequentially(items, async (item) => {
-      const result = await mcpClientManager.callTool("cms", "publish-document", {
+      const result = await chainCms("publish-document", {
         id: item.id,
         data: { publishSchedules: [{ culture: null, schedule: { publishTime: publishDate } }] },
       });
-      if (result.isError) {
-        return extractChainedResult(result)?.detail ?? "Schedule publish failed";
+      if (!result.ok) {
+        return result.errorResult.content?.[0]?.text ?? "Schedule publish failed";
       }
       return null;
     });
 
-    // 6. Return summary
     return createToolResult(buildBulkOutput("Scheduled", results));
   },
 };

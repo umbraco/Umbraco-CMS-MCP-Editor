@@ -6,36 +6,31 @@
  * used to build destructive-action previews.
  */
 
-import { extractChainedResult, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../mcp-client.js";
+import { encodeCursor } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../cms-chain.js";
 
 export type RecycleBinType = "content" | "media";
 
-export interface RecycleBinChainedTools {
-  listRoot: string;
-  listChildren: string;
-  permanentDelete: string;
-  empty: string;
-  originalParent: string;
-}
+const mediaTools = {
+  listRoot: "get-recycle-bin-media-root",
+  listChildren: "get-recycle-bin-media-children",
+  permanentDelete: "delete-media-from-recycle-bin",
+  empty: "empty-media-recycle-bin",
+  originalParent: "get-recycle-bin-media-original-parent",
+} as const;
+
+const contentTools = {
+  listRoot: "get-recycle-bin-document-root",
+  listChildren: "get-recycle-bin-document-children",
+  permanentDelete: "delete-from-recycle-bin",
+  empty: "empty-recycle-bin",
+  originalParent: "get-recycle-bin-document-original-parent",
+} as const;
+
+export type RecycleBinChainedTools = typeof mediaTools | typeof contentTools;
 
 export function chainedTools(type: RecycleBinType): RecycleBinChainedTools {
-  if (type === "media") {
-    return {
-      listRoot: "get-recycle-bin-media-root",
-      listChildren: "get-recycle-bin-media-children",
-      permanentDelete: "delete-media-from-recycle-bin",
-      empty: "empty-media-recycle-bin",
-      originalParent: "get-recycle-bin-media-original-parent",
-    };
-  }
-  return {
-    listRoot: "get-recycle-bin-document-root",
-    listChildren: "get-recycle-bin-document-children",
-    permanentDelete: "delete-from-recycle-bin",
-    empty: "empty-recycle-bin",
-    originalParent: "get-recycle-bin-document-original-parent",
-  };
+  return type === "media" ? mediaTools : contentTools;
 }
 
 export function itemName(item: any): string {
@@ -75,19 +70,20 @@ export async function probeSubtree(
     if (visited.has(parentId)) continue;
     visited.add(parentId);
 
-    const result = await mcpClientManager.callTool("cms", tools.listChildren, {
+    const result = await chainCms(tools.listChildren, {
       parentId,
       cursor: encodeCursor({ s: 0, t: 100 }),
     });
-    if (result.isError) break;
-    const data = extractChainedResult(result);
-    const items: any[] = data?.items ?? [];
+    if (!result.ok) break;
+    // extractChainedResult may return undefined if the body wasn't parseable.
+    const data = result.data as { items?: unknown[]; total?: number } | undefined;
+    const items = (data?.items ?? []) as Array<{ id: string; hasChildren?: boolean; variants?: { name?: string }[]; name?: string }>;
 
     for (const item of items) {
       count += 1;
       if (sampleNames.length < 5) sampleNames.push(itemName(item));
       if (count >= limit) {
-        truncated = (data?.total ?? items.length) > items.length || queue.length > 0 || item.hasChildren;
+        truncated = (data?.total ?? items.length) > items.length || queue.length > 0 || (item.hasChildren ?? false);
         return { descendantCount: count, truncated: true, sampleNames };
       }
       if (item.hasChildren) queue.push(item.id);
@@ -108,12 +104,11 @@ export async function probeSubtree(
  */
 export async function countRootItems(type: RecycleBinType): Promise<number> {
   const tools = chainedTools(type);
-  const result = await mcpClientManager.callTool("cms", tools.listRoot, {
+  const result = await chainCms(tools.listRoot, {
     cursor: encodeCursor({ s: 0, t: 1 }),
   });
-  if (result.isError) return 0;
-  const data = extractChainedResult(result);
-  return data?.total ?? 0;
+  if (!result.ok) return 0;
+  return (result.data as { total?: number } | undefined)?.total ?? 0;
 }
 
 /** Format a short preview string from a list of names: top 5 + "…and N more". */

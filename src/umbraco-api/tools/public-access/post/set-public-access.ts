@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the content page to restrict"),
@@ -30,8 +30,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const memberNames = memberUserNames ?? [];
 
     // Check for existing rules so we know whether to POST (create) or PUT (update)
-    const existingResult = await mcpClientManager.callTool("cms", "get-document-public-access", { id });
-    const hasExisting = !existingResult.isError;
+    const existingResult = await chainCms("get-document-public-access", { id });
+    const hasExisting = existingResult.ok;
 
     const groupList = memberGroupNames.length > 0 ? memberGroupNames.join(", ") : "(no groups)";
     const action = hasExisting ? "Update" : "Set";
@@ -48,18 +48,17 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    const toolName = hasExisting ? "put-document-public-access" : "post-document-public-access";
-    const writeResult = await mcpClientManager.callTool("cms", toolName, {
-      id,
-      data: {
-        loginDocument: { id: loginPageId },
-        errorDocument: { id: errorPageId },
-        memberGroupNames,
-        memberUserNames: memberNames,
-      },
-    });
+    const data = {
+      loginDocument: { id: loginPageId },
+      errorDocument: { id: errorPageId },
+      memberGroupNames,
+      memberUserNames: memberNames,
+    };
+    const writeResult = hasExisting
+      ? await chainCms("put-document-public-access", { id, data })
+      : await chainCms("post-document-public-access", { id, data });
 
-    if (writeResult.isError) return createToolResultError(writeResult);
+    if (!writeResult.ok) return writeResult.errorResult;
 
     // Call is void — just echo what was set
     return createToolResult({

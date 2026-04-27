@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("UUID of the document type to retrieve"),
@@ -31,9 +31,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["read"],
   annotations: { readOnlyHint: true },
   handler: async ({ id }) => {
-    const result = await mcpClientManager.callTool("cms", "get-document-type-by-id", { id });
-    if (result.isError) return createToolResultError(result);
-    const data = extractChainedResult(result);
+    const result = await chainCms("get-document-type-by-id", { id });
+    if (!result.ok) return result.errorResult;
+    const data = result.data;
 
     return createToolResult({
       id: data.id,
@@ -42,7 +42,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       description: data.description || undefined,
       variesByCulture: data.variesByCulture || undefined,
       variesBySegment: data.variesBySegment || undefined,
-      properties: (data.properties ?? []).map((p: any) => ({
+      properties: (data.properties ?? []).map((p) => ({
         alias: p.alias,
         name: p.name ?? p.alias,
         description: p.description || undefined,

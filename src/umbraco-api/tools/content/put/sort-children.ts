@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   parentId: z.string().uuid().optional().describe("The parent page ID whose children are being reordered. Omit to reorder at the content root."),
@@ -23,11 +23,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["sort", "update"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   handler: async ({ parentId, sorting }) => {
-    const result = await mcpClientManager.callTool("cms", "sort-document", {
+    const result = await chainCms("sort-document", {
       parent: parentId ? { id: parentId } : null,
       sorting,
     });
-    if (result.isError) return createToolResultError(result);
+    if (!result.ok) return result.errorResult;
 
     return createToolResult({
       message: `Reordered ${sorting.length} child page(s)`,

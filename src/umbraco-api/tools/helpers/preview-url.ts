@@ -9,8 +9,7 @@
  * can communicate that constraint when relaying the URL to the editor.
  */
 
-import { mcpClientManager } from "../../mcp-client.js";
-import { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../cms-chain.js";
 import { z } from "zod";
 
 export const previewUrlSchema = z
@@ -70,10 +69,10 @@ export function flattenPublishedUrls(urls: unknown): string[] {
   const out: string[] = [];
   for (const entry of urls) {
     if (!entry || typeof entry !== "object") continue;
+    const e = entry as { urlInfos?: { url?: string }[]; url?: string };
     // get-document-urls shape: { id, urlInfos: [...] }
-    const infos = (entry as any).urlInfos;
-    if (Array.isArray(infos)) {
-      for (const info of infos) {
+    if (Array.isArray(e.urlInfos)) {
+      for (const info of e.urlInfos) {
         if (info && typeof info.url === "string" && info.url.length > 0) {
           out.push(info.url);
         }
@@ -81,9 +80,8 @@ export function flattenPublishedUrls(urls: unknown): string[] {
       continue;
     }
     // get-document-by-id shape: { url, culture, ... }
-    const url = (entry as any).url;
-    if (typeof url === "string" && url.length > 0) {
-      out.push(url);
+    if (typeof e.url === "string" && e.url.length > 0) {
+      out.push(e.url);
     }
   }
   return out;
@@ -96,13 +94,9 @@ export function flattenPublishedUrls(urls: unknown): string[] {
  */
 export async function fetchPublishedUrls(id: string): Promise<string[]> {
   try {
-    const result = await mcpClientManager.callTool("cms", "get-document-urls", {
-      id: [id],
-    });
-    if (result.isError) return [];
-    const payload = extractChainedResult(result);
-    const items = Array.isArray(payload) ? payload : payload?.items;
-    return flattenPublishedUrls(items);
+    const result = await chainCms("get-document-urls", { id: [id] });
+    if (!result.ok) return [];
+    return flattenPublishedUrls(result.data.items);
   } catch {
     return [];
   }
