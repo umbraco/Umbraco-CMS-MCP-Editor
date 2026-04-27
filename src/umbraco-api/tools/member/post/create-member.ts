@@ -25,7 +25,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "create-member",
-  description: "Create a new member account. Call list-member-types to find a valid member type ID and list-member-groups to find group IDs.",
+  description: "Create a new member account. Use update-member to change details on an existing member — search-members first if unsure whether the email or username is already taken. Call list-member-types to find a valid memberTypeId and list-member-groups for group IDs.",
   inputSchema,
   outputSchema,
   slices: ["create"],

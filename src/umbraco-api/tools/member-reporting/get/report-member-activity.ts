@@ -61,7 +61,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       }
       return {
         id: member.id ?? "",
-        name: member.variants?.[0]?.name ?? member.name ?? "Unknown",
+        name: member.variants?.[0]?.name ?? "Unknown",
         email: member.email ?? "",
         memberType: member.memberType?.alias ?? member.memberType ?? "",
         lastLoginDate,

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { buildPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   name: z.string().describe("The name of the page to create"),
@@ -18,11 +19,12 @@ const outputSchema = z.object({
   message: z.string(),
   id: z.string(),
   name: z.string(),
+  previewUrl: previewUrlSchema,
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "create-page",
-  description: "Create a new content page as a draft. The page will NOT be published automatically. Call list-document-types first to find a valid documentTypeId.",
+  description: "Create a new content page as a draft — the page will NOT be published automatically. Call list-document-types first to find a valid documentTypeId.",
   inputSchema,
   outputSchema,
   slices: ["create"],
@@ -66,6 +68,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       message: `Created draft page "${name}"`,
       id: createdId,
       name,
+      previewUrl: createdId ? buildPreviewUrl(createdId) : null,
     });
   },
 };

@@ -18,7 +18,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "create-language",
-  description: "Add a new language to the Umbraco site. Use list-languages to see existing languages.",
+  description: "Add a new language to the site. Use this only for languages that do not yet exist — call list-languages first to avoid duplicates, and use update-language to change settings on an existing language.",
   inputSchema,
   outputSchema,
   slices: ["create"],

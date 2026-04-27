@@ -28,11 +28,12 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     if (!docResult.ok) return docResult.errorResult;
     const pageName = docResult.data.variants?.[0]?.name ?? "Unknown";
 
-    // Step 1b: Validate the version belongs to this page
+    // Step 1b: Validate the version belongs to this page and capture its metadata
     const pageSize = 100;
     const versionsResult = await chainCms("get-document-version", {
       documentId: id, cursor: encodeCursor({ s: 0, t: pageSize }),
     });
+    let targetVersion: { id: string; versionDate: string; user: { id: string } } | null = null;
     if (versionsResult.ok) {
       const items = versionsResult.data.items ?? [];
       const versionIds = items.map((v) => v.id);
@@ -43,10 +44,33 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
           message: `Version ${versionId} does not belong to page "${pageName}" (${id}). Use list-versions to find valid version IDs for this page.`,
         });
       }
+      targetVersion = items.find((v) => v.id === versionId) ?? null;
     }
 
-    // Step 2: Elicit confirmation (destructive action, default false)
-    const confirmMessage = `Rollback "${pageName}" to a previous version? This replaces the current draft. The published version is not affected until you publish again.`;
+    // Step 2: Elicit confirmation (destructive action, default false). Surface the
+    // target version's date and author so the editor can recognise what they're
+    // rolling back to without a separate list-versions trip. The chained version
+    // payload only carries the user's id — resolve it via get-user-by-id so the
+    // prompt reads "by <name>" rather than a raw GUID. Format the date in the
+    // runtime locale (en-GB falls through to ISO-style ordering on most runtimes
+    // and produces "20 April 2026 at 15:32" rather than the raw UTC ISO string).
+    const versionDate = targetVersion?.versionDate ?? null;
+    const versionUserId = targetVersion?.user?.id ?? null;
+    let versionUserName: string | null = null;
+    if (versionUserId) {
+      const userResult = await chainCms("get-user-by-id", { id: versionUserId });
+      versionUserName = userResult.ok ? (userResult.data.name ?? versionUserId) : versionUserId;
+    }
+    const versionDateFriendly = versionDate
+      ? new Date(versionDate).toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" })
+      : null;
+    const versionDetail = [
+      versionDateFriendly ? `from ${versionDateFriendly}` : null,
+      versionUserName ? `by ${versionUserName}` : null,
+    ].filter(Boolean).join(" ");
+    const confirmMessage = versionDetail
+      ? `Rollback "${pageName}" to the version ${versionDetail}? This replaces the current draft. The published version is not affected until you publish again.`
+      : `Rollback "${pageName}" to a previous version? This replaces the current draft. The published version is not affected until you publish again.`;
 
     if (!await confirmAction(extra, confirmMessage, { title: "Confirm rollback", defaultValue: false })) {
       return createToolResult({ message: "Rollback cancelled", id, name: pageName, versionId });

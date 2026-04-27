@@ -33,7 +33,7 @@ export function chainedTools(type: RecycleBinType): RecycleBinChainedTools {
   return type === "media" ? mediaTools : contentTools;
 }
 
-export function itemName(item: any): string {
+export function itemName(item: { variants?: { name?: string }[] | null; name?: string | null } | null | undefined): string {
   return item?.variants?.[0]?.name ?? item?.name ?? "Unknown";
 }
 

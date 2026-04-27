@@ -7,7 +7,7 @@ const inputSchema = {
   filePath: z.string().describe("Local file path of the file to upload"),
   name: z.string().describe("Display name for the media item"),
   parentId: z.string().uuid().optional().describe("ID of the target folder (omit to upload to the root)"),
-  mediaTypeName: z.string().optional().describe("Media type name (e.g. 'Image', 'Article', 'Audio', 'Video', 'Vector Graphics', 'File'). Defaults to 'Image'."),
+  mediaTypeName: z.string().default("Image").describe("Media type name (e.g. 'Image', 'Article', 'Audio', 'Video', 'Vector Graphics', 'File'). Defaults to 'Image' — omit unless uploading a non-image asset."),
 };
 
 const outputSchema = z.object({
@@ -18,7 +18,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "upload-media",
-  description: "Upload a file from a local path to the media library. Optionally specify a target folder and media type name (defaults to 'Image').",
+  description: "Upload a file from a local path to the media library — the canonical way to add image, video, or document assets. Use create-media-folder first if you need to organise the upload into a specific folder, then pass that folder's id as parentId. Defaults to media type 'Image'; pass mediaTypeName for other types (Video, Audio, File, etc.).",
   inputSchema,
   outputSchema,
   slices: ["create"],
@@ -37,7 +37,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const createResult = await chainCms("create-media", {
       sourceType: "base64",
       name,
-      mediaTypeName: mediaTypeName ?? "Image",
+      mediaTypeName,
       fileAsBase64,
       ...(parentId ? { parentId } : {}),
     });

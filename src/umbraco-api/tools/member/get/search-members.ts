@@ -35,7 +35,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     return createToolResult({
       items: (data.items ?? []).map((item: any) => ({
         id: item.id,
-        name: item.variants?.[0]?.name ?? item.name ?? "Unknown",
+        name: item.variants?.[0]?.name ?? "Unknown",
         email: item.email ?? "",
         memberType: item.memberType?.alias ?? item.memberType ?? "",
         isApproved: item.isApproved ?? false,

@@ -15,7 +15,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "publish-page",
-  description: "Publish a content page to make it live on the website. Optionally publish all child pages too.",
+  description: "Publish a content page to make it live on the website — use this when the draft is already correct and just needs to go live. If you also need to apply property changes in the same step, use save-and-publish instead. Pass includeDescendants to publish all child pages too. Use unpublish-page to take a page back offline.",
   inputSchema,
   outputSchema,
   slices: ["publish"],

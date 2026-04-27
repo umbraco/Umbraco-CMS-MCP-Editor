@@ -58,7 +58,7 @@ export const toolModes: ToolModeDefinition[] = [
     name: 'content-health',
     displayName: 'Content Health',
     description: 'Content auditing, SEO analysis, and content reporting',
-    collections: ['content-health', 'content-reporting']
+    collections: ['content-health']
   },
   {
     name: 'site-structure',

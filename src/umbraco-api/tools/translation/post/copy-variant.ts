@@ -19,7 +19,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "copy-variant",
-  description: "Copy all content from one language variant to another as a starting point for translation. Overwrites the target variant's content. Creates the target variant if it does not exist. You will be asked to confirm.",
+  description: "Copy all content from one language variant to another as a starting point for translation. Overwrites the target variant's content and creates the variant if it does not exist — you will be asked to confirm. Note: Umbraco supports language fallback chains, so a property left unset on a variant can fall back to the default language automatically — copy-variant is for when you want explicit content per culture rather than relying on fallback.",
   inputSchema,
   outputSchema,
   slices: ["create"],
@@ -44,12 +44,15 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       culture: targetCulture,
     }));
 
-    // Step 4: Confirm
-    if (!await confirmAction(
-      extra,
-      `Copy ${sourceCulture} content to ${targetCulture} for "${pageName}"? This will overwrite any existing ${targetCulture} content.`,
-      { title: "Confirm copy variant" }
-    )) {
+    // Step 4: Confirm. Show the editor exactly what's at stake — how many fields
+    // will be copied, and whether the target variant already has content that
+    // will be replaced.
+    const existingTargetFieldCount = existingValues.filter((v: any) => v.culture === targetCulture).length;
+    const overwriteWarning = existingTargetFieldCount > 0
+      ? ` ⚠️  This will overwrite ${existingTargetFieldCount} existing ${targetCulture} field(s).`
+      : "";
+    const confirmMessage = `Copy ${copiedFields.length} field(s) from ${sourceCulture} to ${targetCulture} on "${pageName}"?${overwriteWarning}`;
+    if (!await confirmAction(extra, confirmMessage, { title: "Confirm copy variant" })) {
       return createToolResult({ message: "Copy variant cancelled", id, name: pageName, sourceCulture, targetCulture, copiedFields: [] });
     }
 

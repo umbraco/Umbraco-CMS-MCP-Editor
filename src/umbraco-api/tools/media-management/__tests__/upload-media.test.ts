@@ -39,7 +39,7 @@ describe("upload-media", () => {
 
   it("should upload a local image file to the root of the media library", async () => {
     const result = await uploadMediaTool.handler(
-      { filePath: tmpFilePath, name: UPLOAD_NAME, parentId: undefined, mediaTypeName: undefined },
+      { filePath: tmpFilePath, name: UPLOAD_NAME, parentId: undefined, mediaTypeName: "Image" },
       extra,
     );
 

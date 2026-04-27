@@ -56,7 +56,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       groupName,
       items: filtered.map((m: any) => ({
         id: m.id ?? "",
-        name: m.variants?.[0]?.name ?? m.name ?? "Unknown",
+        name: m.variants?.[0]?.name ?? "Unknown",
         email: m.email ?? "",
         isApproved: m.isApproved ?? false,
         lastLoginDate: m.lastLoginDate ?? null,
