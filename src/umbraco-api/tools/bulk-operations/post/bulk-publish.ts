@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 import {
   validateBulkIds,
   fetchBulkItemDetails,
@@ -53,7 +54,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const nameList = items.map(i => `- ${i.name}`).join("\n");
     const message = `Publish these ${items.length} pages?\n${nameList}`;
 
-    if (!await confirmAction(extra, message, { title: "Confirm bulk publish", defaultValue: false })) {
+    if (!await confirmStep(extra, message)) {
       return createToolResult({
         message: "Cancelled",
         results: [],
@@ -64,12 +65,21 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     }
 
     const results = await executeBulkSequentially(items, async (item) => {
+      // publish-document needs one publishSchedules entry per culture — passing
+      // an empty array silently no-ops in Umbraco. Derive from the doc's variants.
+      const cultures = item.cultures ?? [null];
       const result = includeDescendants
         ? await chainCms("publish-document-with-descendants", {
             id: item.id,
-            data: { includeUnpublishedDescendants: false, cultures: [] },
+            data: {
+              includeUnpublishedDescendants: false,
+              cultures: cultures.filter((c): c is string => c !== null),
+            },
           })
-        : await chainCms("publish-document", { id: item.id, data: { publishSchedules: [] } });
+        : await chainCms("publish-document", {
+            id: item.id,
+            data: { publishSchedules: cultures.map((c) => ({ culture: c })) },
+          });
       if (!result.ok) {
         return result.errorResult.content?.[0]?.text ?? "Publish failed";
       }

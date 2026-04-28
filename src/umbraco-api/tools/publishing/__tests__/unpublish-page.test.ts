@@ -9,6 +9,7 @@ import {
 } from "./setup.js";
 import unpublishPageTool from "../post/unpublish-page.js";
 import publishPageTool from "../post/publish-page.js";
+import { expectUnpublished, expectPublished } from "../../../../testing/state-assertions.js";
 
 const elicitation = createElicitation();
 
@@ -44,6 +45,7 @@ describe("unpublish-page", () => {
     expect(data.message).toContain("Unpublished");
     expect(data.id).toBe(testPageId);
     expect(data.name).toEqual(expect.any(String));
+    await expectUnpublished(testPageId, extra);
   }, 30000);
 
   it("should re-publish page after unpublish to restore state", async () => {
@@ -53,6 +55,7 @@ describe("unpublish-page", () => {
     );
     const data = getStructuredContent(result) as any;
     expect(data.message).toContain("Published");
+    await expectPublished(testPageId, extra);
   }, 30000);
 
   it("should cancel unpublish when elicitation is rejected", async () => {

@@ -11,6 +11,7 @@ import {
 import { ContentBuilder } from "../../content/__tests__/helpers/content-builder.js";
 import bulkUnpublishTool from "../post/bulk-unpublish.js";
 import bulkPublishTool from "../post/bulk-publish.js";
+import { expectUnpublished } from "../../../../testing/state-assertions.js";
 
 const elicitation = createElicitation();
 
@@ -21,6 +22,7 @@ describe("bulk-unpublish", () => {
   let firstRootPageId: string;
   let blogPageId: string;
   let articleDocTypeId: string;
+  let articleSeedValues: Array<{ alias: string; value: unknown; culture: string | null; segment: string | null }>;
   const createdIds: string[] = [];
 
   beforeAll(async () => {
@@ -28,6 +30,7 @@ describe("bulk-unpublish", () => {
     firstRootPageId = state.firstRootPageId;
     blogPageId = state.blogPageId;
     articleDocTypeId = state.articleDocTypeId;
+    articleSeedValues = state.articleSeedValues;
   }, 60000);
 
   afterAll(async () => {
@@ -42,19 +45,22 @@ describe("bulk-unpublish", () => {
   });
 
   it("should bulk unpublish multiple pages", async () => {
-    // Create and publish two articles
-    const article1 = await new ContentBuilder()
+    // Create and publish two articles. Seed required article fields so the
+    // publish API doesn't reject them with ContentInvalid (articleDate, author).
+    const article1Builder = new ContentBuilder()
       .withName("_Test Bulk Unpublish 1")
       .withDocumentType(articleDocTypeId)
-      .withParent(blogPageId)
-      .create();
+      .withParent(blogPageId);
+    for (const v of articleSeedValues) article1Builder.withValue(v.alias, v.value, v.culture, v.segment);
+    const article1 = await article1Builder.create();
     createdIds.push(article1.getId());
 
-    const article2 = await new ContentBuilder()
+    const article2Builder = new ContentBuilder()
       .withName("_Test Bulk Unpublish 2")
       .withDocumentType(articleDocTypeId)
-      .withParent(blogPageId)
-      .create();
+      .withParent(blogPageId);
+    for (const v of articleSeedValues) article2Builder.withValue(v.alias, v.value, v.culture, v.segment);
+    const article2 = await article2Builder.create();
     createdIds.push(article2.getId());
 
     // Publish them first
@@ -74,6 +80,8 @@ describe("bulk-unpublish", () => {
     const data = getStructuredContent(result) as any;
     expect(data.successCount).toBe(2);
     expect(data.failureCount).toBe(0);
+    await expectUnpublished(article1.getId(), extra);
+    await expectUnpublished(article2.getId(), extra);
   }, 60000);
 
   it("should cancel when elicitation is rejected", async () => {

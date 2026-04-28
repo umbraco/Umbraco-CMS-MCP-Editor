@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the content page to restrict"),
@@ -37,7 +38,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const action = hasExisting ? "Update" : "Set";
     const confirmMessage = `${action} public access on this page? Allowed groups: ${groupList}. Login page: ${loginPageId}. Error page: ${errorPageId}. Unauthenticated visitors will be redirected.`;
 
-    if (!await confirmAction(extra, confirmMessage, { title: `Confirm ${action.toLowerCase()} public access`, defaultValue: false })) {
+    if (!await confirmStep(extra, confirmMessage)) {
       return createToolResult({
         message: `${action} cancelled`,
         id,

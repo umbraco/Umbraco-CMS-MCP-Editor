@@ -1,7 +1,9 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 import { fetchPublishedUrls, publishedUrlsSchema } from "../../helpers/preview-url.js";
+import { verifyDocumentPublished } from "../../helpers/verify-published.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to save and publish"),
@@ -40,7 +42,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     // Match the UI: publishing with descendants has unknown scope, so confirm it.
     if (includeDescendants) {
-      if (!await confirmAction(extra, `Publish "${pageName}" and all its descendants?`, { title: "Confirm publish with descendants" })) {
+      if (!await confirmStep(extra, `Publish "${pageName}" and all its descendants?`)) {
         return createToolResult({
           message: "Save and publish cancelled",
           id,
@@ -97,6 +99,31 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         });
       }
       return publishResult.errorResult;
+    }
+
+    // Verify the publish actually took effect — the chained call can return ok
+    // while a workflow/event handler reverts the publish. Skip for the
+    // descendants path because that runs asynchronously via a task.
+    if (!includeDescendants) {
+      const verifyError = await verifyDocumentPublished(id, variantCultures);
+      if (verifyError) {
+        if (saved) {
+          return createToolResult({
+            message: `Saved ${fieldNames.length} field(s) on "${pageName}" but publish did not take effect: ${verifyError}`,
+            id,
+            name: pageName,
+            saved: true,
+            published: false,
+            updatedFields: fieldNames,
+            publishedUrls: [],
+          });
+        }
+        return createToolResultError({
+          status: 500,
+          title: "Publish did not take effect",
+          detail: `"${pageName}": ${verifyError}`,
+        });
+      }
     }
 
     const publishedUrls = await fetchPublishedUrls(id);

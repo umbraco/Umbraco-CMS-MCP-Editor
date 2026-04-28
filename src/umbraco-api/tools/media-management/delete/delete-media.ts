@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the media item to delete"),
@@ -24,7 +25,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     if (!itemResult.ok) return itemResult.errorResult;
     const itemName = itemResult.data.variants?.[0]?.name ?? "Unknown";
 
-    if (!await confirmAction(extra, `Delete "${itemName}"? It will be moved to the recycle bin.`, { title: "Confirm delete", defaultValue: false })) {
+    if (!await confirmStep(extra, `Delete "${itemName}"? It will be moved to the recycle bin.`)) {
       return createToolResult({ message: "Delete cancelled", id, name: itemName });
     }
 

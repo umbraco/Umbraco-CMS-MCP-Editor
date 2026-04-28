@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the redirect to delete"),
@@ -30,7 +31,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const destinationUrl = item.destinationUrl ?? item.destinationPath ?? "Unknown";
 
     // Step 2: Elicit confirmation
-    if (!await confirmAction(extra, `Delete redirect from "${originalUrl}" to "${destinationUrl}"? Visitors following the old URL will get a 404.`, { title: "Confirm delete redirect", defaultValue: false })) {
+    if (!await confirmStep(extra, `Delete redirect from "${originalUrl}" to "${destinationUrl}"? Visitors following the old URL will get a 404.`)) {
       return createToolResult({ message: "Delete cancelled", id, originalUrl });
     }
 

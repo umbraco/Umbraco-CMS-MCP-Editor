@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 import { chainedTools, itemName, probeSubtree, formatNamePreview, SUBTREE_PROBE_LIMIT } from "../helpers.js";
 
 const inputSchema = {
@@ -66,7 +67,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     }
 
     // Step 5: Destructive defaults — unchecked, explicit title.
-    if (!await confirmAction(extra, message, { title: "Confirm permanent delete", defaultValue: false })) {
+    if (!await confirmStep(extra, message)) {
       return createToolResult({
         message: "Permanent delete cancelled",
         id,

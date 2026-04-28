@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the content page to remove public access restrictions from"),
@@ -19,7 +20,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["delete"],
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
   handler: async ({ id }, extra) => {
-    if (!await confirmAction(extra, `Remove public access restrictions from this page? The page will become publicly viewable again.`, { title: "Confirm remove public access", defaultValue: false })) {
+    if (!await confirmStep(extra, `Remove public access restrictions from this page? The page will become publicly viewable again.`)) {
       return createToolResult({ message: "Remove cancelled", id });
     }
 

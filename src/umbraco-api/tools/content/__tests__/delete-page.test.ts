@@ -10,6 +10,7 @@ import {
   ContentTestHelper,
 } from "./setup.js";
 import deletePageTool from "../delete/delete-page.js";
+import { expectInRecycleBin } from "../../../../testing/state-assertions.js";
 
 const TEST_PAGE_NAME = "_Test Delete Page";
 
@@ -56,6 +57,7 @@ describe("delete-page", () => {
 
     expect(result.isError).toBeFalsy();
     expect(createSnapshotResult(result, doc.getId())).toMatchSnapshot();
+    await expectInRecycleBin(doc.getId(), "content", extra);
   }, 30000);
 
   it("should find deleted page in recycle bin", async () => {

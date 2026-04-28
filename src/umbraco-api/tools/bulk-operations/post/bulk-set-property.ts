@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 import {
   validateBulkIds,
   fetchBulkItemDetails,
@@ -57,7 +58,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const nameList = items.map(i => `- ${i.name}`).join("\n");
     const message = `Set '${alias}' to '${valuePreview}' on these ${items.length} pages?\n${nameList}`;
 
-    if (!await confirmAction(extra, message, { title: "Confirm bulk set property", defaultValue: true })) {
+    if (!await confirmStep(extra, message)) {
       return createToolResult({
         message: "Cancelled",
         results: [],

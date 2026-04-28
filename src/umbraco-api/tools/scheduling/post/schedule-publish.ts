@@ -1,6 +1,8 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
+import { formatDate } from "../../helpers/format-date.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to schedule for publish"),
@@ -27,7 +29,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     if (!docResult.ok) return docResult.errorResult;
     const pageName = docResult.data.variants?.[0]?.name ?? "Unknown";
 
-    if (!await confirmAction(extra, `Schedule "${pageName}" to publish on ${publishDate}?`, { title: "Confirm schedule publish" })) {
+    if (!await confirmStep(extra, `Schedule "${pageName}" to publish on ${formatDate(publishDate)}?`)) {
       return createToolResult({ message: "Schedule publish cancelled", id, name: pageName, scheduledDate: publishDate });
     }
 
@@ -39,7 +41,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     const cultureLabel = culture ? ` (${culture})` : "";
     return createToolResult({
-      message: `Scheduled "${pageName}"${cultureLabel} to publish on ${publishDate}`,
+      message: `Scheduled "${pageName}"${cultureLabel} to publish on ${formatDate(publishDate)}`,
       id,
       name: pageName,
       scheduledDate: publishDate,

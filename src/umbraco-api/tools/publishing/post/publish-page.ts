@@ -1,6 +1,8 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
+import { verifyDocumentPublished } from "../../helpers/verify-published.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to publish"),
@@ -27,7 +29,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const pageName = doc.variants?.[0]?.name ?? "Unknown";
 
     if (includeDescendants) {
-      if (!await confirmAction(extra, `Publish "${pageName}" and all its descendants?`, { title: "Confirm publish with descendants" })) {
+      if (!await confirmStep(extra, `Publish "${pageName}" and all its descendants?`)) {
         return createToolResult({ message: "Publish cancelled", id, name: pageName });
       }
     }
@@ -51,6 +53,20 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
           data: { publishSchedules: variantCultures.map(c => ({ culture: c })) },
         });
     if (!publishResult.ok) return publishResult.errorResult;
+
+    // Verify the publish actually took effect — the chained call can return ok
+    // while a workflow/event handler reverts the publish. Skip for the
+    // descendants path because that runs asynchronously via a task.
+    if (!includeDescendants) {
+      const verifyError = await verifyDocumentPublished(id, variantCultures);
+      if (verifyError) {
+        return createToolResultError({
+          status: 500,
+          title: "Publish did not take effect",
+          detail: `"${pageName}": ${verifyError}`,
+        });
+      }
+    }
 
     return createToolResult({
       message: includeDescendants ? `Published "${pageName}" and all child pages` : `Published "${pageName}"`,

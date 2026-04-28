@@ -36,20 +36,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const doc = docResult.data;
     const name = doc.variants?.[0]?.name ?? "Unknown";
 
-    const publishResult = await chainCms("get-document-publish", { id });
-
-    if (!publishResult.ok) {
-      // 404 means the page has never been published — not an error
-      return createToolResult({
-        id,
-        name,
-        isPublished: false,
-        state: "NotPublished",
-        variants: [],
-      });
-    }
-
-    const variants = (publishResult.data.variants ?? []).map((v) => ({
+    // The draft document is the source of truth for both current state and
+    // any pending schedule — get-document-publish 404s on unpublished pages
+    // (losing schedule info), and even when it succeeds it mirrors the same
+    // schedule fields, so we read everything from the draft.
+    const variants = (doc.variants ?? []).map((v) => ({
       name: v.name ?? "",
       culture: v.culture ?? null,
       state: v.state ?? "Unknown",
@@ -58,7 +49,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       scheduledUnpublishDate: v.scheduledUnpublishDate ?? null,
     }));
 
-    const isPublished = variants.some((v) => v.state === "Published");
+    const isPublished = variants.some(
+      (v) => v.state === "Published" || v.state === "PublishedPendingChanges",
+    );
     const overallState = isPublished ? "Published" : "NotPublished";
 
     return createToolResult({

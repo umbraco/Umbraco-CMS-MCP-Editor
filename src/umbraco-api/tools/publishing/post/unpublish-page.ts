@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to unpublish"),
@@ -25,9 +26,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const doc = docResult.data;
     const pageName = doc.variants?.[0]?.name ?? "Unknown";
 
-    if (!await confirmAction(extra, `Unpublish "${pageName}"? This will remove it from the live website.`, {
-      title: "Confirm unpublish", defaultValue: false,
-    })) {
+    if (!await confirmStep(extra, `Unpublish "${pageName}"? This will remove it from the live website.`)) {
       return createToolResult({ message: "Unpublish cancelled", id, name: pageName });
     }
 

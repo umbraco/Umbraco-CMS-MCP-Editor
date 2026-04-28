@@ -18,6 +18,7 @@ import {
 } from "../../content/__tests__/setup.js";
 import saveAndPublishTool from "../post/save-and-publish.js";
 import editPageTool from "../../content/put/edit-page.js";
+import { expectPublished } from "../../../../testing/state-assertions.js";
 
 const TEST_PAGE_NAME_WITH_VALUES = "_Test Save Publish With Values";
 const TEST_PAGE_NAME_NO_VALUES = "_Test Save Publish No Values";
@@ -61,6 +62,7 @@ describe("save-and-publish", () => {
     );
 
     expect(createSnapshotResult(result, doc.getId())).toMatchSnapshot();
+    await expectPublished(doc.getId(), extra);
   }, 60000);
 
   it("publishes without values when none provided", async () => {
@@ -82,5 +84,6 @@ describe("save-and-publish", () => {
     );
 
     expect(createSnapshotResult(result, doc.getId())).toMatchSnapshot();
+    await expectPublished(doc.getId(), extra);
   }, 60000);
 });

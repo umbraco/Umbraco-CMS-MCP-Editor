@@ -44,6 +44,13 @@ interface BulkOperationsTestState {
   blogDocTypeId: string;
   /** Article document type ID (for creating articles under blogs) */
   articleDocTypeId: string;
+  /**
+   * Property values copied from an existing seed article. Use these when
+   * creating an article in a test that needs to publish — articles have
+   * required fields (articleDate, author, etc.) that must be set or the
+   * publish API rejects the document with `ContentInvalid`.
+   */
+  articleSeedValues: Array<{ alias: string; value: unknown; culture: string | null; segment: string | null }>;
 }
 
 let cachedState: BulkOperationsTestState | null = null;
@@ -97,12 +104,20 @@ export async function initBulkOperationsTestState(
     await mcpClientManager.callTool("cms", "get-document-by-id", { id: blogChildren.items[0].id }),
   );
 
+  const articleSeedValues = (articleDoc.values ?? []).map((v: any) => ({
+    alias: v.alias,
+    value: v.value,
+    culture: v.culture ?? null,
+    segment: v.segment ?? null,
+  }));
+
   const state: BulkOperationsTestState = {
     firstRootPageId,
     secondRootPageId,
     blogPageId: blogItem.id,
     blogDocTypeId: blogDoc.documentType.id,
     articleDocTypeId: articleDoc.documentType.id,
+    articleSeedValues,
   };
   cachedState = state;
   return state;

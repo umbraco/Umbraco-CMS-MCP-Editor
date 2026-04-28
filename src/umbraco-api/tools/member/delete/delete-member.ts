@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the member to permanently delete"),
@@ -28,7 +29,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     const confirmMessage = `Permanently delete member "${name}" (${email})? This cannot be undone. The member and all their data will be removed.`;
 
-    if (!await confirmAction(extra, confirmMessage, { title: "Confirm delete member", defaultValue: false })) {
+    if (!await confirmStep(extra, confirmMessage)) {
       return createToolResult({ message: "Delete cancelled", id, name, email });
     }
 

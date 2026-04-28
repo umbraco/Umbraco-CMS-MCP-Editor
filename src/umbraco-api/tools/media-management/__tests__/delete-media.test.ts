@@ -9,6 +9,7 @@ import {
   MediaManagementTestHelper,
 } from "./setup.js";
 import deleteMediaTool from "../delete/delete-media.js";
+import { expectInRecycleBin } from "../../../../testing/state-assertions.js";
 
 const TEST_FOLDER_NAME = "_Test Delete Media";
 const elicitation = createElicitation();
@@ -41,6 +42,7 @@ describe("delete-media", () => {
     expect(data).toBeDefined();
     expect(data.message).toContain("recycle bin");
     expect(data.id).toBe(folder.getId());
+    await expectInRecycleBin(folder.getId(), "media", extra);
   }, 30000);
 
   it("should cancel delete when elicitation is rejected", async () => {

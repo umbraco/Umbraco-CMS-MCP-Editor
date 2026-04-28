@@ -10,6 +10,7 @@ import {
 } from "./setup.js";
 import { ContentBuilder } from "../../content/__tests__/helpers/content-builder.js";
 import bulkPublishTool from "../post/bulk-publish.js";
+import { expectPublished } from "../../../../testing/state-assertions.js";
 
 const elicitation = createElicitation();
 
@@ -20,6 +21,7 @@ describe("bulk-publish", () => {
   let firstRootPageId: string;
   let blogPageId: string;
   let articleDocTypeId: string;
+  let articleSeedValues: Array<{ alias: string; value: unknown; culture: string | null; segment: string | null }>;
   const createdIds: string[] = [];
 
   beforeAll(async () => {
@@ -27,6 +29,7 @@ describe("bulk-publish", () => {
     firstRootPageId = state.firstRootPageId;
     blogPageId = state.blogPageId;
     articleDocTypeId = state.articleDocTypeId;
+    articleSeedValues = state.articleSeedValues;
   }, 60000);
 
   afterAll(async () => {
@@ -72,18 +75,23 @@ describe("bulk-publish", () => {
   }, 10000);
 
   it("should bulk publish multiple pages", async () => {
-    const article1 = await new ContentBuilder()
+    // Seed the required article fields (articleDate, author, etc.) from an
+    // existing Clean article — without them, publish-document returns
+    // ContentInvalid for missing required properties.
+    const article1Builder = new ContentBuilder()
       .withName("_Test Bulk Publish 1")
       .withDocumentType(articleDocTypeId)
-      .withParent(blogPageId)
-      .create();
+      .withParent(blogPageId);
+    for (const v of articleSeedValues) article1Builder.withValue(v.alias, v.value, v.culture, v.segment);
+    const article1 = await article1Builder.create();
     createdIds.push(article1.getId());
 
-    const article2 = await new ContentBuilder()
+    const article2Builder = new ContentBuilder()
       .withName("_Test Bulk Publish 2")
       .withDocumentType(articleDocTypeId)
-      .withParent(blogPageId)
-      .create();
+      .withParent(blogPageId);
+    for (const v of articleSeedValues) article2Builder.withValue(v.alias, v.value, v.culture, v.segment);
+    const article2 = await article2Builder.create();
     createdIds.push(article2.getId());
 
     const result = await bulkPublishTool.handler(
@@ -95,6 +103,8 @@ describe("bulk-publish", () => {
     const data = getStructuredContent(result) as any;
     expect(data.successCount).toBe(2);
     expect(data.failureCount).toBe(0);
+    await expectPublished(article1.getId(), extra);
+    await expectPublished(article2.getId(), extra);
   }, 60000);
 
   it("should cancel when elicitation is rejected", async () => {

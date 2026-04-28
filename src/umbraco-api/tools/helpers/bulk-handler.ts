@@ -14,6 +14,13 @@ export interface BulkItemDetail {
   id: string;
   name: string;
   currentVersionId: string;
+  /**
+   * One entry per variant; `null` for invariant content. Set by the document
+   * `fetchBulkItemDetails` helper for callers that need to derive
+   * `publishSchedules`. Optional because non-document bulk tools (media moves,
+   * block-property edits) don't need it.
+   */
+  cultures?: Array<string | null>;
   extra?: Record<string, any>;
 }
 
@@ -44,6 +51,9 @@ export async function fetchBulkItemDetails(ids: string[]): Promise<BulkItemDetai
         if (!docResult.ok) return null;
         const doc = docResult.data;
         const name = doc.variants?.[0]?.name ?? "Unknown";
+        const cultures: Array<string | null> = (doc.variants ?? []).length
+          ? doc.variants.map((v) => v.culture ?? null)
+          : [null];
 
         const versionResult = await chainCms("get-document-version", {
           documentId: id, cursor: encodeCursor({ s: 0, t: 1 }),
@@ -51,7 +61,7 @@ export async function fetchBulkItemDetails(ids: string[]): Promise<BulkItemDetai
         const versionData: any = versionResult.ok ? versionResult.data : null;
         const currentVersionId = versionData?.items?.[0]?.id ?? "";
 
-        return { id, name, currentVersionId };
+        return { id, name, currentVersionId, cultures };
       } catch {
         return null;
       }

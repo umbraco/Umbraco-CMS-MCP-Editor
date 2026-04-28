@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, confirmAction, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The page ID to rollback"),
@@ -72,7 +73,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       ? `Rollback "${pageName}" to the version ${versionDetail}? This replaces the current draft. The published version is not affected until you publish again.`
       : `Rollback "${pageName}" to a previous version? This replaces the current draft. The published version is not affected until you publish again.`;
 
-    if (!await confirmAction(extra, confirmMessage, { title: "Confirm rollback", defaultValue: false })) {
+    if (!await confirmStep(extra, confirmMessage)) {
       return createToolResult({ message: "Rollback cancelled", id, name: pageName, versionId });
     }
 

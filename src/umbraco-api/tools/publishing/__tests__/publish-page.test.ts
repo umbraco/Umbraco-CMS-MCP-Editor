@@ -7,6 +7,7 @@ import {
   NON_EXISTENT_UUID,
 } from "./setup.js";
 import publishPageTool from "../post/publish-page.js";
+import { expectPublished } from "../../../../testing/state-assertions.js";
 
 describe("publish-page", () => {
   setupTestEnvironment();
@@ -30,6 +31,8 @@ describe("publish-page", () => {
     expect(data.message).toContain("Published");
     expect(data.id).toBe(testPageId);
     expect(data.name).toEqual(expect.any(String));
+
+    await expectPublished(testPageId, extra);
   }, 30000);
 
   it("should return error for non-existent page", async () => {

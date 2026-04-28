@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the member to update"),
@@ -60,10 +61,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     let passwordChanged = false;
     if (newPassword !== undefined) {
-      const passwordConfirmed = await confirmAction(
+      const passwordConfirmed = await confirmStep(
         extra,
         `Reset the password for "${memberName}" (${memberEmail})? The old password will no longer work — make sure the member knows their new password.`,
-        { title: "Confirm password reset", defaultValue: false }
       );
       if (passwordConfirmed) {
         data.newPassword = newPassword;

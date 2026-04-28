@@ -10,6 +10,7 @@ import {
 } from "./setup.js";
 import deleteMediaTool from "../delete/delete-media.js";
 import restoreMediaTool from "../put/restore-media.js";
+import { expectNotInRecycleBin } from "../../../../testing/state-assertions.js";
 
 const TEST_FOLDER_NAME = "_Test Restore Media";
 const elicitation = createElicitation();
@@ -47,6 +48,7 @@ describe("restore-media", () => {
     expect(data).toBeDefined();
     expect(data.message).toContain("Restored");
     expect(data.id).toBe(folder.getId());
+    await expectNotInRecycleBin(folder.getId(), "media", extra);
   }, 60000);
 
   it("should cancel restore when elicitation is rejected", async () => {

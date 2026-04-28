@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the member group to delete"),
@@ -29,7 +30,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // Step 2: Elicit confirmation (default: false)
     const confirmMessage = `Delete member group "${name}"? Members in this group will lose this group assignment.`;
 
-    if (!await confirmAction(extra, confirmMessage, { title: "Confirm delete member group", defaultValue: false })) {
+    if (!await confirmStep(extra, confirmMessage)) {
       return createToolResult({ message: "Delete cancelled", id, name });
     }
 

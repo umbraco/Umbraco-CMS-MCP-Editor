@@ -22,6 +22,7 @@ import {
 } from "./setup.js";
 import deletePageTool from "../delete/delete-page.js";
 import restorePageTool from "../put/restore-page.js";
+import { expectNotInRecycleBin } from "../../../../testing/state-assertions.js";
 
 const TEST_PAGE_NAME = "_Test Restore Page";
 
@@ -76,6 +77,7 @@ describe("restore-page", () => {
     expect(data).toBeDefined();
     expect(data.message).toContain("Restored");
     expect(data.id).toBe(doc.getId());
+    await expectNotInRecycleBin(doc.getId(), "content", extra);
   }, 60000);
 
   it("should cancel restore when elicitation is rejected", async () => {
