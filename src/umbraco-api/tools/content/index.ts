@@ -6,12 +6,14 @@ import listDocumentTypesTool from "./get/list-document-types.js";
 import getDocumentTypeTool from "./get/get-document-type.js";
 import inspectBlocksTool from "./get/inspect-blocks.js";
 import reportPageReferencesTool from "./get/report-page-references.js";
+import listPageTemplatesTool from "./get/list-page-templates.js";
 import createPageTool from "./post/create-page.js";
 import duplicatePageTool from "./post/duplicate-page.js";
 import editPageTool from "./put/edit-page.js";
 import editBlockTool from "./put/edit-block.js";
 import restorePageTool from "./put/restore-page.js";
 import sortChildrenTool from "./put/sort-children.js";
+import setPageTemplateTool from "./put/set-page-template.js";
 import deletePageTool from "./delete/delete-page.js";
 
 const collection: ToolCollectionExport = {
@@ -20,7 +22,7 @@ const collection: ToolCollectionExport = {
     displayName: "Content",
     description: "Search, browse, and manage content pages",
   },
-  tools: () => [searchContentTool, getPageTool, listChildrenTool, listDocumentTypesTool, getDocumentTypeTool, inspectBlocksTool, reportPageReferencesTool, createPageTool, duplicatePageTool, editPageTool, editBlockTool, sortChildrenTool, restorePageTool, deletePageTool],
+  tools: () => [searchContentTool, getPageTool, listChildrenTool, listDocumentTypesTool, getDocumentTypeTool, inspectBlocksTool, reportPageReferencesTool, listPageTemplatesTool, createPageTool, duplicatePageTool, editPageTool, editBlockTool, sortChildrenTool, setPageTemplateTool, restorePageTool, deletePageTool],
 };
 
 export default collection;

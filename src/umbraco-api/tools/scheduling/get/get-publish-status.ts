@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { buildPublishStatus, publishStatusVariantSchema } from "../../helpers/publish-status.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to check publish status for"),
@@ -11,16 +12,7 @@ const outputSchema = z.object({
   name: z.string(),
   isPublished: z.boolean(),
   state: z.string(),
-  variants: z.array(
-    z.object({
-      name: z.string(),
-      culture: z.string().nullable(),
-      state: z.string(),
-      publishDate: z.string().nullable(),
-      scheduledPublishDate: z.string().nullable(),
-      scheduledUnpublishDate: z.string().nullable(),
-    })
-  ),
+  variants: z.array(publishStatusVariantSchema),
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
@@ -40,26 +32,12 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // any pending schedule — get-document-publish 404s on unpublished pages
     // (losing schedule info), and even when it succeeds it mirrors the same
     // schedule fields, so we read everything from the draft.
-    const variants = (doc.variants ?? []).map((v) => ({
-      name: v.name ?? "",
-      culture: v.culture ?? null,
-      state: v.state ?? "Unknown",
-      publishDate: v.publishDate ?? null,
-      scheduledPublishDate: v.scheduledPublishDate ?? null,
-      scheduledUnpublishDate: v.scheduledUnpublishDate ?? null,
-    }));
-
-    const isPublished = variants.some(
-      (v) => v.state === "Published" || v.state === "PublishedPendingChanges",
-    );
-    const overallState = isPublished ? "Published" : "NotPublished";
+    const status = buildPublishStatus(doc);
 
     return createToolResult({
       id,
       name,
-      isPublished,
-      state: overallState,
-      variants,
+      ...status,
     });
   },
 };

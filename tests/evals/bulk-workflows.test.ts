@@ -24,6 +24,8 @@ const allTools = [
   "create-page",
   "edit-page",
   "edit-block",
+  "list-page-templates",
+  "set-page-template",
   "delete-page",
   "restore-page",
   // Publishing

@@ -24,6 +24,8 @@ const allTools = [
   "create-page",
   "edit-page",
   "edit-block",
+  "list-page-templates",
+  "set-page-template",
   "delete-page",
   "restore-page",
   // Publishing
@@ -225,6 +227,25 @@ describe("Write Workflows", () => {
   );
 
   it(
+    "editor asks to switch the page template to another allowed layout",
+    runScenarioTest({
+      prompt:
+        "Find the homepage, list the templates it can use, and switch it to a different allowed template (any one other than the current). Always go through with the change even if you think it might not be needed.",
+      tools: [
+        "search-content",
+        "get-page",
+        "list-children",
+        "list-page-templates",
+        "set-page-template",
+      ],
+      requiredTools: ["list-page-templates", "set-page-template"],
+      successPattern: /template|switch|layout|saved|changed/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
     "full tool set: multi-step edit and publish",
     runScenarioTest({
       prompt:
@@ -237,6 +258,7 @@ describe("Write Workflows", () => {
     timeout
   );
 
+  it(
     "manage content notification subscriptions",
     runScenarioTest({
       prompt:

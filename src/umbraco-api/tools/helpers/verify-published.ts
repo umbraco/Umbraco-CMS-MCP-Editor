@@ -1,6 +1,5 @@
 import { chainCms } from "../../cms-chain.js";
-
-const PUBLISHED_STATES = new Set(["Published", "PublishedPendingChanges"]);
+import { PUBLISHED_STATES } from "./publish-status.js";
 
 /**
  * Re-read a document's published state after a publish call to confirm the
