@@ -35,19 +35,29 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     if (!result.ok) return result.errorResult;
 
-    return createToolResult({
-      items: (result.data.items ?? []).map((item) => {
-        const translations = ((item as { translations?: { translation?: string; isoCode?: string; language?: { isoCode?: string } }[] }).translations) ?? [];
+    // The dictionary tree endpoints return id/name/hasChildren but no
+    // translations data. The schema's contract is "each item shows which
+    // languages have translations" — fan out to get-dictionary per item to
+    // recover the translation iso codes.
+    const items = result.data.items ?? [];
+    const enriched = await Promise.all(
+      items.map(async (item) => {
+        const detail = await chainCms("get-dictionary", { id: item.id });
+        const translations = detail.ok ? detail.data.translations ?? [] : [];
         const translatedLanguages = translations
           .filter((t) => t.translation != null && t.translation !== "")
-          .map((t) => t.isoCode ?? t.language?.isoCode ?? "");
+          .map((t) => t.isoCode);
         return {
           id: item.id,
           name: item.name ?? "Unknown",
           translatedLanguages,
         };
       }),
-      total: result.data.total ?? 0,
+    );
+
+    return createToolResult({
+      items: enriched,
+      total: result.data.total ?? enriched.length,
     });
   },
 };

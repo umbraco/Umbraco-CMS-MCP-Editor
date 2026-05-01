@@ -38,10 +38,10 @@ describe("create-blueprint", () => {
 
     const data = getStructuredContent(result) as any;
 
-    // Verify via get-blueprint if we got an ID back
-    if (data.id) {
-      const verifyResult = await getBlueprintTool.handler({ id: data.id }, extra);
-      expect(createSnapshotResult(verifyResult, data.id)).toMatchSnapshot();
-    }
+    expect(typeof data.id).toBe("string");
+    expect(data.id.length).toBeGreaterThan(0);
+
+    const verifyResult = await getBlueprintTool.handler({ id: data.id }, extra);
+    expect(createSnapshotResult(verifyResult, data.id)).toMatchSnapshot();
   }, 30000);
 });

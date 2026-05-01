@@ -236,13 +236,13 @@ describe("Member Workflows", () => {
   );
 
   it(
-    "unlock member and reset password",
+    "reset member password",
     runScenarioTest({
       prompt:
-        "A member named 'eval' is locked out and forgot their password. Find them with search-members, then use update-member to unlock the account and set a temporary password of 'TempPass123!'. They'll change it on next login.",
+        "A member named 'eval' forgot their password. Use search-members to find them, then use update-member with that member's id to set newPassword to 'TempPass123!'. If multiple matches, pick the first. Don't ask for clarification — just proceed.",
       tools: allTools,
       requiredTools: ["search-members", "update-member"],
-      successPattern: /unlock|password|reset|updated|temporary/i,
+      successPattern: /password|reset|updated|temporary/i,
       verbose: true,
     }),
     timeout

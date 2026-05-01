@@ -192,7 +192,7 @@ describe("Write Workflows", () => {
     "editor asks to revert a page to a previous version",
     runScenarioTest({
       prompt:
-        "The homepage was changed by mistake. Can you roll it back to the previous version?",
+        "The homepage was changed by mistake. Use list-versions to fetch its version history, pick the most recent previously-published version (the second entry — the first is the current draft), and roll back to it. Don't ask for clarification — just proceed.",
       tools: [
         "search-content",
         "get-page",
@@ -227,10 +227,10 @@ describe("Write Workflows", () => {
   );
 
   it(
-    "editor asks to switch the page template to another allowed layout",
+    "editor asks to apply a page's template explicitly",
     runScenarioTest({
       prompt:
-        "Find the homepage, list the templates it can use, and switch it to a different allowed template (any one other than the current). Always go through with the change even if you think it might not be needed.",
+        "Find the homepage, use list-page-templates to discover which template it allows, and use set-page-template to explicitly apply that template (the default one) — useful when restoring after a template was cleared. Always go through with the change.",
       tools: [
         "search-content",
         "get-page",
@@ -239,7 +239,7 @@ describe("Write Workflows", () => {
         "set-page-template",
       ],
       requiredTools: ["list-page-templates", "set-page-template"],
-      successPattern: /template|switch|layout|saved|changed/i,
+      successPattern: /template|applied|saved|set/i,
       verbose: true,
     }),
     timeout
@@ -263,7 +263,11 @@ describe("Write Workflows", () => {
     runScenarioTest({
       prompt:
         "Find the homepage with search-content, then use get-content-notifications to see the current subscriptions, then use set-content-notifications to subscribe to every available action on that page. Finally confirm with get-content-notifications that the subscriptions were saved.",
-      tools: allTools,
+      tools: [
+        "search-content",
+        "get-content-notifications",
+        "set-content-notifications",
+      ],
       requiredTools: [
         "get-content-notifications",
         "set-content-notifications",

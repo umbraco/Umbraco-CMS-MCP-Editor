@@ -31,20 +31,69 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["read"],
   annotations: { readOnlyHint: true },
   handler: async ({ id }) => {
+    interface RawProperty {
+      alias?: string;
+      name?: string;
+      description?: string | null;
+      dataType?: { id?: string };
+      variesByCulture?: boolean;
+      variesBySegment?: boolean;
+    }
+    interface RawDocType {
+      id?: string;
+      alias?: string;
+      name?: string;
+      description?: string | null;
+      variesByCulture?: boolean;
+      variesBySegment?: boolean;
+      properties?: RawProperty[];
+      compositions?: { document?: { id?: string }; documentType?: { id?: string }; id?: string; compositionType?: string }[];
+    }
+
     const result = await chainCms("get-document-type-by-id", { id });
     if (!result.ok) return result.errorResult;
-    const data = result.data;
+    const data = result.data as RawDocType;
+
+    // The doc type itself often has no direct properties — they're inherited
+    // via compositions. Walk compositions and merge their properties so the
+    // returned list reflects everything an editor can actually set on the page.
+    const collected = new Map<string, RawProperty>();
+
+    function addProperties(props: RawProperty[]): void {
+      for (const p of props) {
+        if (p.alias && !collected.has(p.alias)) {
+          collected.set(p.alias, p);
+        }
+      }
+    }
+
+    addProperties(Array.isArray(data.properties) ? data.properties : []);
+
+    const compositionIds = (data.compositions ?? [])
+      .map((c) => c.document?.id ?? c.documentType?.id ?? c.id)
+      .filter((cid): cid is string => typeof cid === "string");
+    if (compositionIds.length > 0) {
+      const compositions = await Promise.all(
+        compositionIds.map(async (cid) => {
+          const r = await chainCms("get-document-type-by-id", { id: cid });
+          return r.ok ? (r.data as RawDocType) : null;
+        }),
+      );
+      for (const comp of compositions) {
+        if (comp && Array.isArray(comp.properties)) addProperties(comp.properties);
+      }
+    }
 
     return createToolResult({
-      id: data.id,
+      id: data.id ?? id,
       alias: data.alias ?? "",
       name: data.name ?? data.alias ?? "Unknown",
       description: data.description || undefined,
       variesByCulture: data.variesByCulture || undefined,
       variesBySegment: data.variesBySegment || undefined,
-      properties: (data.properties ?? []).map((p) => ({
-        alias: p.alias,
-        name: p.name ?? p.alias,
+      properties: Array.from(collected.values()).map((p) => ({
+        alias: p.alias ?? "",
+        name: p.name ?? p.alias ?? "",
         description: p.description || undefined,
         dataTypeId: p.dataType?.id || undefined,
         variesByCulture: p.variesByCulture || undefined,

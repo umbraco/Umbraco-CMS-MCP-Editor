@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { memberTypeToString } from "./member-type-helper.js";
 
 const inputSchema = {
   inactiveDays: z.number().optional().default(90).describe("Number of days without a login before a member is considered inactive (default 90)"),
@@ -63,7 +64,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         id: member.id ?? "",
         name: member.variants?.[0]?.name ?? "Unknown",
         email: member.email ?? "",
-        memberType: member.memberType?.alias ?? member.memberType ?? "",
+        memberType: memberTypeToString(member.memberType),
         lastLoginDate,
         daysSinceLogin,
       };

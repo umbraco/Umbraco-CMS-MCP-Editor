@@ -32,7 +32,7 @@ import languageCollection from "./umbraco-api/tools/language/index.js";
 import dictionaryCollection from "./umbraco-api/tools/dictionary/index.js";
 import tagCollection from "./umbraco-api/tools/tag/index.js";
 import contentHealthCollection from "./umbraco-api/tools/content-health/index.js";
-// content-reporting collection is parked — see src/collections.ts for rationale.
+import contentReportingCollection from "./umbraco-api/tools/content-reporting/index.js";
 import siteStructureCollection from "./umbraco-api/tools/site-structure/index.js";
 import mediaHealthCollection from "./umbraco-api/tools/media-health/index.js";
 import bulkOperationsCollection from "./umbraco-api/tools/bulk-operations/index.js";
@@ -53,6 +53,9 @@ import { mcpServers } from "./config/mcp-servers.js";
 // Import registries for tool filtering
 import { allModes, allModeNames, allSliceNames, loadServerConfig, clearConfigCache } from "./config/index.js";
 
+// Server-level instructions sent to MCP clients during initialization.
+import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
+
 // Configure the API client for use with toolkit helpers
 // This connects your generated Orval client to executeGetApiCall, executeVoidApiCall, etc.
 // ============================================================================
@@ -60,10 +63,15 @@ import { allModes, allModeNames, allSliceNames, loadServerConfig, clearConfigCac
 // ============================================================================
 
 // Create MCP server
-const server = new McpServer({
-  name: "umbraco-editor-mcp",
-  version: packageJson.version,
-});
+const server = new McpServer(
+  {
+    name: "umbraco-editor-mcp",
+    version: packageJson.version,
+  },
+  {
+    instructions: SERVER_INSTRUCTIONS,
+  },
+);
 
 // Make the underlying Server available to tools that need elicitation
 setServerRef(server.server);
@@ -104,6 +112,7 @@ const collections: ToolCollectionExport[] = [
   dictionaryCollection,
   tagCollection,
   contentHealthCollection,
+  contentReportingCollection,
   siteStructureCollection,
   mediaHealthCollection,
   bulkOperationsCollection,

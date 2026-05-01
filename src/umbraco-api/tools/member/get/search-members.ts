@@ -2,6 +2,7 @@ import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { buildChainedCursor } from "../../helpers/tree-walker.js";
+import { memberTypeToString } from "../../member-reporting/get/member-type-helper.js";
 
 const inputSchema = {
   query: z.string().describe("Search term to find members by name or email address"),
@@ -37,7 +38,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         id: item.id,
         name: item.variants?.[0]?.name ?? "Unknown",
         email: item.email ?? "",
-        memberType: item.memberType?.alias ?? item.memberType ?? "",
+        memberType: memberTypeToString(item.memberType),
         isApproved: item.isApproved ?? false,
         isLockedOut: item.isLockedOut ?? false,
       })),

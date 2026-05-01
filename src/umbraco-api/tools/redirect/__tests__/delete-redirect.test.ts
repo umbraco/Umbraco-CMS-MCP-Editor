@@ -156,6 +156,9 @@ describe("delete-redirect", () => {
     expect(data).toBeDefined();
     expect(data.message).toContain("Deleted");
     expect(data.id).toBe(targetRedirectId);
+    expect(data.originalUrl).not.toBe("Unknown");
+    expect(data.originalUrl.length).toBeGreaterThan(0);
+    expect(data.message).not.toContain('"Unknown"');
 
     // Verify it's gone — list by the same filter should not return it
     const listResult = await listRedirectsTool.handler({ filter: uniqueToken }, extra);

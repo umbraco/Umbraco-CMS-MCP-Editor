@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
@@ -33,12 +33,22 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     });
     if (!createResult.ok) return createResult.errorResult;
 
-    // The dev MCP does not declare an outputSchema for this tool, so chainCms
-    // returns the data as `unknown`, and may return undefined if the upstream
-    // response had no parseable structuredContent. Narrow defensively at this
-    // single boundary.
+    // The chained create-document-blueprint-from-document tool has no
+    // outputSchema, so chainCms returns the response as `unknown` — `id` may
+    // be missing. Fall back to looking up the new blueprint by name when that
+    // happens (names are unique within a parent in practice).
     const created = createResult.data as { id?: string } | undefined;
-    const createdId = created?.id ?? "";
+    let createdId = created?.id ?? "";
+
+    if (!createdId) {
+      const lookupResult = await chainCms("get-document-blueprint-root", {
+        cursor: encodeCursor({ s: 0, t: 100 }),
+      });
+      if (lookupResult.ok) {
+        const match = (lookupResult.data.items ?? []).find((b) => b.name === name);
+        if (match?.id) createdId = match.id;
+      }
+    }
 
     return createToolResult({
       message: `Created blueprint "${name}" from page "${pageName}"`,

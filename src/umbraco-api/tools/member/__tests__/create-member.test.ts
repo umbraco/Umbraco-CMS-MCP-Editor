@@ -13,6 +13,8 @@ import createMemberTool from "../post/create-member.js";
 import searchMembersTool from "../get/search-members.js";
 import getMemberTool from "../get/get-member.js";
 import { MemberTestHelper } from "./helpers/member-test-helper.js";
+import { mcpClientManager } from "../../../mcp-client.js";
+import { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 
 describe("create-member", () => {
   setupTestEnvironment();
@@ -40,7 +42,8 @@ describe("create-member", () => {
         name: TEST_MEMBER_NAME,
         password: TEST_MEMBER_PASSWORD,
         memberTypeId: testMemberTypeId!,
-        isApproved: true,
+        // isApproved omitted — gated by Sensitive Data group access; demo API user lacks it
+        isApproved: undefined as unknown as boolean,
         groups: undefined,
         values: undefined,
       },
@@ -70,4 +73,46 @@ describe("create-member", () => {
     expect(data.id).toBeTruthy();
     createdMemberId = data.id;
   }, 30000);
+
+  it("applies groups at creation time", async () => {
+    // The chained `create-member` accepts `groups` in its schema but doesn't
+    // persist them — create-member.ts works around this with a follow-up
+    // update-member call. This test asserts that the group actually lands.
+    const groupName = `_audit-group-${Date.now().toString(36)}`;
+    const memberEmail = `audit-groups-${Date.now().toString(36)}@example.com`;
+    const memberUsername = `audit-groups-${Date.now().toString(36)}`;
+
+    const groupResult = await mcpClientManager.callTool("cms", "create-member-group", { name: groupName });
+    if (groupResult.isError) {
+      throw new Error(`Failed to create test member group: ${JSON.stringify(extractChainedResult(groupResult))}`);
+    }
+    const groupId = extractChainedResult(groupResult).id;
+
+    let memberId: string | undefined;
+    try {
+      const result = await createMemberTool.handler({
+        email: memberEmail,
+        username: memberUsername,
+        name: "Audit Groups Regression",
+        password: "AuditPass123!",
+        memberTypeId: testMemberTypeId!,
+        isApproved: undefined as unknown as boolean,
+        groups: [groupId],
+        values: undefined,
+      }, extra);
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      memberId = data.id;
+      expect(memberId).toBeTruthy();
+
+      const getResult = await getMemberTool.handler({ id: memberId! }, extra);
+      const memberData = getStructuredContent(getResult) as any;
+
+      expect(memberData.groups).toContain(groupId);
+    } finally {
+      if (memberId) await MemberTestHelper.cleanup(memberId);
+      try { await mcpClientManager.callTool("cms", "delete-member-group", { id: groupId }); } catch { /* best-effort */ }
+    }
+  }, 60000);
 });

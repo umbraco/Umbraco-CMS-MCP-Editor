@@ -149,7 +149,7 @@ describe("Advanced Workflows", () => {
 
   // SKIPPED: report-unpublished is disabled (tree walk). Re-enable with this test once
   // a filtered-pages endpoint replaces the walker.
-  it.skip(
+  it(
     "find stale unpublished pages",
     runScenarioTest({
       prompt:
@@ -176,7 +176,7 @@ describe("Advanced Workflows", () => {
   );
 
   // SKIPPED: report-short-content / report-empty-fields / report-stale-content are disabled (tree walk).
-  it.skip(
+  it(
     "content health summary",
     runScenarioTest({
       prompt:
@@ -195,7 +195,7 @@ describe("Advanced Workflows", () => {
   );
 
   // SKIPPED: report-large-media is disabled (tree walk).
-  it.skip(
+  it(
     "find large unused media",
     runScenarioTest({
       prompt:
@@ -235,7 +235,7 @@ describe("Advanced Workflows", () => {
   );
 
   // SKIPPED: report-translation-coverage is disabled (tree walk).
-  it.skip(
+  it(
     "translation coverage report",
     runScenarioTest({
       prompt:
@@ -249,7 +249,7 @@ describe("Advanced Workflows", () => {
   );
 
   // SKIPPED: report-recently-changed is disabled (tree walk).
-  it.skip(
+  it(
     "recently changed unpublished",
     runScenarioTest({
       prompt:
@@ -263,7 +263,7 @@ describe("Advanced Workflows", () => {
   );
 
   // SKIPPED: report-content-by-type is disabled (tree walk).
-  it.skip(
+  it(
     "content type distribution",
     runScenarioTest({
       prompt:

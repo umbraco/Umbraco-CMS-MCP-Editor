@@ -12,10 +12,16 @@ const collection: ToolCollectionExport = {
     description: "Content quality auditing and SEO analysis",
   },
   // report-empty-fields, report-short-content, and report-media-missing-alt walk the
-  // content/media tree (N+1 get-document-by-id, scanLimit=100) and are disabled until a
-  // filtered-pages endpoint is available. Imports kept so the tool files still type-check.
-  // Full list: [auditPageSeoTool, auditPageContentTool, reportEmptyFieldsTool, reportShortContentTool, reportMediaMissingAltTool]
-  tools: () => [auditPageSeoTool, auditPageContentTool],
+  // content/media tree (N+1 get-document-by-id, scanLimit=100). On larger sites the
+  // scanLimit cap silently truncates the report — re-evaluate when a filtered-pages
+  // endpoint replaces the walker.
+  tools: () => [
+    auditPageSeoTool,
+    auditPageContentTool,
+    reportEmptyFieldsTool,
+    reportShortContentTool,
+    reportMediaMissingAltTool,
+  ],
 };
 
 export default collection;

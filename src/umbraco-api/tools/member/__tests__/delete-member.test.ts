@@ -38,7 +38,8 @@ describe("delete-member", () => {
         name: "_Test Delete Member",
         password: TEST_MEMBER_PASSWORD,
         memberTypeId: testMemberTypeId!,
-        isApproved: true,
+        // isApproved omitted — gated by Sensitive Data group access; demo API user lacks it
+        isApproved: undefined as unknown as boolean,
         groups: undefined,
         values: undefined,
       },

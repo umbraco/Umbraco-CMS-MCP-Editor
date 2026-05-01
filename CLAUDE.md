@@ -8,6 +8,10 @@ MCP server that gives AI assistants editorial control over Umbraco CMS content. 
 
 Runs as a local stdio MCP server or as a hosted Cloudflare Worker with OAuth.
 
+## Deferred audits
+
+A live-MCP audit campaign in `docs/audits/mcp-live-validation/` exercised every tool exposed by the local stdio MCP. **The 11 tree-walking tools (`list-scheduled-content`, `report-large-media`, `report-empty-fields`, `report-media-missing-alt`, `report-short-content`, `report-content-by-type`, `report-recently-changed`, `report-stale-content`, `report-translation-coverage`, `report-unpublished`, `report-orphan-pages`) were intentionally not live-tested** — they're behind opt-in modes (`content-health`, `content-reporting`, `media-health`, `scheduling`, `relationships`) and their tree-walking cost makes them a separate audit concern. **Plan to cover them in a follow-up campaign** with `UMBRACO_TOOL_MODES` set, after the bugs surfaced in the first audit are fixed.
+
 ## Gitflow
 
 - `dev` — integration branch, all feature branches merge here
@@ -201,6 +205,7 @@ Custom fields defined in `config/server-config.ts`.
 - Call `setupTestEnvironment()` in describe block
 - Use `setupEditorElicitation(jest.fn)` from `src/testing/setup-elicitation.ts` for write operations (NOT `setupElicitationMock` from the SDK — it doesn't set the server ref needed by `confirmAction`)
 - Use `getStructuredContent(result)` to extract typed output
+- **Prefer `callTool(tool, args, extra)` over `tool.handler(args, extra)`** — it runs the response through the tool's outputSchema (matching what the live MCP transport does on the wire). Direct handler calls bypass that validation and can pass while the live tool fails with `-32602`. The helper lives in `src/testing/call-tool-with-validation.ts`. Use it as the default for new tests; retrofit existing tests when touching them
 - Tests must create their own state — never skip because data doesn't exist. If a create fails, search for existing items as fallback
 - **Never rely on pre-existing Umbraco data** — CI runs against a fresh Umbraco install with only the demo site. Tests that snapshot list/report results from existing content will fail on CI because the data differs from local dev. Every test must use builders to create the specific data it needs, then snapshot/assert against that known data, and clean up afterwards
 - **Snapshot tests must be deterministic** — only snapshot data the test created itself. Use `createSnapshotResult()` with the created item's ID for normalization. For tools that report on all content (list-children, report-short-content, etc.), create test data, run the tool, then assert the created item appears in the results — don't snapshot the entire result

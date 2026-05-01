@@ -190,10 +190,10 @@ describe("Bulk Operation Workflows", () => {
     "editor moves pages",
     runScenarioTest({
       prompt:
-        "Use list-children to find root pages. Then use list-children again passing the first page's ID to find its children. Use bulk-move to move the first child page you find under the root Home page. You must call bulk-move regardless of the result — if there are no children report the error and say 'bulk-move attempted'.",
+        "Use list-children with no parentId — there will be one root page (Home). Use list-children passing Home's id to get its direct children (one level down, you'll see at least 2). Call bulk-move with ids set to [<second child's id>] and targetParentId set to <first child's id>. This moves the second sibling under the first sibling. You must call bulk-move; don't ask for clarification.",
       tools: allTools,
       requiredTools: ["bulk-move"],
-      successPattern: /move|bulk|page|confirm|attempted/i,
+      successPattern: /move|bulk|page|sibling/i,
       verbose: true,
     }),
     timeout

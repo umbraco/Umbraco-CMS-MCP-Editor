@@ -5,7 +5,10 @@ import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The page ID to rollback"),
-  versionId: z.string().uuid().describe("The version ID to rollback to (from list-versions)"),
+  // versionId uses z.guid() (permissive 8-4-4-4-12 hex) rather than z.uuid() because
+  // Umbraco emits sequential version IDs like 000005e3-0000-0000-0000-000000000000
+  // which don't satisfy RFC 4122's version/variant nibble checks.
+  versionId: z.guid().describe("The version ID to rollback to (from list-versions)"),
   culture: z.string().optional().describe("Optional culture code for variant-specific rollback (e.g. 'en-US')"),
 };
 

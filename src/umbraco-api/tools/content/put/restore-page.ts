@@ -42,7 +42,12 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         data: { target },
       });
     } catch (error: any) {
-      return createToolResultError(error.message ?? String(error));
+      const detail = error?.message ?? String(error);
+      return createToolResultError({
+        status: error?.status ?? 500,
+        title: "Restore failed",
+        detail: `Could not restore "${pageName}" (${id}): ${detail}`,
+      });
     }
 
     return createToolResult({

@@ -34,10 +34,12 @@ export async function createTemplateFixture(): Promise<TemplateFixture> {
   const templateBName = `_Test Wide Tpl ${suffix}`;
   const templateBAlias = `testWideTpl${suffix}`;
 
-  const [tplA, tplB] = await Promise.all([
-    new TemplateBuilder().withName(templateAName).withAlias(templateAAlias).create(),
-    new TemplateBuilder().withName(templateBName).withAlias(templateBAlias).create(),
-  ]);
+  // Serial, not parallel — concurrent create-template calls have hit SQL
+  // execution-timeout on the slower GitHub Actions runner. Templates are a
+  // settings-level write that touches shared schema; serialising avoids
+  // contention without measurably hurting test runtime.
+  const tplA = await new TemplateBuilder().withName(templateAName).withAlias(templateAAlias).create();
+  const tplB = await new TemplateBuilder().withName(templateBName).withAlias(templateBAlias).create();
 
   const createDocTypeResult = await mcpClientManager.callTool("cms", "create-document-type", {
     name: `_Test Templated Type ${suffix}`,

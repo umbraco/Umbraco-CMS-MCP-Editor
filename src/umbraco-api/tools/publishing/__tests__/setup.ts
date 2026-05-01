@@ -20,6 +20,7 @@ import { getStructuredContent } from "@umbraco-cms/mcp-server-sdk/testing";
 import { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 import listChildrenTool from "../../content/get/list-children.js";
+import { mcpClientManager } from "../../../mcp-client.js";
 
 export const NON_EXISTENT_UUID = "00000000-0000-0000-0000-000000000000";
 
@@ -40,7 +41,17 @@ export async function initPublishingTestState(
   const data = getStructuredContent(result) as any;
   if (!data?.items?.length) throw new Error("No root pages found");
 
-  cachedState = { testPageId: data.items[0].id };
+  const testPageId: string = data.items[0].id;
+
+  // Ensure the root page is published — eval scenarios sometimes leave it
+  // unpublished, which then breaks integration publishes that need a
+  // published parent. Idempotent: a no-op if already live.
+  await mcpClientManager.callTool("cms", "publish-document", {
+    id: testPageId,
+    data: { publishSchedules: [{ culture: null }] },
+  }).catch(() => {});
+
+  cachedState = { testPageId };
   return cachedState;
 }
 

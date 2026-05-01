@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { confirmStep } from "../../helpers/confirm-step.js";
+import { hasSensitiveDataAccess } from "../sensitive-data-access.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the member to update"),
@@ -34,6 +35,19 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["update"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   handler: async ({ id, name, email, username, newPassword, isTwoFactorEnabled, isApproved, isLockedOut, groups, values }, extra) => {
+    // Sensitive Data gate — see sensitive-data-access.ts. Umbraco silently
+    // reverts isApproved/isLockedOut on update when the API user isn't in the
+    // Sensitive Data group. Surface an explicit error rather than letting the
+    // caller think the field landed.
+    if ((isApproved !== undefined || isLockedOut !== undefined || isTwoFactorEnabled !== undefined)
+        && !(await hasSensitiveDataAccess())) {
+      return createToolResultError({
+        status: 403,
+        title: "Sensitive Data access required",
+        detail: "Updating isApproved, isLockedOut, or isTwoFactorEnabled requires the API user to be in Umbraco's built-in Sensitive Data user group (group key 8C6AD70F-D307-4E4A-AF58-72C2E4E9439D). Add the API user to that group in the Umbraco backoffice (Settings → Users → API Users → groups), then retry. Other update-member fields (name, email, username, groups, values, newPassword) are not affected.",
+      });
+    }
+
     const memberResult = await chainCms("get-member", { id });
     if (!memberResult.ok) return memberResult.errorResult;
     const member = memberResult.data;

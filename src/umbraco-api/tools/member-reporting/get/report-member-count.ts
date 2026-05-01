@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { memberTypeToString } from "./member-type-helper.js";
 
 const inputSchema = {};
 
@@ -45,7 +46,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // Group by member type
     const typeCounts = new Map<string, number>();
     for (const member of allMembers) {
-      const memberType: string = member.memberType?.alias ?? member.memberType ?? "Unknown";
+      const memberType = memberTypeToString(member.memberType);
       typeCounts.set(memberType, (typeCounts.get(memberType) ?? 0) + 1);
     }
 

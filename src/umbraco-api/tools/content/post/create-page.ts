@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { buildPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
+import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   name: z.string().describe("The name of the page to create"),
@@ -68,7 +68,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       message: `Created draft page "${name}"`,
       id: createdId,
       name,
-      previewUrl: createdId ? buildPreviewUrl(createdId) : null,
+      previewUrl: createdId ? await fetchPreviewUrl(createdId) : null,
     });
   },
 };

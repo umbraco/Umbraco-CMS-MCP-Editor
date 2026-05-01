@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { confirmStep } from "../../helpers/confirm-step.js";
 
@@ -21,14 +21,22 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["delete"],
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   handler: async ({ id }, extra) => {
-    // Step 1: Fetch redirect details for confirmation
-    const itemResult = await chainCms("get-redirect-by-id", { id });
-    if (!itemResult.ok) return itemResult.errorResult;
-    // The dev MCP types this as { items: [...] } but the runtime response is the
-    // single redirect at the top level. Narrow at this single boundary.
-    const item = itemResult.data as { originalUrl?: string; url?: string; destinationUrl?: string; destinationPath?: string };
-    const originalUrl = item.originalUrl ?? item.url ?? "Unknown";
-    const destinationUrl = item.destinationUrl ?? item.destinationPath ?? "Unknown";
+    // Fetch redirect details for the confirmation message. Use get-all-redirects
+    // and find by id rather than get-redirect-by-id — the latter doesn't
+    // reliably include originalUrl in its response.
+    let originalUrl = "Unknown";
+    let destinationUrl = "Unknown";
+    const listResult = await chainCms("get-all-redirects", {
+      cursor: encodeCursor({ s: 0, t: 100 }),
+    });
+    if (listResult.ok) {
+      const match = (listResult.data.items ?? []).find((r: any) => r.id === id);
+      if (match) {
+        const m = match as { originalUrl?: string; url?: string; destinationUrl?: string; destinationPath?: string };
+        originalUrl = m.originalUrl ?? m.url ?? "Unknown";
+        destinationUrl = m.destinationUrl ?? m.destinationPath ?? "Unknown";
+      }
+    }
 
     // Step 2: Elicit confirmation
     if (!await confirmStep(extra, `Delete redirect from "${originalUrl}" to "${destinationUrl}"? Visitors following the old URL will get a 404.`)) {

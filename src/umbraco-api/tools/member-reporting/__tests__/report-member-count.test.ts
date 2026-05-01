@@ -9,6 +9,7 @@ import {
   cleanupMemberReportingTestState,
 } from "./setup.js";
 import reportMemberCountTool from "../get/report-member-count.js";
+import { callTool } from "../../../../testing/call-tool-with-validation.js";
 
 describe("report-member-count", () => {
   setupTestEnvironment();
@@ -24,7 +25,7 @@ describe("report-member-count", () => {
   }, 30000);
 
   it("should return member count breakdown by type and group", async () => {
-    const result = await reportMemberCountTool.handler({}, extra);
+    const result = await callTool(reportMemberCountTool, {}, extra);
 
     expect(result.isError).toBeFalsy();
     const data = getStructuredContent(result) as any;
@@ -34,8 +35,17 @@ describe("report-member-count", () => {
     expect(data.byGroup).toBeInstanceOf(Array);
   }, 60000);
 
+  it("response satisfies the tool's output schema", async () => {
+    const result = await callTool(reportMemberCountTool, {}, extra);
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    for (const entry of data.byType) {
+      expect(typeof entry.memberType).toBe("string");
+    }
+  }, 60000);
+
   it("should return no error on normal call", async () => {
-    const result = await reportMemberCountTool.handler({}, extra);
+    const result = await callTool(reportMemberCountTool, {}, extra);
     expect(result.isError).toBeFalsy();
   }, 60000);
 });

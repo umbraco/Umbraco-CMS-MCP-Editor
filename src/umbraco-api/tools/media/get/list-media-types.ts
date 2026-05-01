@@ -32,14 +32,27 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     if (!result.ok) return result.errorResult;
 
+    // The allowed-children/allowed-at-root endpoints return id/name/icon but not
+    // the media-type alias — without it, upload-media (which accepts mediaTypeName
+    // as a fallback) and any alias-based workflows can't reason about the result.
+    // Fetch each type's full details by id to recover the alias.
+    const items = result.data.items ?? [];
+    const enriched = await Promise.all(
+      items.map(async (item) => {
+        const detail = await chainCms("get-media-type-by-id", { id: item.id });
+        const alias = detail.ok ? detail.data.alias ?? "" : "";
+        return {
+          id: item.id,
+          alias,
+          name: item.name ?? "",
+          icon: item.icon ?? "",
+        };
+      }),
+    );
+
     return createToolResult({
-      items: (result.data.items ?? []).map((item) => ({
-        id: item.id,
-        alias: (item as { alias?: string }).alias ?? "",
-        name: item.name ?? "",
-        icon: item.icon ?? "",
-      })),
-      total: result.data.total ?? 0,
+      items: enriched,
+      total: result.data.total ?? enriched.length,
     });
   },
 };

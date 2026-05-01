@@ -7,6 +7,7 @@ import {
   DictionaryTestHelper,
 } from "./setup.js";
 import listDictionaryTool from "../get/list-dictionary.js";
+import { callTool } from "../../../../testing/call-tool-with-validation.js";
 
 const TEST_DICTIONARY_NAME = "_Test List Dictionary";
 
@@ -31,7 +32,7 @@ describe("list-dictionary", () => {
   }, 30000);
 
   it("should list dictionary entries including the created item", async () => {
-    const result = await listDictionaryTool.handler(
+    const result = await callTool(listDictionaryTool,
       { parentId: undefined },
       extra,
     );
@@ -47,5 +48,19 @@ describe("list-dictionary", () => {
     expect(found).toBeDefined();
     expect(found.id).toBeDefined();
     expect(Array.isArray(found.translatedLanguages)).toBe(true);
+  }, 30000);
+
+  it("populates translatedLanguages from actual translations", async () => {
+    // The dictionary tree endpoints don't include translation data, so
+    // list-dictionary fans out to get-dictionary per item to recover
+    // the real iso codes.
+    const result = await callTool(listDictionaryTool,
+      { parentId: undefined },
+      extra,
+    );
+    const data = getStructuredContent(result) as any;
+    const ours = data.items.find((item: any) => item.name === TEST_DICTIONARY_NAME);
+    expect(ours).toBeDefined();
+    expect(ours.translatedLanguages).toContain("en-US");
   }, 30000);
 });

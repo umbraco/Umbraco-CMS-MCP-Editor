@@ -49,7 +49,7 @@ describe("preview-url helper", () => {
     it("builds the cookie-gated backoffice preview URL with the auth flag", () => {
       process.env.UMBRACO_BASE_URL = "https://cms.example.com";
       expect(buildPreviewUrl("1234-5678")).toEqual({
-        url: "https://cms.example.com/umbraco/preview/?id=1234-5678",
+        url: "https://cms.example.com/umbraco/preview?id=1234-5678",
         requiresBackofficeAuth: true,
       });
     });
@@ -57,7 +57,7 @@ describe("preview-url helper", () => {
     it("URL-encodes the document id", () => {
       process.env.UMBRACO_BASE_URL = "https://cms.example.com";
       const result = buildPreviewUrl("a/b c");
-      expect(result?.url).toBe("https://cms.example.com/umbraco/preview/?id=a%2Fb%20c");
+      expect(result?.url).toBe("https://cms.example.com/umbraco/preview?id=a%2Fb%20c");
     });
 
     it("returns null when the base URL isn't resolvable", () => {
