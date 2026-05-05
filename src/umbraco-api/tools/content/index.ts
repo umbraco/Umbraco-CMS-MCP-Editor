@@ -19,6 +19,7 @@ import restorePageTool from "./put/restore-page.js";
 import sortChildrenTool from "./put/sort-children.js";
 import setPageTemplateTool from "./put/set-page-template.js";
 import deletePageTool from "./delete/delete-page.js";
+import deleteBlockTool from "./delete/delete-block.js";
 
 const collection: ToolCollectionExport = {
   metadata: {
@@ -26,7 +27,7 @@ const collection: ToolCollectionExport = {
     displayName: "Content",
     description: "Search, browse, and manage content pages",
   },
-  tools: () => [searchContentTool, getPageTool, listChildrenTool, listDocumentTypesTool, getDocumentTypeTool, inspectBlocksTool, reportPageReferencesTool, listPageTemplatesTool, getPropertyValueTemplateTool, createPageTool, duplicatePageTool, addBlocklistBlockTool, addBlockgridBlockTool, addRteBlockTool, editPageTool, editBlockTool, sortChildrenTool, setPageTemplateTool, restorePageTool, deletePageTool],
+  tools: () => [searchContentTool, getPageTool, listChildrenTool, listDocumentTypesTool, getDocumentTypeTool, inspectBlocksTool, reportPageReferencesTool, listPageTemplatesTool, getPropertyValueTemplateTool, createPageTool, duplicatePageTool, addBlocklistBlockTool, addBlockgridBlockTool, addRteBlockTool, editPageTool, editBlockTool, sortChildrenTool, setPageTemplateTool, restorePageTool, deletePageTool, deleteBlockTool],
 };
 
 export default collection;

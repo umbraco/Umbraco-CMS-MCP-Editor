@@ -33,6 +33,7 @@ const allTools = [
   "list-page-templates",
   "set-page-template",
   "delete-page",
+  "delete-block",
   "restore-page",
   // Publishing
   "publish-page",

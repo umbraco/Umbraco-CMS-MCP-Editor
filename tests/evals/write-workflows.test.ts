@@ -31,6 +31,7 @@ const allTools = [
   "list-page-templates",
   "set-page-template",
   "delete-page",
+  "delete-block",
   "restore-page",
   // Publishing
   "publish-page",
@@ -247,6 +248,25 @@ describe("Write Workflows", () => {
       ],
       requiredTools: ["inspect-blocks", "add-blocklist-block"],
       successPattern: /added|block|saved|new/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "editor asks to remove a block from a page",
+    runScenarioTest({
+      prompt:
+        "Remove a block from the contentRows property on the homepage. Use inspect-blocks to find the property and pick any block's contentKey, then call delete-block to remove it.",
+      tools: [
+        "search-content",
+        "get-page",
+        "list-children",
+        "inspect-blocks",
+        "delete-block",
+      ],
+      requiredTools: ["inspect-blocks", "delete-block"],
+      successPattern: /remove|deleted|gone|saved/i,
       verbose: true,
     }),
     timeout
