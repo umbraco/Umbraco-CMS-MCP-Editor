@@ -22,7 +22,10 @@ const config: JestConfigWithTsJest = {
   testMatch: ["**/__tests__/**/*.test.ts"],
   setupFiles: ["<rootDir>/jest.setup.ts"],
   setupFilesAfterEnv: ["<rootDir>/src/mocks/jest-setup.ts"],
-  testPathIgnorePatterns: ["/node_modules/", "/.claude/worktrees/"],
+  // Anchor with <rootDir> so the pattern only skips worktrees nested under
+  // the current rootDir (the main repo's view) — not the worktree itself
+  // when tests run from within one (where rootDir IS the worktree).
+  testPathIgnorePatterns: ["/node_modules/", "<rootDir>/.claude/worktrees/"],
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json", "node"],
   collectCoverageFrom: ["src/**/*.ts", "!src/**/*.d.ts"],
   coverageDirectory: "coverage",

@@ -24,6 +24,10 @@ const allTools = [
   "create-page",
   "edit-page",
   "edit-block",
+  "add-blocklist-block",
+  "add-blockgrid-block",
+  "add-rte-block",
+  "get-property-value-template",
   "list-page-templates",
   "set-page-template",
   "delete-page",
@@ -221,6 +225,28 @@ describe("Write Workflows", () => {
       ],
       requiredTools: ["inspect-blocks", "edit-block"],
       successPattern: /update|edit|block|saved|changed|pageSize/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "editor asks to add a new block under an existing one",
+    runScenarioTest({
+      prompt:
+        "Add a new block of the same type to the end of the contentRows property on the homepage. Use inspect-blocks to find the property and a sample contentTypeKey on the homepage, then call add-blocklist-block to append the new block. Pick any one of the block's properties to seed with a placeholder string value.",
+      tools: [
+        "search-content",
+        "get-page",
+        "list-children",
+        "inspect-blocks",
+        "add-blocklist-block",
+        "add-blockgrid-block",
+        "add-rte-block",
+        "get-property-value-template",
+      ],
+      requiredTools: ["inspect-blocks", "add-blocklist-block"],
+      successPattern: /added|block|saved|new/i,
       verbose: true,
     }),
     timeout

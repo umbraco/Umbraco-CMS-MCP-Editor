@@ -24,7 +24,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "create-page",
-  description: "Create a new content page as a draft — the page will NOT be published automatically. Call list-document-types first to find a valid documentTypeId.",
+  description: "Create a new content page as a draft — the page will NOT be published automatically. Call list-document-types first to find a valid documentTypeId. Use this as a starting point: pass `name`, `documentTypeId`, optional `parentId`, and at most a small number of simple initial values (strings, numbers, booleans). For everything else, follow up with the dedicated tools after creation — they're shorter, safer, and avoid the JSON-payload errors that come from cramming a full page into one call: edit-page for property updates, add-blocklist-block / add-blockgrid-block / add-rte-block for block content, edit-block for block-property edits, and get-property-value-template for the value shape of structured non-block editors (media pickers, image cropper, etc.).",
   inputSchema,
   outputSchema,
   slices: ["create"],

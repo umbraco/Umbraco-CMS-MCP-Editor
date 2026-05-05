@@ -23,7 +23,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "edit-page",
-  description: "Update specific fields on a content page. Changes are saved but NOT published. Call get-page first to discover valid property aliases for the page's document type.",
+  description: "Update specific fields on a content page. Changes are saved but NOT published. Call get-page first to discover valid property aliases. For non-string non-block property values (media pickers, content/multi-node pickers, image cropper, slider, color, date, etc.), call get-property-value-template with the editor alias first to see the expected JSON shape — the LLM-default shape is often wrong for structured editors. For block-shaped values (BlockList / BlockGrid / Rich-Text-with-blocks) use the dedicated tools — inspect-blocks, add-blocklist-block / add-blockgrid-block / add-rte-block, edit-block — instead of hand-constructing the JSON here.",
   inputSchema,
   outputSchema,
   slices: ["update"],

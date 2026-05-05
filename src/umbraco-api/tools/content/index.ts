@@ -7,8 +7,12 @@ import getDocumentTypeTool from "./get/get-document-type.js";
 import inspectBlocksTool from "./get/inspect-blocks.js";
 import reportPageReferencesTool from "./get/report-page-references.js";
 import listPageTemplatesTool from "./get/list-page-templates.js";
+import getPropertyValueTemplateTool from "./get/get-property-value-template.js";
 import createPageTool from "./post/create-page.js";
 import duplicatePageTool from "./post/duplicate-page.js";
+import addBlocklistBlockTool from "./post/add-blocklist-block.js";
+import addBlockgridBlockTool from "./post/add-blockgrid-block.js";
+import addRteBlockTool from "./post/add-rte-block.js";
 import editPageTool from "./put/edit-page.js";
 import editBlockTool from "./put/edit-block.js";
 import restorePageTool from "./put/restore-page.js";
@@ -22,7 +26,7 @@ const collection: ToolCollectionExport = {
     displayName: "Content",
     description: "Search, browse, and manage content pages",
   },
-  tools: () => [searchContentTool, getPageTool, listChildrenTool, listDocumentTypesTool, getDocumentTypeTool, inspectBlocksTool, reportPageReferencesTool, listPageTemplatesTool, createPageTool, duplicatePageTool, editPageTool, editBlockTool, sortChildrenTool, setPageTemplateTool, restorePageTool, deletePageTool],
+  tools: () => [searchContentTool, getPageTool, listChildrenTool, listDocumentTypesTool, getDocumentTypeTool, inspectBlocksTool, reportPageReferencesTool, listPageTemplatesTool, getPropertyValueTemplateTool, createPageTool, duplicatePageTool, addBlocklistBlockTool, addBlockgridBlockTool, addRteBlockTool, editPageTool, editBlockTool, sortChildrenTool, setPageTemplateTool, restorePageTool, deletePageTool],
 };
 
 export default collection;

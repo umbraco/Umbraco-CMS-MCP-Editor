@@ -34,7 +34,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "bulk-set-property",
-  description: "Set the same property value on multiple pages at once (max 10). Call get-page first to verify the property alias exists. Lists all page names and the property change for confirmation. Each result includes a previousVersionId for rollback.",
+  description: "Set the same property value on multiple pages at once (max 10). Call get-page first to verify the property alias exists. For non-string non-block property values (media pickers, content/multi-node pickers, image cropper, slider, color, date, etc.) call get-property-value-template with the editor alias first to see the expected JSON shape. For block-shaped values use bulk-set-block-property (or the per-page block tools — add-blocklist-block / add-blockgrid-block / add-rte-block / edit-block) instead of hand-constructing the JSON here. Lists all page names and the property change for confirmation. Each result includes a previousVersionId for rollback.",
   inputSchema,
   outputSchema,
   slices: ["update"],

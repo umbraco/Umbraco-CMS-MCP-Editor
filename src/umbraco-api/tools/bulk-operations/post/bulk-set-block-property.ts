@@ -80,7 +80,7 @@ function findMatchingBlocks(doc: any, propertyAlias: string, contentTypeKey: str
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "bulk-set-block-property",
-  description: "Update properties on blocks of a specific type across multiple pages (max 10). Targets all blocks matching the given element type within the specified property. Use inspect-blocks first on a sample page to find contentTypeKey and propertyAlias. Changes are saved but NOT published. You will be asked to confirm before updating.",
+  description: "Update properties on blocks of a specific type across multiple pages (max 10). Targets all blocks matching the given element type within the specified property. Use inspect-blocks first on a sample page to find contentTypeKey and propertyAlias. For non-string property values inside the block (media pickers, content pickers, image cropper, slider, color, date, etc.) call get-property-value-template with the editor alias first to see the expected JSON shape. Changes are saved but NOT published. You will be asked to confirm before updating.",
   inputSchema,
   outputSchema,
   slices: ["update"],
