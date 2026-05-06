@@ -2,6 +2,7 @@ import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { confirmStep } from "../../helpers/confirm-step.js";
+import { checkVariesByCulture } from "../helpers/check-varies-by-culture.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to copy a variant on"),
@@ -26,6 +27,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   handler: async ({ id, sourceCulture, targetCulture }, extra) => {
+    const variesError = await checkVariesByCulture(id);
+    if (variesError) return variesError;
+
     // Step 1: Fetch page details
     const docResult = await chainCms("get-document-by-id", { id });
     if (!docResult.ok) return docResult.errorResult;

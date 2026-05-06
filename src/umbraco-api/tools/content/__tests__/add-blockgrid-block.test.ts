@@ -5,11 +5,14 @@ import {
   getStructuredContent,
   createElicitation,
   expectElicitationCancel,
+  ContentTestHelper,
   extractChainedResult,
 } from "./setup.js";
 import { mcpClientManager } from "../../../mcp-client.js";
 import addBlockgridBlockTool from "../post/add-blockgrid-block.js";
 import { createBlockGridFixture, type BlockGridFixture } from "./helpers/block-fixture.js";
+import { ContentBuilder } from "./helpers/content-builder.js";
+import { callTool } from "../../../../testing/call-tool-with-validation.js";
 
 type GridLayoutItem = {
   contentKey: string;
@@ -272,5 +275,47 @@ describe("add-blockgrid-block", () => {
 
     const layoutAfter = await getBlockGridLayout(f.pageId, f.propertyAlias);
     expect(layoutAfter.length).toBe(beforeCount);
+  }, 60000);
+
+  it("adds first block to a BlockGrid property that has no value yet (regression: empty property)", async () => {
+    if (skipIfNoFixture()) return;
+    const f = fixture!;
+
+    // Create a fresh page using the same doctype but WITHOUT seeding any block value.
+    const freshPage = await new ContentBuilder()
+      .withName("_Test add-blockgrid-block empty-property regression")
+      .withDocumentType(f.donorDocTypeId)
+      .create();
+    const freshPageId = freshPage.getId();
+
+    try {
+      const result = await callTool(addBlockgridBlockTool, {
+        id: freshPageId,
+        propertyAlias: f.propertyAlias,
+        contentTypeKey: f.elementTypeId,
+        values: [{ alias: f.blockPropertyAlias, value: "_first block on empty property" }],
+        position: undefined,
+        columnSpan: undefined,
+        rowSpan: undefined,
+        areaKey: undefined,
+        parentContentKey: undefined,
+        settingsTypeKey: undefined,
+        settingsValues: undefined,
+        culture: undefined,
+        segment: undefined,
+      }, extra);
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      expect(data.contentKey).toMatch(/^[0-9a-f-]{36}$/i);
+      expect(data.id).toBe(freshPageId);
+
+      // Verify the block actually landed
+      const layout = await getBlockGridLayout(freshPageId, f.propertyAlias);
+      expect(layout.length).toBe(1);
+      expect(layout[0].contentKey).toBe(data.contentKey);
+    } finally {
+      await ContentTestHelper.cleanupById(freshPageId);
+    }
   }, 60000);
 });

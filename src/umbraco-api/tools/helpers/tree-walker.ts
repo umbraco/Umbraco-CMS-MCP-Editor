@@ -142,14 +142,65 @@ export function countWords(text: string): number {
 }
 
 /**
+ * Extract plain text from a single block's inner values array (recursive).
+ * Handles string values, RTE-with-blocks, and nested BlockList/BlockGrid.
+ */
+function extractTextFromBlockValues(innerValues: any[]): string {
+  const parts: string[] = [];
+  for (const v of innerValues || []) {
+    const text = extractTextFromValue(v.value, v.editorAlias);
+    if (text) parts.push(text);
+  }
+  return parts.join(" ");
+}
+
+/**
+ * Extract plain text from a property value, handling all known value shapes.
+ */
+function extractTextFromValue(value: any, editorAlias?: string): string {
+  if (typeof value === "string") {
+    return stripHtml(value);
+  }
+
+  // Rich Text (Tiptap / TinyMCE) value: { markup: string, blocks: { contentData, ... } }
+  if (value && typeof value === "object" && typeof value.markup === "string") {
+    const markupText = stripHtml(value.markup);
+    const blockText = extractTextFromContentData(value.blocks?.contentData);
+    return [markupText, blockText].filter(Boolean).join(" ");
+  }
+
+  // BlockList / BlockGrid value: { layout, contentData, settingsData, expose }
+  if (value && typeof value === "object" && Array.isArray(value.contentData)) {
+    return extractTextFromContentData(value.contentData);
+  }
+
+  return "";
+}
+
+/**
+ * Walk contentData entries and extract text from each block's inner values.
+ */
+function extractTextFromContentData(contentData: any[]): string {
+  const parts: string[] = [];
+  for (const block of contentData || []) {
+    const blockText = extractTextFromBlockValues(block.values || []);
+    if (blockText) parts.push(blockText);
+  }
+  return parts.join(" ");
+}
+
+/**
  * Extract text content from a page's values, stripping HTML.
- * Concatenates all string values that look like content.
+ * Handles plain strings, Rich Text with embedded blocks, BlockList, and BlockGrid.
+ * Also includes title/metaName field values which were previously excluded.
  */
 export function extractTextContent(values: any[]): string {
-  return (values || [])
-    .filter((v: any) => typeof v.value === "string" && v.value.length > 10)
-    .map((v: any) => stripHtml(v.value))
-    .join(" ");
+  const parts: string[] = [];
+  for (const v of values || []) {
+    const text = extractTextFromValue(v.value, v.editorAlias);
+    if (text) parts.push(text);
+  }
+  return parts.filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
 }
 
 /**

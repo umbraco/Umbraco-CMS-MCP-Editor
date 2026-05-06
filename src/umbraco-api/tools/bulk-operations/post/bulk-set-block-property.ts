@@ -4,6 +4,8 @@ import { chainCms } from "../../../cms-chain.js";
 import { confirmStep } from "../../helpers/confirm-step.js";
 import {
   validateBulkIds,
+  parseBulkError,
+  SKIPPED_SENTINEL,
   type BulkItemDetail,
 } from "../../helpers/bulk-handler.js";
 
@@ -27,7 +29,7 @@ const outputSchema = z.object({
     success: z.boolean(),
     blocksUpdated: z.number(),
     previousVersionId: z.string().optional(),
-    error: z.string().optional(),
+    error: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
   })),
   successCount: z.number(),
   failureCount: z.number(),
@@ -153,7 +155,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       success: boolean;
       blocksUpdated: number;
       previousVersionId?: string;
-      error?: string;
+      error?: unknown;
     }> = [];
     let stopped = false;
     let totalBlocksUpdated = 0;
@@ -166,7 +168,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
           success: false,
           blocksUpdated: 0,
           previousVersionId: item.currentVersionId || undefined,
-          error: "Skipped — previous item failed",
+          error: SKIPPED_SENTINEL,
         });
         continue;
       }
@@ -203,14 +205,13 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
 
       if (!updateResult.ok) {
-        const errorText = updateResult.errorResult.content?.[0]?.text ?? "Block update failed";
         results.push({
           id: item.id,
           name: item.name,
           success: false,
           blocksUpdated: 0,
           previousVersionId: item.currentVersionId || undefined,
-          error: typeof errorText === "string" ? errorText : "Block update failed",
+          error: parseBulkError(updateResult.errorResult),
         });
         stopped = true;
       } else {
@@ -226,8 +227,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     }
 
     const successCount = results.filter(r => r.success).length;
-    const failureCount = results.filter(r => !r.success && r.error !== "Skipped — previous item failed").length;
-    const skippedCount = results.filter(r => r.error === "Skipped — previous item failed").length;
+    const failureCount = results.filter(r => !r.success && r.error !== SKIPPED_SENTINEL).length;
+    const skippedCount = results.filter(r => r.error === SKIPPED_SENTINEL).length;
 
     return createToolResult({
       message: `Updated ${totalBlocksUpdated} block(s) across ${successCount} of ${results.length} pages`,

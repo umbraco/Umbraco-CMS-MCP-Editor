@@ -15,6 +15,7 @@ import {
   createCollectionConfigLoader,
   shouldIncludeTool,
   setServerRef,
+  initializeUmbracoFetch,
   type CollectionConfiguration,
   type ToolCollectionExport,
 } from "@umbraco-cms/mcp-server-sdk";
@@ -91,6 +92,16 @@ const configLoader = createCollectionConfigLoader({
   modeRegistry: allModes,
   allModeNames,
   allSliceNames,
+});
+
+// Initialize UmbracoFetch so any tool that calls UmbracoManagementClient directly
+// (instead of going via chainCms) works in stdio mode. Without this the SDK throws
+// "UmbracoFetch not initialized" because the subprocess that runs the chained CMS
+// server sets up its own UmbracoFetch — this editor MCP process never did.
+initializeUmbracoFetch({
+  baseUrl: serverConfig.umbraco.auth.baseUrl,
+  clientId: serverConfig.umbraco.auth.clientId,
+  clientSecret: serverConfig.umbraco.auth.clientSecret,
 });
 
 // Load filtering configuration from server config

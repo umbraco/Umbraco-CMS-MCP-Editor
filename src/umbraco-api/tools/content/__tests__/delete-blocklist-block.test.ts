@@ -13,12 +13,16 @@ import {
   createElicitation,
   expectElicitationCancel,
   extractChainedResult,
+  ContentTestHelper,
+  initContentTestState,
 } from "./setup.js";
 import { mcpClientManager } from "../../../mcp-client.js";
 import { callTool } from "../../../../testing/call-tool-with-validation.js";
 import deleteBlockTool from "../delete/delete-block.js";
 import addBlocklistBlockTool from "../post/add-blocklist-block.js";
 import { createBlockListFixture, type BlockListFixture } from "./helpers/block-fixture.js";
+import { ContentBuilder } from "./helpers/content-builder.js";
+import inspectBlocksTool from "../get/inspect-blocks.js";
 
 const SEEDED_BLOCK_KEY = "11111111-1111-4111-8111-111111111111";
 const SEEDED_SETTINGS_KEY = "22222222-2222-4222-8222-222222222222";
@@ -179,4 +183,59 @@ describe("delete-block — BlockList", () => {
     expect(contentDataAfter.some(e => e.key === targetKey)).toBe(true);
     expect(contentDataAfter.length).toBe((propBefore?.contentData ?? []).length);
   }, 60000);
+
+  it("deletes the only block on a page that started empty (lifecycle regression)", async () => {
+    if (!fixture) return; // Re-use fixture to get donor info
+    const f = fixture;
+
+    // Create a fresh page with NO block values
+    const state = await initContentTestState(extra);
+    const freshPage = await new ContentBuilder()
+      .withName("_Test delete-block lifecycle regression")
+      .withDocumentType(f.donorDocTypeId)
+      .withParent(state.testPageId)
+      .create();
+    const freshPageId = freshPage.getId();
+
+    try {
+      // Seed the first block via add-blocklist-block (the fix from Task 7 makes this work)
+      const added = await callTool(addBlocklistBlockTool, {
+        id: freshPageId,
+        propertyAlias: f.propertyAlias,
+        contentTypeKey: f.elementTypeId,
+        values: [{ alias: f.blockPropertyAlias, value: "_lifecycle block to delete" }],
+        position: undefined,
+        settingsTypeKey: undefined,
+        settingsValues: undefined,
+        culture: undefined,
+        segment: undefined,
+      }, extra);
+      expect(added.isError).toBeFalsy();
+      const contentKey = (getStructuredContent(added) as any).contentKey as string;
+      expect(contentKey).toMatch(/^[0-9a-f-]{36}$/i);
+
+      // Delete the block
+      const deleteResult = await callTool(deleteBlockTool, {
+        id: freshPageId,
+        propertyAlias: f.propertyAlias,
+        contentKey,
+        culture: undefined,
+        segment: undefined,
+      }, extra);
+      expect(deleteResult.isError).toBeFalsy();
+
+      // Verify the block is gone — property should have no blocks
+      const inspectResult = await inspectBlocksTool.handler(
+        { id: freshPageId, propertyAlias: f.propertyAlias },
+        extra,
+      );
+      const inspectData = getStructuredContent(inspectResult) as any;
+      const blockProp = (inspectData?.blockProperties ?? []).find((p: any) => p.propertyAlias === f.propertyAlias);
+      const remainingBlocks: any[] = blockProp?.blocks ?? [];
+      expect(remainingBlocks.some((b: any) => b.contentKey === contentKey)).toBe(false);
+      expect(remainingBlocks).toHaveLength(0);
+    } finally {
+      await ContentTestHelper.cleanupById(freshPageId);
+    }
+  }, 90000);
 });

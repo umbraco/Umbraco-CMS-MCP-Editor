@@ -10,6 +10,7 @@ import {
   FAKE_TARGET_UUID,
 } from "./setup.js";
 import { ContentBuilder } from "../../content/__tests__/helpers/content-builder.js";
+import { callTool } from "../../../../testing/call-tool-with-validation.js";
 import bulkMoveTool from "../post/bulk-move.js";
 
 const elicitation = createElicitation();
@@ -103,4 +104,44 @@ describe("bulk-move", () => {
       ),
     );
   }, 30000);
+
+  it("surfaces upstream errors as a parsed object, not as escaped JSON", async () => {
+    // Create a real page to use as the move source.
+    const page = await new ContentBuilder()
+      .withName("_Test Bulk Move Error Page")
+      .withDocumentType(articleDocTypeId)
+      .withParent(blogPageId)
+      .create();
+    const pageId = page.getId();
+    createdIds.push(pageId);
+
+    // Elicitation accepts by default (reset in beforeEach).
+    // Move to a non-existent UUID — the CMS API will reject with a problem-details error.
+    const result = await callTool(
+      bulkMoveTool,
+      { ids: [pageId], targetParentId: FAKE_TARGET_UUID },
+      extra,
+    );
+
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+
+    const failed = data.results?.find((r: any) => r.success === false);
+    expect(failed).toBeDefined();
+
+    // Before the fix: failed.error was a string of escaped JSON.
+    // After the fix: it should be a parsed object with structured error fields.
+    expect(failed.error).toBeDefined();
+    expect(typeof failed.error).toBe("object");
+    expect(failed.error).not.toBeNull();
+
+    // The problem-details object should have these fields accessible (proving
+    // double-unwrap actually reached the inner structuredContent)
+    const errorObj = failed.error as Record<string, any>;
+    expect(errorObj.title).toBeDefined();      // e.g., "The targeted content parent could not be found"
+    expect(typeof errorObj.title).toBe("string");
+    // RFC 7807 problem-details: status and operationStatus confirm full structured unwrap
+    expect(errorObj.status).toBeDefined();
+    expect(typeof errorObj.status).toBe("number");
+  }, 60000);
 });

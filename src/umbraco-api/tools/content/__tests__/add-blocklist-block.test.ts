@@ -12,6 +12,9 @@ import { mcpClientManager } from "../../../mcp-client.js";
 import addBlocklistBlockTool from "../post/add-blocklist-block.js";
 import inspectBlocksTool from "../get/inspect-blocks.js";
 import { createBlockListFixture, type BlockListFixture } from "./helpers/block-fixture.js";
+import { ContentBuilder } from "./helpers/content-builder.js";
+import { callTool } from "../../../../testing/call-tool-with-validation.js";
+import { initContentTestState } from "./setup.js";
 
 async function getBlockListLayout(pageId: string, propertyAlias: string): Promise<Array<{ contentKey: string; settingsKey?: string }>> {
   const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: pageId });
@@ -282,5 +285,48 @@ describe("add-blocklist-block", () => {
     const inspectAfter = await inspectBlocksTool.handler({ id: f.pageId, propertyAlias: f.propertyAlias }, extra);
     const propAfter = (getStructuredContent(inspectAfter) as any).blockProperties.find((p: any) => p.propertyAlias === f.propertyAlias);
     expect(propAfter.blocks.length).toBe(beforeCount);
+  }, 60000);
+
+  it("adds first block to a BlockList property that has no value yet (regression: empty property)", async () => {
+    if (skipIfNoFixture()) return;
+    const f = fixture!;
+
+    // Resolve the parent to use when creating the page — the donor doctype may not
+    // be allowed at root, so use the same content root as the fixture.
+    const state = await initContentTestState(extra);
+
+    // Create a fresh page using the same doctype but WITHOUT seeding any block value.
+    const freshPage = await new ContentBuilder()
+      .withName("_Test add-blocklist-block empty-property regression")
+      .withDocumentType(f.donorDocTypeId)
+      .withParent(state.testPageId)
+      .create();
+    const freshPageId = freshPage.getId();
+
+    try {
+      const result = await callTool(addBlocklistBlockTool, {
+        id: freshPageId,
+        propertyAlias: f.propertyAlias,
+        contentTypeKey: f.elementTypeId,
+        values: [{ alias: f.blockPropertyAlias, value: "_first block on empty property" }],
+        position: undefined,
+        settingsTypeKey: undefined,
+        settingsValues: undefined,
+        culture: undefined,
+        segment: undefined,
+      }, extra);
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      expect(data.contentKey).toMatch(/^[0-9a-f-]{36}$/i);
+      expect(data.id).toBe(freshPageId);
+
+      // Verify the block actually landed
+      const layout = await getBlockListLayout(freshPageId, f.propertyAlias);
+      expect(layout.length).toBe(1);
+      expect(layout[0].contentKey).toBe(data.contentKey);
+    } finally {
+      await ContentTestHelper.cleanupById(freshPageId);
+    }
   }, 60000);
 });

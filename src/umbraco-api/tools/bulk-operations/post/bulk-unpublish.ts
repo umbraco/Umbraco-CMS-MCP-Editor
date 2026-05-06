@@ -21,7 +21,7 @@ const outputSchema = z.object({
     name: z.string(),
     success: z.boolean(),
     previousVersionId: z.string().optional(),
-    error: z.string().optional(),
+    error: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
   })),
   successCount: z.number(),
   failureCount: z.number(),
@@ -66,7 +66,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const results = await executeBulkSequentially(items, async (item) => {
       const docResult = await chainCms("get-document-by-id", { id: item.id });
       if (!docResult.ok) {
-        return docResult.errorResult.content?.[0]?.text ?? "Could not fetch document";
+        return docResult.errorResult;
       }
       const cultures = (docResult.data.variants ?? []).filter(v => v.culture).map(v => v.culture as string);
 
@@ -75,7 +75,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         data: { cultures: cultures.length > 0 ? cultures : null },
       });
       if (!result.ok) {
-        return result.errorResult.content?.[0]?.text ?? "Unpublish failed";
+        return result.errorResult;
       }
       return null;
     });

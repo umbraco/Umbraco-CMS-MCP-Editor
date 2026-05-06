@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { checkVariesByCulture } from "../helpers/check-varies-by-culture.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to add a language variant to"),
@@ -28,6 +29,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   handler: async ({ id, culture, values }) => {
+    const variesError = await checkVariesByCulture(id);
+    if (variesError) return variesError;
+
     const docResult = await chainCms("get-document-by-id", { id });
     if (!docResult.ok) return docResult.errorResult;
     const doc = docResult.data;

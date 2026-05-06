@@ -9,7 +9,7 @@
  * - Valid credentials in .env file
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "@jest/globals";
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
@@ -17,11 +17,16 @@ import {
   getStructuredContent,
   initContentTestState,
   extractChainedResult,
+  ContentTestHelper,
+  createElicitation,
 } from "./setup.js";
 import { mcpClientManager } from "../../../mcp-client.js";
+import { callTool } from "../../../../testing/call-tool-with-validation.js";
 import editBlockTool from "../put/edit-block.js";
 import inspectBlocksTool from "../get/inspect-blocks.js";
+import addBlocklistBlockTool from "../post/add-blocklist-block.js";
 import { createBlockListFixture, type BlockListFixture } from "./helpers/block-fixture.js";
+import { ContentBuilder } from "./helpers/content-builder.js";
 
 describe("edit-block", () => {
   setupTestEnvironment();
@@ -29,6 +34,11 @@ describe("edit-block", () => {
   const extra = createMockRequestHandlerExtra();
   let testPageId: string;
   let settingsFixture: BlockListFixture | null = null;
+  const elicitation = createElicitation();
+
+  beforeEach(() => {
+    elicitation.reset();
+  });
 
   beforeAll(async () => {
     const state = await initContentTestState(extra);
@@ -37,6 +47,7 @@ describe("edit-block", () => {
   }, 120000);
 
   afterAll(async () => {
+    elicitation.cleanup();
     if (settingsFixture) await settingsFixture.cleanup();
   }, 30000);
 
@@ -111,4 +122,63 @@ describe("edit-block", () => {
     const updatedProp = (settingsEntry?.values ?? []).find((p: any) => p.alias === f.settings!.settingsPropertyAlias);
     expect(updatedProp?.value).toBe("_updated settings value");
   }, 60000);
+
+  it("edits a block on a page that started empty (lifecycle regression)", async () => {
+    if (!settingsFixture) return; // Re-use fixture to get donor info (propertyAlias, elementTypeId, etc.)
+    const f = settingsFixture;
+
+    // Create a fresh page with NO block values
+    const state = await initContentTestState(extra);
+    const freshPage = await new ContentBuilder()
+      .withName("_Test edit-block lifecycle regression")
+      .withDocumentType(f.donorDocTypeId)
+      .withParent(state.testPageId)
+      .create();
+    const freshPageId = freshPage.getId();
+
+    try {
+      // Seed the first block via add-blocklist-block (the fix from Task 7 makes this work)
+      const added = await callTool(addBlocklistBlockTool, {
+        id: freshPageId,
+        propertyAlias: f.propertyAlias,
+        contentTypeKey: f.elementTypeId,
+        values: [{ alias: f.blockPropertyAlias, value: "_v1 original" }],
+        position: undefined,
+        settingsTypeKey: undefined,
+        settingsValues: undefined,
+        culture: undefined,
+        segment: undefined,
+      }, extra);
+      expect(added.isError).toBeFalsy();
+      const contentKey = (getStructuredContent(added) as any).contentKey as string;
+      expect(contentKey).toMatch(/^[0-9a-f-]{36}$/i);
+
+      // Edit the block's content property to a new value
+      const editResult = await callTool(editBlockTool, {
+        id: freshPageId,
+        propertyAlias: f.propertyAlias,
+        contentKey,
+        values: [{ alias: f.blockPropertyAlias, value: "_v2 edited" }],
+        blockType: undefined,
+        culture: undefined,
+        segment: undefined,
+      }, extra);
+      expect(editResult.isError).toBeFalsy();
+
+      // Verify the updated value is persisted via inspect-blocks round-trip
+      const inspectResult = await inspectBlocksTool.handler(
+        { id: freshPageId, propertyAlias: f.propertyAlias },
+        extra,
+      );
+      const inspectData = getStructuredContent(inspectResult) as any;
+      const block = (inspectData?.blockProperties ?? [])
+        .flatMap((bp: any) => bp.blocks ?? [])
+        .find((b: any) => b.contentKey === contentKey);
+      expect(block).toBeDefined();
+      const updatedProp = (block?.properties ?? []).find((p: any) => p.alias === f.blockPropertyAlias);
+      expect(updatedProp?.value).toBe("_v2 edited");
+    } finally {
+      await ContentTestHelper.cleanupById(freshPageId);
+    }
+  }, 90000);
 });

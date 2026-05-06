@@ -9,7 +9,12 @@ import {
 } from "./setup.js";
 import { MemberBuilder } from "./helpers/member-builder.js";
 import { MemberTestHelper } from "./helpers/member-test-helper.js";
+import { MemberGroupBuilder } from "../../member-group/__tests__/helpers/member-group-builder.js";
+import { MemberGroupTestHelper } from "../../member-group/__tests__/helpers/member-group-test-helper.js";
 import updateMemberTool from "../put/update-member.js";
+import getMemberTool from "../get/get-member.js";
+import createMemberTool from "../post/create-member.js";
+import { callTool } from "../../../../testing/call-tool-with-validation.js";
 
 const elicitation = createElicitation();
 
@@ -174,4 +179,65 @@ describe("update-member", () => {
     expect(data.message).not.toContain("password changed");
     expect(elicitation.mock).toHaveBeenCalled();
   }, 30000);
+
+  it("preserves existing group memberships when groups is not in the payload", async () => {
+    const state = await initMemberTestState(extra);
+    const ts = Date.now();
+
+    const group = await new MemberGroupBuilder()
+      .withName(`_preserve-groups-test-${ts}`)
+      .create();
+    const groupId = group.getId();
+
+    const createResult = await createMemberTool.handler(
+      {
+        email: `preserve-${ts}@example.com`,
+        username: `preserve-${ts}`,
+        name: "Preserve Groups Member",
+        password: "Auditpw123!",
+        memberTypeId: state.testMemberTypeId!,
+        isApproved: undefined as unknown as boolean,
+        groups: [groupId],
+        values: undefined,
+      },
+      extra,
+    );
+    expect(createResult.isError).toBeFalsy();
+    const createData = getStructuredContent(createResult) as any;
+    const newMemberId: string = createData.id;
+
+    try {
+      // Update name only — intentionally omit `groups`
+      const updateResult = await callTool(
+        updateMemberTool,
+        {
+          id: newMemberId,
+          name: "Renamed Member",
+          email: undefined,
+          username: undefined,
+          newPassword: undefined,
+          isTwoFactorEnabled: undefined,
+          isApproved: undefined,
+          isLockedOut: undefined,
+          groups: undefined,
+          values: undefined,
+        },
+        extra,
+      );
+
+      if (updateResult.isError) {
+        console.error("preserve-groups update failed:", JSON.stringify(updateResult, null, 2));
+      }
+      expect(updateResult.isError).toBeFalsy();
+
+      // Read back and assert the group membership survived
+      const getResult = await getMemberTool.handler({ id: newMemberId }, extra);
+      expect(getResult.isError).toBeFalsy();
+      const memberData = getStructuredContent(getResult) as any;
+      expect(memberData.groups).toContain(groupId);
+    } finally {
+      await MemberTestHelper.cleanup(newMemberId);
+      await MemberGroupTestHelper.cleanup(groupId);
+    }
+  }, 60000);
 });

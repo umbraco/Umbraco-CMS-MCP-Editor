@@ -71,7 +71,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         : existingVariants,
       values: values ?? existingValues,
     };
-    if (groups !== undefined) data.groups = groups;
+    data.groups = groups ?? member.groups ?? [];
 
     let passwordChanged = false;
     if (newPassword !== undefined) {

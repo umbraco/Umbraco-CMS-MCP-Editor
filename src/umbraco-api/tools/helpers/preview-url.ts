@@ -12,8 +12,48 @@
 import { UmbracoManagementClient } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../cms-chain.js";
 import { z } from "zod";
+import { readFileSync, statSync } from "node:fs";
+import { resolve } from "node:path";
 
 const DEFAULT_PROVIDER_ALIAS = "umbDocumentUrlProvider";
+
+// Module-level cache for .env-based base URL resolution.
+let cachedBaseUrl: string | null = null;
+let cachedMtimeMs: number | null = null;
+
+/**
+ * Parse UMBRACO_BASE_URL out of a .env file's raw text content.
+ * Supports optional `export` prefix and strips surrounding quotes, matching
+ * standard dotenv behaviour. Returns null when the key is absent.
+ */
+function readBaseUrlFromEnvFile(envPath: string): string | null {
+  try {
+    const content = readFileSync(envPath, "utf8");
+    // Match a non-commented UMBRACO_BASE_URL line. Allow optional 'export'
+    // prefix and strip surrounding quotes (matches dotenv behaviour).
+    const match = content.match(/^\s*(?:export\s+)?UMBRACO_BASE_URL\s*=\s*(.+?)\s*$/m);
+    if (!match) return null;
+    let value = match[1].trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    return value || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @internal Test-only helper. Resets the module-level mtime/URL cache so
+ * isolated unit tests see a clean state. Do NOT call from production code.
+ */
+export function _resetCacheForTests(): void {
+  cachedBaseUrl = null;
+  cachedMtimeMs = null;
+}
 
 export const previewUrlSchema = z
   .object({
@@ -34,15 +74,45 @@ export const publishedUrlsSchema = z
 /**
  * Read the Umbraco base URL from the environment.
  *
- * In stdio mode it's set in `process.env.UMBRACO_BASE_URL`. In the hosted
- * Worker runtime `process.env` may not carry this binding — callers get
+ * In stdio mode the value is read from UMBRACO_BASE_URL in the `.env` file at
+ * `process.cwd()`, with a per-call `fs.statSync` check so a port change
+ * mid-session (e.g. after Umbraco restarts on a different random port in a
+ * worktree) is picked up automatically. The URL is cached between calls; the
+ * stat is the only cost when nothing has changed.
+ *
+ * In the hosted Worker runtime (`process.cwd` is absent) or when `.env`
+ * doesn't exist, falls back to `process.env.UMBRACO_BASE_URL`. Callers get
  * `null` and should surface a null preview URL rather than throwing.
  */
 export function getUmbracoBaseUrl(): string | null {
-  if (typeof process === "undefined" || !process.env) return null;
-  const raw = process.env.UMBRACO_BASE_URL;
-  if (!raw) return null;
-  return raw.replace(/\/+$/, "");
+  // Hosted / Worker runtime — no fs/cwd access; fall back to env var.
+  if (
+    typeof process === "undefined" ||
+    !process.env ||
+    typeof process.cwd !== "function"
+  ) {
+    const raw =
+      (typeof process !== "undefined" ? process.env?.UMBRACO_BASE_URL : undefined) ?? null;
+    return raw ? raw.replace(/\/+$/, "") : null;
+  }
+
+  const envPath = resolve(process.cwd(), ".env");
+  let mtimeMs: number | null = null;
+  try {
+    mtimeMs = statSync(envPath).mtimeMs;
+  } catch {
+    // .env doesn't exist; fall back to process.env (no caching — env is stable).
+    const raw = process.env.UMBRACO_BASE_URL ?? null;
+    return raw ? raw.replace(/\/+$/, "") : null;
+  }
+
+  if (cachedMtimeMs !== mtimeMs) {
+    const fresh = readBaseUrlFromEnvFile(envPath);
+    cachedBaseUrl = fresh ?? process.env.UMBRACO_BASE_URL ?? null;
+    cachedMtimeMs = mtimeMs;
+  }
+
+  return cachedBaseUrl ? cachedBaseUrl.replace(/\/+$/, "") : null;
 }
 
 /**

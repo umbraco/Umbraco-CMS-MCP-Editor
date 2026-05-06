@@ -12,6 +12,7 @@
     "umbraco-mcp-editor-cms": "./dist/index.js"
   },
   "scripts": {
+    "cleanup:orphans": "node scripts/kill-orphan-demosites.mjs",
     "clean": "rimraf dist",
     "build": "tsup --config tsup.config.ts",
     "compile": "tsc --noEmit",

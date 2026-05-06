@@ -79,12 +79,20 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const doc = docResult.data;
     const pageName = doc.variants?.[0]?.name ?? "Unknown";
 
-    const prop = (doc.values ?? []).find(v => v.alias === propertyAlias && (v.culture ?? null) === (culture ?? null) && (v.segment ?? null) === (segment ?? null));
-    if (!prop) {
-      return createToolResultError({ content: [{ type: "text", text: `Property '${propertyAlias}' not found on page '${pageName}'. Use inspect-blocks to see available properties.` }], isError: true });
-    }
-    const propValue = prop.value as any;
-    if (!isBlockListOrGridValue(propValue) || prop.editorAlias !== "Umbraco.BlockGrid") {
+    // Look up the existing value for the property (may be absent when the property
+    // has never been populated — e.g. a newly-created page).  An absent value is
+    // NOT an error: we simply start with an empty BlockGrid container.
+    const existingProp = (doc.values ?? []).find(
+      (v) => v.alias === propertyAlias && (v.culture ?? null) === (culture ?? null) && (v.segment ?? null) === (segment ?? null),
+    );
+    const propValue: any = existingProp?.value ?? {
+      layout: { "Umbraco.BlockGrid": [] },
+      contentData: [],
+      settingsData: [],
+      expose: [],
+    };
+
+    if (existingProp && (!isBlockListOrGridValue(propValue) || existingProp.editorAlias !== "Umbraco.BlockGrid")) {
       return createToolResultError({ content: [{ type: "text", text: `Property '${propertyAlias}' on '${pageName}' is not a BlockGrid. Use inspect-blocks to confirm the editor type, or add-blocklist-block / add-rte-block as appropriate.` }], isError: true });
     }
 

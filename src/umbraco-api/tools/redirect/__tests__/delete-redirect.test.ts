@@ -5,6 +5,7 @@ import {
   getStructuredContent,
   createElicitation,
   expectElicitationCancel,
+  NON_EXISTENT_UUID,
 } from "./setup.js";
 import deleteRedirectTool from "../delete/delete-redirect.js";
 import listRedirectsTool from "../get/list-redirects.js";
@@ -12,6 +13,7 @@ import { ContentBuilder } from "../../content/__tests__/helpers/content-builder.
 import { ContentTestHelper } from "../../content/__tests__/helpers/content-test-helper.js";
 import { mcpClientManager } from "../../../mcp-client.js";
 import { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
+import { callTool } from "../../../../testing/call-tool-with-validation.js";
 
 /** Check if a document is fully published (all variants published). */
 function isPublished(doc: any): boolean {
@@ -168,4 +170,17 @@ describe("delete-redirect", () => {
     // Clear so afterAll doesn't try to delete again
     targetRedirectId = null;
   }, 30000);
+
+  it("returns a 404 error when the id does not match any existing redirect", async () => {
+    const result = await callTool(
+      deleteRedirectTool,
+      { id: NON_EXISTENT_UUID },
+      {},
+    );
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      status: 404,
+      title: expect.stringMatching(/redirect/i),
+    });
+  });
 });

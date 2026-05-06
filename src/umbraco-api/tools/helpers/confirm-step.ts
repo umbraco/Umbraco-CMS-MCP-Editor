@@ -18,14 +18,17 @@ export async function confirmStep(
   extra: { requestId?: string | number } | undefined,
   message: string,
 ): Promise<boolean> {
+  // UMBRACO_AUTO_CONFIRM=true short-circuits the elicit for batch audit campaigns
+  // (see docs/audits/mcp-live-validation/). Hosts that don't surface elicitInput
+  // would otherwise hang at the MCP -32001 timeout. Leave unset for normal use.
+  if (typeof process !== "undefined" && process.env?.UMBRACO_AUTO_CONFIRM === "true") {
+    return true;
+  }
   const server = getServerRef();
   const result = await server.elicitInput(
     {
       message,
-      requestedSchema: {
-        type: "object",
-        properties: {},
-      },
+      requestedSchema: { type: "object", properties: {} },
     },
     { relatedRequestId: extra?.requestId },
   );

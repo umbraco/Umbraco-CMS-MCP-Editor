@@ -50,21 +50,31 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       typeCounts.set(memberType, (typeCounts.get(memberType) ?? 0) + 1);
     }
 
-    // Fetch all member groups to build group name list
+    // Fetch all member groups to build id→name lookup
     const groupResult = await chainCms("get-all-member-groups", {});
     if (!groupResult.ok) return groupResult.errorResult;
     const groupData = groupResult.data;
     const allGroups: any[] = groupData.items ?? [];
 
-    // Count members per group using the member's groups array
-    const groupCounts = new Map<string, number>();
+    // Build id→name map and seed zero-counts keyed by name
+    const idToName = new Map<string, string>();
     for (const group of allGroups) {
-      groupCounts.set(group.name ?? group.id, 0);
+      if (group.id && group.name) {
+        idToName.set(group.id, group.name);
+      }
+    }
+
+    // Count members per group: member.groups contains UUIDs — resolve each to name
+    const groupCounts = new Map<string, number>();
+    for (const name of idToName.values()) {
+      groupCounts.set(name, 0);
     }
     for (const member of allMembers) {
-      const memberGroups: string[] = member.groups ?? [];
-      for (const groupName of memberGroups) {
-        groupCounts.set(groupName, (groupCounts.get(groupName) ?? 0) + 1);
+      const memberGroupIds: string[] = member.groups ?? [];
+      for (const groupId of memberGroupIds) {
+        const name = idToName.get(groupId);
+        if (!name) continue; // unknown UUID — skip rather than emitting a UUID row
+        groupCounts.set(name, (groupCounts.get(name) ?? 0) + 1);
       }
     }
 

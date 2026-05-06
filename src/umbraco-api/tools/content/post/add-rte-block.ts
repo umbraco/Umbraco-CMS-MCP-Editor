@@ -87,12 +87,18 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const doc = docResult.data;
     const pageName = doc.variants?.[0]?.name ?? "Unknown";
 
-    const prop = (doc.values ?? []).find(v => v.alias === propertyAlias && (v.culture ?? null) === (culture ?? null) && (v.segment ?? null) === (segment ?? null));
-    if (!prop) {
-      return createToolResultError({ content: [{ type: "text", text: `Property '${propertyAlias}' not found on page '${pageName}'. Use inspect-blocks to see available properties.` }], isError: true });
-    }
-    const propValue = prop.value as any;
-    if (!isRteWithBlocks(propValue)) {
+    // Look up the existing value for the property (may be absent when the property
+    // has never been populated — e.g. a newly-created page).  An absent value is
+    // NOT an error: we simply start with an empty RTE container.
+    const existingProp = (doc.values ?? []).find(
+      (v) => v.alias === propertyAlias && (v.culture ?? null) === (culture ?? null) && (v.segment ?? null) === (segment ?? null),
+    );
+    const propValue: any = existingProp?.value ?? {
+      markup: "",
+      blocks: { layout: {}, contentData: [], settingsData: [], expose: [] },
+    };
+
+    if (existingProp && !isRteWithBlocks(propValue)) {
       return createToolResultError({ content: [{ type: "text", text: `Property '${propertyAlias}' on '${pageName}' is not a rich text with blocks. Use inspect-blocks to confirm the editor type, or add-blocklist-block / add-blockgrid-block as appropriate.` }], isError: true });
     }
 

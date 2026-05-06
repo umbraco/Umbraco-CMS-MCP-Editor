@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { confirmStep } from "../../helpers/confirm-step.js";
 
@@ -24,19 +24,23 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // Fetch redirect details for the confirmation message. Use get-all-redirects
     // and find by id rather than get-redirect-by-id — the latter doesn't
     // reliably include originalUrl in its response.
-    let originalUrl = "Unknown";
-    let destinationUrl = "Unknown";
     const listResult = await chainCms("get-all-redirects", {
       cursor: encodeCursor({ s: 0, t: 100 }),
     });
-    if (listResult.ok) {
-      const match = (listResult.data.items ?? []).find((r: any) => r.id === id);
-      if (match) {
-        const m = match as { originalUrl?: string; url?: string; destinationUrl?: string; destinationPath?: string };
-        originalUrl = m.originalUrl ?? m.url ?? "Unknown";
-        destinationUrl = m.destinationUrl ?? m.destinationPath ?? "Unknown";
-      }
+    if (!listResult.ok) return listResult.errorResult;
+
+    const match = (listResult.data.items ?? []).find((r: any) => r.id === id);
+    if (!match) {
+      return createToolResultError({
+        status: 404,
+        title: "Redirect not found",
+        detail: `No redirect found with id ${id}. Use list-redirects to see existing redirect IDs.`,
+      });
     }
+
+    const m = match as { originalUrl?: string; url?: string; destinationUrl?: string; destinationPath?: string };
+    const originalUrl = m.originalUrl ?? m.url ?? "Unknown";
+    const destinationUrl = m.destinationUrl ?? m.destinationPath ?? "Unknown";
 
     // Step 2: Elicit confirmation
     if (!await confirmStep(extra, `Delete redirect from "${originalUrl}" to "${destinationUrl}"? Visitors following the old URL will get a 404.`)) {

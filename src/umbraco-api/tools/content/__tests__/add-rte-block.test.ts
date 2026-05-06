@@ -5,12 +5,15 @@ import {
   getStructuredContent,
   createElicitation,
   expectElicitationCancel,
+  ContentTestHelper,
   extractChainedResult,
 } from "./setup.js";
 import { mcpClientManager } from "../../../mcp-client.js";
 import addRteBlockTool from "../post/add-rte-block.js";
 import inspectBlocksTool from "../get/inspect-blocks.js";
 import { createRteFixture, type RteFixture } from "./helpers/block-fixture.js";
+import { ContentBuilder } from "./helpers/content-builder.js";
+import { callTool } from "../../../../testing/call-tool-with-validation.js";
 
 async function getRteValue(pageId: string, propertyAlias: string): Promise<{ markup?: string; blocks?: { layout?: any; contentData?: any[] } } | undefined> {
   const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: pageId });
@@ -219,5 +222,42 @@ describe("add-rte-block", () => {
 
     const valueAfter = await getRteValue(f.pageId, f.propertyAlias);
     expect(valueAfter?.markup).toBe(beforeMarkup);
+  }, 60000);
+
+  it("adds first block to an RTE property that has no value yet (regression: empty property)", async () => {
+    if (skipIfNoFixture()) return;
+    const f = fixture!;
+
+    // Create a fresh page using the same doctype but WITHOUT seeding any RTE value.
+    const freshPage = await new ContentBuilder()
+      .withName("_Test add-rte-block empty-property regression")
+      .withDocumentType(f.donorDocTypeId)
+      .create();
+    const freshPageId = freshPage.getId();
+
+    try {
+      const result = await callTool(addRteBlockTool, {
+        id: freshPageId,
+        propertyAlias: f.propertyAlias,
+        contentTypeKey: f.elementTypeId,
+        values: [{ alias: f.blockPropertyAlias, value: "_first block on empty rte" }],
+        position: undefined,
+        settingsTypeKey: undefined,
+        settingsValues: undefined,
+        culture: undefined,
+        segment: undefined,
+      }, extra);
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      expect(data.contentKey).toMatch(/^[0-9a-f-]{36}$/i);
+      expect(data.id).toBe(freshPageId);
+
+      // Verify the block tag landed in the markup
+      const value = await getRteValue(freshPageId, f.propertyAlias);
+      expect(value?.markup).toContain(`data-content-key="${data.contentKey}"`);
+    } finally {
+      await ContentTestHelper.cleanupById(freshPageId);
+    }
   }, 60000);
 });

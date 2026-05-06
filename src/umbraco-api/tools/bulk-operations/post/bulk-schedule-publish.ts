@@ -23,7 +23,7 @@ const outputSchema = z.object({
     name: z.string(),
     success: z.boolean(),
     previousVersionId: z.string().optional(),
-    error: z.string().optional(),
+    error: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
   })),
   successCount: z.number(),
   failureCount: z.number(),
@@ -71,7 +71,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         data: { publishSchedules: [{ culture: null, schedule: { publishTime: publishDate } }] },
       });
       if (!result.ok) {
-        return result.errorResult.content?.[0]?.text ?? "Schedule publish failed";
+        return result.errorResult;
       }
       return null;
     });
