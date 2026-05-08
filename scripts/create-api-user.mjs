@@ -23,8 +23,8 @@
 import { createHash, randomBytes } from "node:crypto";
 
 const BASE_URL = process.argv[2] || "http://localhost:56472";
-const ADMIN_EMAIL = process.argv[3] || "admin@test.com";
-const ADMIN_PASSWORD = process.argv[4] || "SecurePass1234";
+const ADMIN_EMAIL = process.argv[3] || "admin@admin.com";
+const ADMIN_PASSWORD = process.argv[4] || "1234567890";
 
 const CLIENT_ID = "umbraco-back-office-mcp";
 const CLIENT_SECRET = "1234567890";

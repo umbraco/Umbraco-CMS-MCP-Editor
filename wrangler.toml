@@ -42,5 +42,8 @@ new_sqlite_classes = ["UmbracoMcpAgent"]
 # UMBRACO_EXCLUDE_SLICES = ""
 # UMBRACO_READONLY = "false"
 #
-# Umbraco Cloud routing (only when ENABLE_UMBRACO_CLOUD_ROUTING is true in worker.ts):
+# Umbraco Cloud multi-tenant routing — set to "true" to engage the Cloud
+# preset (MCP endpoint becomes /at/{alias}/, per-request URLs resolve to
+# https://{alias}.{region}.umbraco.io). Leave unset for single-tenant.
+# UMBRACO_CLOUD_ROUTING_ENABLED = "true"
 # UMBRACO_CLOUD_REGION = "euwest01"
