@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   name: z.string().describe("The dictionary key name"),
@@ -21,28 +21,22 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "create-dictionary",
-  description: "Create a new dictionary item with translations. Dictionary keys typically use dot-notation (e.g. 'Header.Title', 'Buttons.ReadMore'). Use list-languages to find valid ISO codes for translations. You will be asked to confirm.",
+  description: "Create a new dictionary item with translations. Dictionary keys typically use dot-notation (e.g. 'Header.Title', 'Buttons.ReadMore') — call list-dictionary first to avoid duplicate keys, and use update-dictionary to change translations on an existing item. Use list-languages to find valid ISO codes.",
   inputSchema,
   outputSchema,
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-  handler: async ({ name, translations, parentId }, extra) => {
-    if (!await confirmAction(extra, `Create dictionary item "${name}" with ${translations.length} translation(s)?`, { title: "Confirm create dictionary item" })) {
-      return createToolResult({ message: "Create cancelled", id: "", name });
-    }
-
-    const result = await mcpClientManager.callTool("cms", "create-dictionary", {
+  handler: async ({ name, translations, parentId }) => {
+    const result = await chainCms("create-dictionary", {
       name,
       translations,
-      parent: parentId ? { id: parentId } : null,
+      parentId,
     });
 
-    if (result.isError) return createToolResultError(result);
-    const data = extractChainedResult(result);
-
+    if (!result.ok) return result.errorResult;
     return createToolResult({
       message: `Created dictionary item "${name}"`,
-      id: data.id ?? "",
+      id: result.data.id,
       name,
     });
   },

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import { walkMediaTree } from "../../helpers/tree-walker.js";
 
 const ALT_TEXT_ALIASES = ["umbracoAltText", "altText"];
@@ -47,15 +47,14 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const enriched = await Promise.all(
       mediaItems.map(async (item: any) => {
         try {
-          const mediaResult = await mcpClientManager.callTool("cms", "get-media-by-id", { id: item.id });
-          const urlResult = await mcpClientManager.callTool("cms", "get-media-urls", { id: item.id });
+          const mediaResult = await chainCms("get-media-by-id", { id: item.id });
+          const urlResult = await chainCms("get-media-urls", { id: [item.id] });
 
           let altText = "";
-          if (!mediaResult.isError) {
-            const media = extractChainedResult(mediaResult);
-            const values: any[] = media.values ?? [];
+          if (mediaResult.ok) {
+            const values = mediaResult.data.values ?? [];
             for (const alias of ALT_TEXT_ALIASES) {
-              const found = values.find((v: any) => v.alias === alias);
+              const found = values.find((v) => v.alias === alias);
               if (found && typeof found.value === "string" && found.value.trim()) {
                 altText = found.value.trim();
                 break;
@@ -64,9 +63,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
           }
 
           let url = "";
-          if (!urlResult.isError) {
-            const urlData = extractChainedResult(urlResult);
-            url = urlData?.[0]?.url ?? urlData?.url ?? "";
+          if (urlResult.ok) {
+            const entry = urlResult.data.items?.find((u) => u.id === item.id);
+            url = entry?.urlInfos?.[0]?.url ?? "";
           }
 
           return {

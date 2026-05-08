@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 import {
   validateBulkIds,
   fetchBulkItemDetails,
@@ -20,7 +21,7 @@ const outputSchema = z.object({
     name: z.string(),
     success: z.boolean(),
     previousVersionId: z.string().optional(),
-    error: z.string().optional(),
+    error: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
   })),
   successCount: z.number(),
   failureCount: z.number(),
@@ -35,11 +36,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["publish"],
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   handler: async ({ ids }, extra) => {
-    // 1. Validate cap
     const validationError = validateBulkIds(ids);
     if (validationError) return createToolResult(validationError as BulkOperationOutput);
 
-    // 2. Fetch details for confirmation + rollback
     const items = await fetchBulkItemDetails(ids);
     if (items.length === 0) {
       return createToolResult({
@@ -51,12 +50,10 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    // 3. Build confirmation listing every name
     const nameList = items.map(i => `- ${i.name}`).join("\n");
     const message = `Unpublish these ${items.length} pages? They will be taken offline.\n${nameList}`;
 
-    // 4. Confirm
-    if (!await confirmAction(extra, message, { title: "Confirm bulk unpublish", defaultValue: false })) {
+    if (!await confirmStep(extra, message)) {
       return createToolResult({
         message: "Cancelled",
         results: [],
@@ -66,27 +63,23 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    // 5. Execute sequentially
     const results = await executeBulkSequentially(items, async (item) => {
-      // Fetch the document to determine cultures
-      const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: item.id });
-      if (docResult.isError) {
-        return extractChainedResult(docResult)?.detail ?? "Could not fetch document";
+      const docResult = await chainCms("get-document-by-id", { id: item.id });
+      if (!docResult.ok) {
+        return docResult.errorResult;
       }
-      const doc = extractChainedResult(docResult);
-      const cultures = (doc.variants ?? []).filter((v: any) => v.culture).map((v: any) => v.culture);
+      const cultures = (docResult.data.variants ?? []).filter(v => v.culture).map(v => v.culture as string);
 
-      const result = await mcpClientManager.callTool("cms", "unpublish-document", {
+      const result = await chainCms("unpublish-document", {
         id: item.id,
         data: { cultures: cultures.length > 0 ? cultures : null },
       });
-      if (result.isError) {
-        return extractChainedResult(result)?.detail ?? "Unpublish failed";
+      if (!result.ok) {
+        return result.errorResult;
       }
       return null;
     });
 
-    // 6. Return summary
     return createToolResult(buildBulkOutput("Unpublished", results));
   },
 };

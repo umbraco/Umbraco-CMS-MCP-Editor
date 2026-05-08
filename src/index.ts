@@ -15,6 +15,7 @@ import {
   createCollectionConfigLoader,
   shouldIncludeTool,
   setServerRef,
+  initializeUmbracoFetch,
   type CollectionConfiguration,
   type ToolCollectionExport,
 } from "@umbraco-cms/mcp-server-sdk";
@@ -32,9 +33,7 @@ import languageCollection from "./umbraco-api/tools/language/index.js";
 import dictionaryCollection from "./umbraco-api/tools/dictionary/index.js";
 import tagCollection from "./umbraco-api/tools/tag/index.js";
 import contentHealthCollection from "./umbraco-api/tools/content-health/index.js";
-import contentReportingCollection from "./umbraco-api/tools/content-reporting/index.js";
 import siteStructureCollection from "./umbraco-api/tools/site-structure/index.js";
-import mediaHealthCollection from "./umbraco-api/tools/media-health/index.js";
 import bulkOperationsCollection from "./umbraco-api/tools/bulk-operations/index.js";
 import memberCollection from "./umbraco-api/tools/member/index.js";
 import memberGroupCollection from "./umbraco-api/tools/member-group/index.js";
@@ -42,6 +41,9 @@ import memberReportingCollection from "./umbraco-api/tools/member-reporting/inde
 import schedulingCollection from "./umbraco-api/tools/scheduling/index.js";
 import redirectCollection from "./umbraco-api/tools/redirect/index.js";
 import relationshipsCollection from "./umbraco-api/tools/relationships/index.js";
+import publicAccessCollection from "./umbraco-api/tools/public-access/index.js";
+import notificationsCollection from "./umbraco-api/tools/notifications/index.js";
+import recycleBinCollection from "./umbraco-api/tools/recycle-bin/index.js";
 
 // Import MCP client manager (servers registered at import time via mcp-client.ts)
 import { mcpClientManager } from "./umbraco-api/mcp-client.js";
@@ -50,6 +52,9 @@ import { mcpServers } from "./config/mcp-servers.js";
 // Import registries for tool filtering
 import { allModes, allModeNames, allSliceNames, loadServerConfig, clearConfigCache } from "./config/index.js";
 
+// Server-level instructions sent to MCP clients during initialization.
+import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
+
 // Configure the API client for use with toolkit helpers
 // This connects your generated Orval client to executeGetApiCall, executeVoidApiCall, etc.
 // ============================================================================
@@ -57,10 +62,15 @@ import { allModes, allModeNames, allSliceNames, loadServerConfig, clearConfigCac
 // ============================================================================
 
 // Create MCP server
-const server = new McpServer({
-  name: "umbraco-editor-mcp",
-  version: packageJson.version,
-});
+const server = new McpServer(
+  {
+    name: "umbraco-editor-mcp",
+    version: packageJson.version,
+  },
+  {
+    instructions: SERVER_INSTRUCTIONS,
+  },
+);
 
 // Make the underlying Server available to tools that need elicitation
 setServerRef(server.server);
@@ -82,6 +92,16 @@ const configLoader = createCollectionConfigLoader({
   allSliceNames,
 });
 
+// Initialize UmbracoFetch so any tool that calls UmbracoManagementClient directly
+// (instead of going via chainCms) works in stdio mode. Without this the SDK throws
+// "UmbracoFetch not initialized" because the subprocess that runs the chained CMS
+// server sets up its own UmbracoFetch — this editor MCP process never did.
+initializeUmbracoFetch({
+  baseUrl: serverConfig.umbraco.auth.baseUrl,
+  clientId: serverConfig.umbraco.auth.clientId,
+  clientSecret: serverConfig.umbraco.auth.clientSecret,
+});
+
 // Load filtering configuration from server config
 const filterConfig: CollectionConfiguration = configLoader.loadFromConfig(serverConfig.umbraco);
 
@@ -101,9 +121,7 @@ const collections: ToolCollectionExport[] = [
   dictionaryCollection,
   tagCollection,
   contentHealthCollection,
-  contentReportingCollection,
   siteStructureCollection,
-  mediaHealthCollection,
   bulkOperationsCollection,
   memberCollection,
   memberGroupCollection,
@@ -111,6 +129,9 @@ const collections: ToolCollectionExport[] = [
   schedulingCollection,
   redirectCollection,
   relationshipsCollection,
+  publicAccessCollection,
+  notificationsCollection,
+  recycleBinCollection,
 ];
 let registeredToolCount = 0;
 

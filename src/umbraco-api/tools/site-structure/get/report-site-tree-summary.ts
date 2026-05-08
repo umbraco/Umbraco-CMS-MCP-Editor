@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, extractChainedResult, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   parentId: z.string().uuid().optional().describe("Scope to a subtree by parent page ID. Omit to start from root."),
@@ -38,11 +38,11 @@ const outputSchema = z.object({
 
 async function fetchTreeLevel(parentId: string | undefined, depth: number): Promise<any[]> {
   const result = parentId
-    ? await mcpClientManager.callTool("cms", "get-tree-document-children", { parentId, cursor: encodeCursor({ s: 0, t: 100 }) })
-    : await mcpClientManager.callTool("cms", "get-tree-document-root", { cursor: encodeCursor({ s: 0, t: 100 }) });
+    ? await chainCms("get-document-children", { parentId, cursor: encodeCursor({ s: 0, t: 100 }) })
+    : await chainCms("get-document-root", { cursor: encodeCursor({ s: 0, t: 100 }) });
 
-  if (result.isError) return [];
-  const data = extractChainedResult(result);
+  if (!result.ok) return [];
+  const data = result.data;
   return data?.items ?? [];
 }
 

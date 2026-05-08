@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import { walkMediaTree } from "../../helpers/tree-walker.js";
 
 const FOLDER_MEDIA_TYPES = ["folder", "Folder", "umbracoMediaFolder"];
@@ -51,16 +51,16 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       mediaItems.map(async (item: any) => {
         try {
           const [mediaResult, urlResult] = await Promise.all([
-            mcpClientManager.callTool("cms", "get-media-by-id", { id: item.id }),
-            mcpClientManager.callTool("cms", "get-media-urls", { id: item.id }),
+            chainCms("get-media-by-id", { id: item.id }),
+            chainCms("get-media-urls", { id: [item.id] }),
           ]);
 
           let fileSizeKb = 0;
           let width: number | null = null;
           let height: number | null = null;
 
-          if (!mediaResult.isError) {
-            const media = extractChainedResult(mediaResult);
+          if (mediaResult.ok) {
+            const media = mediaResult.data;
             const values: any[] = media.values ?? [];
 
             const bytesValue = values.find((v: any) => v.alias === "umbracoBytes");
@@ -82,9 +82,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
           }
 
           let url = "";
-          if (!urlResult.isError) {
-            const urlData = extractChainedResult(urlResult);
-            url = urlData?.[0]?.url ?? urlData?.url ?? "";
+          if (urlResult.ok) {
+            const entry = urlResult.data.items?.find((u) => u.id === item.id);
+            url = entry?.urlInfos?.[0]?.url ?? "";
           }
 
           return {

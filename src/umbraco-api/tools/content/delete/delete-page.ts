@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to delete"),
@@ -20,22 +21,18 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["delete"],
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   handler: async ({ id }, extra) => {
-    // Step 1: Fetch page details for confirmation
-    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (docResult.isError) return createToolResultError(docResult);
-    const doc = extractChainedResult(docResult);
-    const pageName = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
+    const docResult = await chainCms("get-document-by-id", { id });
+    if (!docResult.ok) return docResult.errorResult;
+    const pageName = docResult.data.variants?.[0]?.name ?? "Unknown";
 
-    // Step 2: Elicit confirmation with strong warning (default: false)
     const confirmMessage = `WARNING: Move "${pageName}" to the recycle bin? This will remove the page from the site.`;
 
-    if (!await confirmAction(extra, confirmMessage, { title: "Confirm delete", defaultValue: false })) {
+    if (!await confirmStep(extra, confirmMessage)) {
       return createToolResult({ message: "Delete cancelled", id, name: pageName });
     }
 
-    // Step 3: Move to recycle bin
-    const deleteResult = await mcpClientManager.callTool("cms", "move-document-to-recycle-bin", { id });
-    if (deleteResult.isError) return createToolResultError(deleteResult);
+    const deleteResult = await chainCms("move-document-to-recycle-bin", { id });
+    if (!deleteResult.ok) return deleteResult.errorResult;
 
     return createToolResult({
       message: `Moved "${pageName}" to the recycle bin`,

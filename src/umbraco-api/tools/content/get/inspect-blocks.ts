@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition , extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 
 const inputSchema = {
@@ -17,7 +17,6 @@ const outputSchema = z.object({
     blocks: z.array(z.object({
       contentKey: z.string().describe("The block's unique key — use this with edit-block"),
       contentTypeKey: z.string().describe("The block's element type ID"),
-      contentTypeAlias: z.string().optional().describe("The block's element type alias (if available)"),
       properties: z.array(z.object({
         alias: z.string(),
         value: z.any(),
@@ -47,11 +46,10 @@ function isRteWithBlocks(value: any): boolean {
   );
 }
 
-function extractBlocks(contentData: any[]): Array<{ contentKey: string; contentTypeKey: string; contentTypeAlias?: string; properties: Array<{ alias: string; value: any }> }> {
+function extractBlocks(contentData: any[]): Array<{ contentKey: string; contentTypeKey: string; properties: Array<{ alias: string; value: any }> }> {
   return contentData.map((block: any) => ({
     contentKey: block.key ?? "",
     contentTypeKey: block.contentTypeKey ?? "",
-    contentTypeAlias: block.contentTypeAlias ?? undefined,
     properties: Array.isArray(block.values)
       ? block.values.map((v: any) => ({ alias: v.alias ?? "", value: v.value }))
       : [],
@@ -66,36 +64,37 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["read"],
   annotations: { readOnlyHint: true },
   handler: async ({ id, propertyAlias }) => {
-    const result = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (result.isError) return createToolResultError(result);
-    const doc = extractChainedResult(result);
+    const result = await chainCms("get-document-by-id", { id });
+    if (!result.ok) return result.errorResult;
+    const doc = result.data;
 
-    const allValues: Array<{ alias: string; value: any }> = doc.values ?? [];
+    const allValues = doc.values ?? [];
 
     const filtered = propertyAlias
-      ? allValues.filter((v: any) => v.alias === propertyAlias)
+      ? allValues.filter((v) => v.alias === propertyAlias)
       : allValues;
 
     const blockProperties = filtered
-      .filter((v: any) => isBlockListOrGridValue(v.value) || isRteWithBlocks(v.value))
-      .map((v: any) => {
-        if (isRteWithBlocks(v.value)) {
+      .filter((v) => isBlockListOrGridValue(v.value) || isRteWithBlocks(v.value))
+      .map((v) => {
+        const value = v.value as { contentData?: any[]; blocks?: { contentData?: any[] } };
+        if (isRteWithBlocks(value)) {
           return {
             propertyAlias: v.alias,
             editorAlias: "Umbraco.RichText",
-            blocks: extractBlocks(v.value.blocks.contentData),
+            blocks: extractBlocks(value.blocks!.contentData!),
           };
         }
         return {
           propertyAlias: v.alias,
           editorAlias: v.editorAlias ?? undefined,
-          blocks: extractBlocks(v.value.contentData),
+          blocks: extractBlocks(value.contentData!),
         };
       });
 
     return createToolResult({
       id: doc.id,
-      name: doc.variants?.[0]?.name ?? doc.name ?? "Unknown",
+      name: doc.variants?.[0]?.name ?? "Unknown",
       blockProperties,
     });
   },

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, extractChainedResult, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   depthThreshold: z.number().optional().default(4).describe("Pages deeper than this level are reported (default 4)"),
@@ -50,11 +50,11 @@ async function walkForDeepPages(
   if (scannedRef.count >= maxScan) return;
 
   const result = parentId
-    ? await mcpClientManager.callTool("cms", "get-tree-document-children", { parentId, cursor: encodeCursor({ s: 0, t: 100 }) })
-    : await mcpClientManager.callTool("cms", "get-tree-document-root", { cursor: encodeCursor({ s: 0, t: 100 }) });
+    ? await chainCms("get-document-children", { parentId, cursor: encodeCursor({ s: 0, t: 100 }) })
+    : await chainCms("get-document-root", { cursor: encodeCursor({ s: 0, t: 100 }) });
 
-  if (result.isError) return;
-  const data = extractChainedResult(result);
+  if (!result.ok) return;
+  const data = result.data;
   const items: any[] = data?.items ?? [];
 
   for (const item of items) {
@@ -101,11 +101,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       if (scannedRef.count >= 500) return;
 
       const result = pid
-        ? await mcpClientManager.callTool("cms", "get-tree-document-children", { parentId: pid, cursor: encodeCursor({ s: 0, t: 100 }) })
-        : await mcpClientManager.callTool("cms", "get-tree-document-root", { cursor: encodeCursor({ s: 0, t: 100 }) });
+        ? await chainCms("get-document-children", { parentId: pid, cursor: encodeCursor({ s: 0, t: 100 }) })
+        : await chainCms("get-document-root", { cursor: encodeCursor({ s: 0, t: 100 }) });
 
-      if (result.isError) return;
-      const data = extractChainedResult(result);
+      if (!result.ok) return;
+      const data = result.data;
       const items: any[] = data?.items ?? [];
 
       for (const item of items) {

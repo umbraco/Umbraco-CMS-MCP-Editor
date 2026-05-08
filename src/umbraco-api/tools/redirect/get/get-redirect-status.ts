@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {};
 
@@ -17,11 +17,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["read"],
   annotations: { readOnlyHint: true },
   handler: async () => {
-    const result = await mcpClientManager.callTool("cms", "get-redirect-status", {});
-    if (result.isError) return createToolResultError(result);
-    const data = extractChainedResult(result);
-
-    const isEnabled = data.status === "Enabled";
+    const result = await chainCms("get-redirect-status", {});
+    if (!result.ok) return result.errorResult;
+    const isEnabled = result.data.status === "Enabled";
     return createToolResult({
       isEnabled,
       message: isEnabled

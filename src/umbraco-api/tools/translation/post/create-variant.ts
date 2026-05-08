@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
+import { checkVariesByCulture } from "../helpers/check-varies-by-culture.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to add a language variant to"),
@@ -22,33 +23,28 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "create-variant",
-  description: "Create a new language variant for a content page. Call list-languages to find available cultures. Optionally provide property values for the new variant. You will be asked to confirm before creating.",
+  description: "Create a new language variant for a content page. Call list-languages to find available cultures. Optionally provide property values for the new variant.",
   inputSchema,
   outputSchema,
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-  handler: async ({ id, culture, values }, extra) => {
-    // Step 1: Fetch page details
-    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (docResult.isError) return createToolResultError(docResult);
-    const doc = extractChainedResult(docResult);
+  handler: async ({ id, culture, values }) => {
+    const variesError = await checkVariesByCulture(id);
+    if (variesError) return variesError;
+
+    const docResult = await chainCms("get-document-by-id", { id });
+    if (!docResult.ok) return docResult.errorResult;
+    const doc = docResult.data;
 
     const existingVariants: any[] = doc.variants ?? [];
     const existingValues: any[] = doc.values ?? [];
-    const pageName = existingVariants[0]?.name ?? doc.name ?? "Unknown";
+    const pageName = existingVariants[0]?.name ?? "Unknown";
 
-    // Step 2: Check if variant already exists
     const variantExists = existingVariants.some((v: any) => v.culture === culture);
     if (variantExists) {
       return createToolResultError({ isError: true, content: [{ type: "text", text: `Variant for ${culture} already exists on this page` }] });
     }
 
-    // Step 3: Confirm
-    if (!await confirmAction(extra, `Create ${culture} variant for "${pageName}"?`, { title: "Confirm create variant" })) {
-      return createToolResult({ message: "Create variant cancelled", id, name: pageName, culture });
-    }
-
-    // Step 4: Build new variant and values payload
     const newVariant = { culture, name: pageName, segment: null };
     const newCultureValues = (values ?? []).map((v) => ({
       alias: v.alias,
@@ -57,13 +53,14 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       segment: v.segment ?? null,
     }));
 
-    // Step 5: Delegate to update-document
-    const updateResult = await mcpClientManager.callTool("cms", "update-document", {
+    const updateResult = await chainCms("update-document", {
       id,
-      variants: [...existingVariants, newVariant],
-      values: [...existingValues, ...newCultureValues],
+      data: {
+        variants: [...existingVariants, newVariant],
+        values: [...existingValues, ...newCultureValues],
+      },
     });
-    if (updateResult.isError) return createToolResultError(updateResult);
+    if (!updateResult.ok) return updateResult.errorResult;
 
     return createToolResult({
       message: `Created ${culture} variant for "${pageName}"`,

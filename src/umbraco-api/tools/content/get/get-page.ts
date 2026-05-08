@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition , extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
+import { buildPreviewUrl, flattenPublishedUrls, previewUrlSchema, publishedUrlsSchema } from "../../helpers/preview-url.js";
 
 
 const inputSchema = {
@@ -10,10 +11,11 @@ const inputSchema = {
 const outputSchema = z.object({
   id: z.string(),
   name: z.string(),
-  documentType: z.string(),
+  documentType: z.object({ id: z.string() }),
   values: z.array(z.object({ alias: z.string(), value: z.any() }).passthrough()).describe("Content field values"),
   variants: z.array(z.object({ name: z.string() }).passthrough()).describe("Language/culture variants"),
-  urls: z.array(z.any()).optional().describe("Published URLs"),
+  previewUrl: previewUrlSchema,
+  publishedUrls: publishedUrlsSchema,
 });
 
 /**
@@ -53,19 +55,21 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["read"],
   annotations: { readOnlyHint: true },
   handler: async ({ id }) => {
-    const result = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (result.isError) return createToolResultError(result);
-    const doc = extractChainedResult(result);
+    const result = await chainCms("get-document-by-id", { id });
+    if (!result.ok) return result.errorResult;
+    const doc = result.data;
     return createToolResult({
       id: doc.id,
-      name: doc.variants?.[0]?.name ?? doc.name ?? "Unknown",
-      documentType: doc.documentType?.alias ?? "unknown",
-      values: (doc.values ?? []).map((v: any) => ({
+      name: doc.variants?.[0]?.name ?? "Unknown",
+      documentType: { id: doc.documentType?.id },
+      values: (doc.values ?? []).map((v) => ({
         ...v,
         value: summariseIfBlock(v.value),
       })),
       variants: doc.variants ?? [],
-      urls: doc.urls ?? [],
+      previewUrl: buildPreviewUrl(doc.id),
+      // GetDocumentByIdOutput doesn't include `urls` — runtime field, not in the upstream Zod schema.
+      publishedUrls: flattenPublishedUrls((doc as { urls?: unknown }).urls),
     });
   },
 };

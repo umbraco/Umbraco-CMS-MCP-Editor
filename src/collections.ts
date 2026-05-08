@@ -30,9 +30,7 @@ import translationCollection from "./umbraco-api/tools/translation/index.js";
 import dictionaryCollection from "./umbraco-api/tools/dictionary/index.js";
 import tagCollection from "./umbraco-api/tools/tag/index.js";
 import contentHealthCollection from "./umbraco-api/tools/content-health/index.js";
-import contentReportingCollection from "./umbraco-api/tools/content-reporting/index.js";
 import siteStructureCollection from "./umbraco-api/tools/site-structure/index.js";
-import mediaHealthCollection from "./umbraco-api/tools/media-health/index.js";
 import bulkOperationsCollection from "./umbraco-api/tools/bulk-operations/index.js";
 import memberCollection from "./umbraco-api/tools/member/index.js";
 import memberGroupCollection from "./umbraco-api/tools/member-group/index.js";
@@ -40,6 +38,9 @@ import memberReportingCollection from "./umbraco-api/tools/member-reporting/inde
 import schedulingCollection from "./umbraco-api/tools/scheduling/index.js";
 import redirectCollection from "./umbraco-api/tools/redirect/index.js";
 import relationshipsCollection from "./umbraco-api/tools/relationships/index.js";
+import publicAccessCollection from "./umbraco-api/tools/public-access/index.js";
+import notificationsCollection from "./umbraco-api/tools/notifications/index.js";
+import recycleBinCollection from "./umbraco-api/tools/recycle-bin/index.js";
 
 export const collections = [
   contentCollection,
@@ -53,9 +54,7 @@ export const collections = [
   dictionaryCollection,
   tagCollection,
   contentHealthCollection,
-  contentReportingCollection,
   siteStructureCollection,
-  mediaHealthCollection,
   bulkOperationsCollection,
   memberCollection,
   memberGroupCollection,
@@ -63,6 +62,9 @@ export const collections = [
   schedulingCollection,
   redirectCollection,
   relationshipsCollection,
+  publicAccessCollection,
+  notificationsCollection,
+  recycleBinCollection,
 ];
 
 export { allModes, allModeNames } from "./config/mode-registry.js";

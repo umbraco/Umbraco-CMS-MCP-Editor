@@ -33,9 +33,10 @@ const config: Config = {
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json", "node"],
 
   // Eval specific settings
-  // Allow multiple workers so read-only and write test files run in parallel.
-  // Write tests within their file still run sequentially (Jest default).
-  maxWorkers: 2,
+  // Run sequentially. Two concurrent workers contend for the Anthropic LLM
+  // rate limit and the single demo Umbraco backend, which produced 180s
+  // timeouts on tests that ran in 14s in isolation.
+  maxWorkers: 1,
   testTimeout: 120000, // 2 minute timeout for long-running tests
 
   // Disable slow test warnings (these are expected to be slow)

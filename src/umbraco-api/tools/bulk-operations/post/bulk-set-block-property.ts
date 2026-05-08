@@ -1,8 +1,11 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction, extractChainedResult, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 import {
   validateBulkIds,
+  parseBulkError,
+  SKIPPED_SENTINEL,
   type BulkItemDetail,
 } from "../../helpers/bulk-handler.js";
 
@@ -26,7 +29,7 @@ const outputSchema = z.object({
     success: z.boolean(),
     blocksUpdated: z.number(),
     previousVersionId: z.string().optional(),
-    error: z.string().optional(),
+    error: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
   })),
   successCount: z.number(),
   failureCount: z.number(),
@@ -79,30 +82,35 @@ function findMatchingBlocks(doc: any, propertyAlias: string, contentTypeKey: str
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "bulk-set-block-property",
-  description: "Update properties on blocks of a specific type across multiple pages (max 10). Targets all blocks matching the given element type within the specified property. Use inspect-blocks first on a sample page to find contentTypeKey and propertyAlias. Changes are saved but NOT published. You will be asked to confirm before updating.",
+  description: "Update properties on blocks of a specific type across multiple pages (max 10). Targets all blocks matching the given element type within the specified property. Use inspect-blocks first on a sample page to find contentTypeKey and propertyAlias. For non-string property values inside the block (media pickers, content pickers, image cropper, slider, color, date, etc.) call get-property-value-template with the editor alias first to see the expected JSON shape. Changes are saved but NOT published. You will be asked to confirm before updating.",
   inputSchema,
   outputSchema,
   slices: ["update"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   handler: async ({ ids, contentTypeKey, propertyAlias, values, culture, segment }, extra) => {
-    // 1. Validate cap
     const validationError = validateBulkIds(ids);
-    if (validationError) return createToolResult({ ...validationError, totalBlocksUpdated: 0 } as any);
+    if (validationError) return createToolResult({
+      message: validationError.message,
+      results: [],
+      successCount: validationError.successCount,
+      failureCount: validationError.failureCount,
+      skippedCount: validationError.skippedCount,
+      totalBlocksUpdated: 0,
+    });
 
-    // 2. Fetch details + find matching blocks per page (single fetch per document)
     const items: BulkItemDetail[] = [];
     const pageBlocks = new Map<string, BlockMatch[]>();
 
     for (const id of ids) {
-      const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-      if (docResult.isError) continue;
-      const doc = extractChainedResult(docResult);
-      const name = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
+      const docResult = await chainCms("get-document-by-id", { id });
+      if (!docResult.ok) continue;
+      const doc = docResult.data;
+      const name = doc.variants?.[0]?.name ?? "Unknown";
 
-      const versionResult = await mcpClientManager.callTool("cms", "get-document-version", {
+      const versionResult = await chainCms("get-document-version", {
         documentId: id, cursor: encodeCursor({ s: 0, t: 1 }),
       });
-      const versionData = versionResult.isError ? null : extractChainedResult(versionResult);
+      const versionData: any = versionResult.ok ? versionResult.data : null;
       const currentVersionId = versionData?.items?.[0]?.id ?? "";
 
       items.push({ id, name, currentVersionId });
@@ -123,7 +131,6 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const totalBlocks = Array.from(pageBlocks.values()).reduce((sum, blocks) => sum + blocks.length, 0);
     const pagesWithBlocks = items.filter(i => (pageBlocks.get(i.id)?.length ?? 0) > 0);
 
-    // 3. Confirm
     const fieldNames = values.map((v) => v.alias);
     const nameList = items.map(i => {
       const count = pageBlocks.get(i.id)?.length ?? 0;
@@ -131,7 +138,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     }).join("\n");
     const message = `Update ${fieldNames.length} field(s) on ${totalBlocks} block(s) across ${pagesWithBlocks.length} page(s):\n${nameList}\nFields: ${fieldNames.join(", ")}\nChanges will be saved but not published.`;
 
-    if (!await confirmAction(extra, message, { title: "Confirm bulk block property update", defaultValue: true })) {
+    if (!await confirmStep(extra, message)) {
       return createToolResult({
         message: "Cancelled",
         results: [],
@@ -142,14 +149,13 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    // 4. Execute sequentially, fail-fast
     const results: Array<{
       id: string;
       name: string;
       success: boolean;
       blocksUpdated: number;
       previousVersionId?: string;
-      error?: string;
+      error?: unknown;
     }> = [];
     let stopped = false;
     let totalBlocksUpdated = 0;
@@ -162,7 +168,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
           success: false,
           blocksUpdated: 0,
           previousVersionId: item.currentVersionId || undefined,
-          error: "Skipped — previous item failed",
+          error: SKIPPED_SENTINEL,
         });
         continue;
       }
@@ -179,27 +185,33 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         continue;
       }
 
-      const updateResult = await mcpClientManager.callTool("cms", "update-block-property", {
+      const propsTuple = values.map(v => ({ alias: v.alias, value: v.value })) as [
+        { alias: string; value: any }, ...{ alias: string; value: any }[]
+      ];
+      const updates = blocks.map(block => ({
+        contentKey: block.contentKey,
+        blockType: "content" as const,
+        properties: propsTuple,
+      })) as [
+        { contentKey: string; blockType: "content"; properties: typeof propsTuple },
+        ...{ contentKey: string; blockType: "content"; properties: typeof propsTuple }[]
+      ];
+      const updateResult = await chainCms("update-block-property", {
         documentId: item.id,
         propertyAlias,
         culture: culture ?? null,
         segment: segment ?? null,
-        updates: blocks.map(block => ({
-          contentKey: block.contentKey,
-          blockType: "content",
-          properties: values.map(v => ({ alias: v.alias, value: v.value })),
-        })),
+        updates,
       });
 
-      if (updateResult.isError) {
-        const errorDetail = extractChainedResult(updateResult)?.detail ?? "Block update failed";
+      if (!updateResult.ok) {
         results.push({
           id: item.id,
           name: item.name,
           success: false,
           blocksUpdated: 0,
           previousVersionId: item.currentVersionId || undefined,
-          error: typeof errorDetail === "string" ? errorDetail : "Block update failed",
+          error: parseBulkError(updateResult.errorResult),
         });
         stopped = true;
       } else {
@@ -214,10 +226,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       }
     }
 
-    // 5. Return summary
     const successCount = results.filter(r => r.success).length;
-    const failureCount = results.filter(r => !r.success && r.error !== "Skipped — previous item failed").length;
-    const skippedCount = results.filter(r => r.error === "Skipped — previous item failed").length;
+    const failureCount = results.filter(r => !r.success && r.error !== SKIPPED_SENTINEL).length;
+    const skippedCount = results.filter(r => r.error === SKIPPED_SENTINEL).length;
 
     return createToolResult({
       message: `Updated ${totalBlocksUpdated} block(s) across ${successCount} of ${results.length} pages`,

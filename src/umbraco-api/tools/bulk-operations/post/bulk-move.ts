@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 import {
   validateBulkIds,
   fetchBulkItemDetails,
@@ -21,7 +22,7 @@ const outputSchema = z.object({
     name: z.string(),
     success: z.boolean(),
     previousVersionId: z.string().optional(),
-    error: z.string().optional(),
+    error: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
   })),
   successCount: z.number(),
   failureCount: z.number(),
@@ -36,11 +37,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["move"],
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   handler: async ({ ids, targetParentId }, extra) => {
-    // 1. Validate cap
     const validationError = validateBulkIds(ids);
     if (validationError) return createToolResult(validationError as BulkOperationOutput);
 
-    // 2. Fetch details for confirmation + rollback
     const items = await fetchBulkItemDetails(ids);
     if (items.length === 0) {
       return createToolResult({
@@ -52,24 +51,20 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    // 3. Fetch target parent name for the confirmation message
     let targetName = targetParentId;
     try {
-      const targetResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: targetParentId });
-      if (!targetResult.isError) {
-        const targetDoc = extractChainedResult(targetResult);
-        targetName = targetDoc.variants?.[0]?.name ?? targetDoc.name ?? targetParentId;
+      const targetResult = await chainCms("get-document-by-id", { id: targetParentId });
+      if (targetResult.ok) {
+        targetName = targetResult.data.variants?.[0]?.name ?? targetParentId;
       }
     } catch {
       // Fall back to showing the ID
     }
 
-    // 4. Build confirmation listing every name
     const nameList = items.map(i => `- ${i.name}`).join("\n");
     const message = `Move these ${items.length} pages to '${targetName}'?\n${nameList}`;
 
-    // 5. Confirm
-    if (!await confirmAction(extra, message, { title: "Confirm bulk move", defaultValue: false })) {
+    if (!await confirmStep(extra, message)) {
       return createToolResult({
         message: "Cancelled",
         results: [],
@@ -79,19 +74,17 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    // 6. Execute sequentially
     const results = await executeBulkSequentially(items, async (item) => {
-      const result = await mcpClientManager.callTool("cms", "move-document", {
+      const result = await chainCms("move-document", {
         id: item.id,
-        target: { id: targetParentId },
+        data: { target: { id: targetParentId } },
       });
-      if (result.isError) {
-        return extractChainedResult(result)?.detail ?? "Move failed";
+      if (!result.ok) {
+        return result.errorResult;
       }
       return null;
     });
 
-    // 7. Return summary
     return createToolResult(buildBulkOutput("Moved", results));
   },
 };

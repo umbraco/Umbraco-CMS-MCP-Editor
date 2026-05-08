@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { walkContentTree } from "../../helpers/tree-walker.js";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   parentId: z.string().uuid().optional().describe("Scope to a subtree by parent page ID. Omit to scan root-level pages."),
@@ -45,13 +45,14 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     await Promise.all(
       pages.map(async (page) => {
-        const publishResult = await mcpClientManager.callTool("cms", "get-document-publish", { id: page.id });
+        // Use get-document-by-id (draft state) — it carries scheduledPublishDate /
+        // scheduledUnpublishDate for both published and never-published pages.
+        // get-document-publish 404s for never-published drafts, hiding the most
+        // common scheduling case (a draft scheduled for its first publish).
+        const docResult = await chainCms("get-document-by-id", { id: page.id });
+        if (!docResult.ok) return;
 
-        // 404 (isError) means unpublished — skip silently
-        if (publishResult.isError) return;
-
-        const publishData = extractChainedResult(publishResult);
-        const variants: any[] = publishData?.variants ?? [];
+        const variants = docResult.data.variants ?? [];
 
         for (const variant of variants) {
           const scheduledPublishDate: string | null = variant.scheduledPublishDate ?? null;

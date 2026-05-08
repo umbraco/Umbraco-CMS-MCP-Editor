@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { walkContentTree } from "../../helpers/tree-walker.js";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   parentId: z.string().uuid().optional().describe("Scope to a subtree by parent page ID. Omit to scan root-level pages."),
@@ -36,12 +36,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const results = await Promise.all(
       pages.map(async (page) => {
         try {
-          const refResult = await mcpClientManager.callTool("cms", "get-document-by-id-referenced-by", { id: page.id });
-          if (refResult.isError) {
+          const refResult = await chainCms("get-document-by-id-referenced-by", { id: page.id });
+          if (!refResult.ok) {
             return { page, inboundReferenceCount: 0 };
           }
-          const refData = extractChainedResult(refResult);
-          const count: number = refData?.total ?? (Array.isArray(refData?.items) ? refData.items.length : 0);
+          const count = refResult.data.total ?? refResult.data.items?.length ?? 0;
           return { page, inboundReferenceCount: count };
         } catch {
           return { page, inboundReferenceCount: 0 };

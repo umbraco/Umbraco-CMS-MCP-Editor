@@ -41,3 +41,6 @@ new_sqlite_classes = ["UmbracoMcpAgent"]
 # UMBRACO_INCLUDE_SLICES = ""
 # UMBRACO_EXCLUDE_SLICES = ""
 # UMBRACO_READONLY = "false"
+#
+# Umbraco Cloud routing (only when ENABLE_UMBRACO_CLOUD_ROUTING is true in worker.ts):
+# UMBRACO_CLOUD_REGION = "euwest01"

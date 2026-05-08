@@ -24,7 +24,14 @@ const allTools = [
   "create-page",
   "edit-page",
   "edit-block",
+  "add-blocklist-block",
+  "add-blockgrid-block",
+  "add-rte-block",
+  "get-property-value-template",
+  "list-page-templates",
+  "set-page-template",
   "delete-page",
+  "delete-block",
   "restore-page",
   // Publishing
   "publish-page",
@@ -32,6 +39,7 @@ const allTools = [
   // Versioning
   "list-versions",
   "rollback-page",
+  "get-page-change-history",
   // Media
   "search-media",
   "list-media-children",
@@ -43,6 +51,11 @@ const allTools = [
   "delete-media",
   "restore-media",
   "bulk-move-media",
+  "get-media-change-history",
+  // Recycle Bin
+  "list-recycle-bin",
+  "permanent-delete-recycle-bin-item",
+  "empty-recycle-bin",
   // Blueprints
   "list-blueprints",
   "get-blueprint",
@@ -69,23 +82,17 @@ const allTools = [
   // Content Health
   "audit-page-seo",
   "audit-page-content",
-  "report-empty-fields",
-  "report-short-content",
-  "report-media-missing-alt",
-  // Content Reporting
-  "report-stale-content",
-  "report-unpublished",
-  "report-recently-changed",
-  "report-content-by-type",
-  "report-translation-coverage",
+  // DISABLED (tree walk, scanLimit=100): "report-empty-fields", "report-short-content", "report-media-missing-alt"
+  // Content Reporting — DISABLED at collection level (tree walk, scanLimit=100–500):
+  // "report-stale-content", "report-unpublished", "report-recently-changed",
+  // "report-content-by-type", "report-translation-coverage"
   // Site Structure
   "report-site-tree-summary",
   "report-deep-pages",
-  // Media Health
-  "report-large-media",
+  // Media Health — DISABLED at collection level (tree walk, scanLimit=100): "report-large-media"
   // Relationships
   "report-content-references",
-  "report-orphan-pages",
+  // DISABLED (tree walk, scanLimit=100): "report-orphan-pages"
   "report-outbound-links",
   // Bulk Operations
   "bulk-publish",
@@ -109,9 +116,8 @@ const allTools = [
   "report-member-count",
   "report-members-by-group",
   "report-member-activity",
-  // Scheduling
+  // Scheduling — DISABLED (tree walk, scanLimit=100): "list-scheduled-content"
   "get-publish-status",
-  "list-scheduled-content",
   "schedule-publish",
   "cancel-schedule",
   // Redirects
@@ -119,6 +125,13 @@ const allTools = [
   "get-redirect",
   "delete-redirect",
   "get-redirect-status",
+  // Public Access
+  "get-public-access",
+  "set-public-access",
+  "remove-public-access",
+  // Notifications (hosted-only — exposed in evals for coverage)
+  "get-content-notifications",
+  "set-content-notifications",
 ];
 
 describe("Advanced Workflows", () => {
@@ -139,7 +152,9 @@ describe("Advanced Workflows", () => {
     timeout
   );
 
-  it(
+  // SKIPPED: report-unpublished is disabled (tree walk). Re-enable with this test once
+  // a filtered-pages endpoint replaces the walker.
+  it.skip(
     "find stale unpublished pages",
     runScenarioTest({
       prompt:
@@ -165,7 +180,8 @@ describe("Advanced Workflows", () => {
     timeout
   );
 
-  it(
+  // SKIPPED: report-short-content / report-empty-fields / report-stale-content are disabled (tree walk).
+  it.skip(
     "content health summary",
     runScenarioTest({
       prompt:
@@ -183,7 +199,8 @@ describe("Advanced Workflows", () => {
     timeout
   );
 
-  it(
+  // SKIPPED: report-large-media is disabled (tree walk).
+  it.skip(
     "find large unused media",
     runScenarioTest({
       prompt:
@@ -222,7 +239,8 @@ describe("Advanced Workflows", () => {
     timeout
   );
 
-  it(
+  // SKIPPED: report-translation-coverage is disabled (tree walk).
+  it.skip(
     "translation coverage report",
     runScenarioTest({
       prompt:
@@ -235,7 +253,8 @@ describe("Advanced Workflows", () => {
     timeout
   );
 
-  it(
+  // SKIPPED: report-recently-changed is disabled (tree walk).
+  it.skip(
     "recently changed unpublished",
     runScenarioTest({
       prompt:
@@ -248,7 +267,8 @@ describe("Advanced Workflows", () => {
     timeout
   );
 
-  it(
+  // SKIPPED: report-content-by-type is disabled (tree walk).
+  it.skip(
     "content type distribution",
     runScenarioTest({
       prompt:

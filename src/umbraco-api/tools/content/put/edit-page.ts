@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
+import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to edit"),
@@ -17,47 +18,37 @@ const outputSchema = z.object({
   id: z.string(),
   name: z.string(),
   updatedFields: z.array(z.string()),
+  previewUrl: previewUrlSchema,
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "edit-page",
-  description: "Update specific fields on a content page. Changes are saved but NOT published. Call get-page first to discover valid property aliases for the page's document type. You will be asked to confirm before updating.",
+  description: "Update specific fields on a content page. Changes are saved but NOT published. Call get-page first to discover valid property aliases. For non-string non-block property values (media pickers, content/multi-node pickers, image cropper, slider, color, date, etc.), call get-property-value-template with the editor alias first to see the expected JSON shape — the LLM-default shape is often wrong for structured editors. For block-shaped values (BlockList / BlockGrid / Rich-Text-with-blocks) use the dedicated tools — inspect-blocks, add-blocklist-block / add-blockgrid-block / add-rte-block, edit-block — instead of hand-constructing the JSON here.",
   inputSchema,
   outputSchema,
   slices: ["update"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
-  handler: async ({ id, values }, extra) => {
-    // Step 1: Fetch page details for confirmation
-    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (docResult.isError) return createToolResultError(docResult);
-    const doc = extractChainedResult(docResult);
-    const pageName = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
-
-    // Step 2: Elicit confirmation listing field names
+  handler: async ({ id, values }) => {
+    const docResult = await chainCms("get-document-by-id", { id });
+    if (!docResult.ok) return docResult.errorResult;
+    const pageName = docResult.data.variants?.[0]?.name ?? "Unknown";
     const fieldNames = values.map((v) => v.alias);
-    const confirmMessage = `Update ${fieldNames.length} field(s) on "${pageName}": ${fieldNames.join(", ")}? Changes will be saved but not published.`;
 
-    if (!await confirmAction(extra, confirmMessage, { title: "Confirm edit", defaultValue: true })) {
-      return createToolResult({ message: "Edit cancelled", id, name: pageName, updatedFields: [] });
-    }
-
-    // Step 3: Delegate to update-document-properties (handles validation + merge internally)
-    const updateResult = await mcpClientManager.callTool("cms", "update-document-properties", {
-      id,
-      properties: values.map(v => ({
-        alias: v.alias,
-        value: v.value,
-        culture: v.culture ?? null,
-        segment: v.segment ?? null,
-      })),
-    });
-    if (updateResult.isError) return createToolResultError(updateResult);
+    const properties = values.map(v => ({
+      alias: v.alias,
+      value: v.value,
+      culture: v.culture ?? null,
+      segment: v.segment ?? null,
+    })) as [(typeof values)[number] & { culture: string | null; segment: string | null }, ...((typeof values)[number] & { culture: string | null; segment: string | null })[]];
+    const updateResult = await chainCms("update-document-properties", { id, properties });
+    if (!updateResult.ok) return updateResult.errorResult;
 
     return createToolResult({
       message: `Updated ${fieldNames.length} field(s) on "${pageName}" (saved, not published)`,
       id,
       name: pageName,
       updatedFields: fieldNames,
+      previewUrl: await fetchPreviewUrl(id),
     });
   },
 };

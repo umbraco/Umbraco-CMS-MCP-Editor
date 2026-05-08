@@ -1,0 +1,13 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`duplicate-page duplicates a page under the same parent 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "message": "Duplicated "_Test Duplicate Source"",
+    "sourceId": "00000000-0000-0000-0000-000000000000",
+    "sourceName": "_Test Duplicate Source",
+  },
+}
+`;

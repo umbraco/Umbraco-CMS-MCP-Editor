@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the content page or media item to look up references for"),
@@ -33,30 +33,37 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   handler: async ({ id, type }) => {
     if (type === "document") {
       const [docResult, refResult] = await Promise.all([
-        mcpClientManager.callTool("cms", "get-document-by-id", { id }),
-        mcpClientManager.callTool("cms", "get-document-by-id-referenced-by", { id }),
+        chainCms("get-document-by-id", { id }),
+        chainCms("get-document-by-id-referenced-by", { id }),
       ]);
 
       let name = "Unknown";
       let url = "";
-      if (!docResult.isError) {
-        const doc = extractChainedResult(docResult);
-        const variant = doc.variants?.[0] ?? {};
-        name = variant.name ?? doc.name ?? "Unknown";
-        url = doc.urls?.[0]?.url ?? "";
+      if (docResult.ok) {
+        const doc = docResult.data;
+        name = doc.variants?.[0]?.name ?? "Unknown";
+        // GetDocumentByIdOutput doesn't include `urls` — runtime field, not in the upstream Zod schema.
+        url = (doc as { urls?: { url?: string }[] }).urls?.[0]?.url ?? "";
       }
 
       const referencedBy: { id: string; name: string; url: string; documentType: string }[] = [];
-      if (!refResult.isError) {
-        const refData = extractChainedResult(refResult);
-        const refs: any[] = refData?.items ?? (Array.isArray(refData) ? refData : []);
-        for (const ref of refs) {
-          referencedBy.push({
-            id: ref.id ?? "",
-            name: ref.name ?? ref.variants?.[0]?.name ?? "Unknown",
-            url: ref.urls?.[0]?.url ?? ref.url ?? "",
-            documentType: ref.documentType?.alias ?? ref.contentType?.alias ?? "",
-          });
+      if (refResult.ok) {
+        for (const ref of refResult.data.items ?? []) {
+          if (ref.$type === "DocumentReferenceResponseModel") {
+            referencedBy.push({
+              id: ref.id,
+              name: ref.variants?.[0]?.name ?? ref.name ?? "(unnamed)",
+              url: (ref as { urls?: { url?: string }[]; url?: string }).urls?.[0]?.url ?? (ref as { url?: string }).url ?? "",
+              documentType: ref.documentType?.alias ?? "",
+            });
+          } else {
+            referencedBy.push({
+              id: ref.id,
+              name: ref.name ?? "(unnamed)",
+              url: "",
+              documentType: "",
+            });
+          }
         }
       }
 
@@ -70,34 +77,40 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     } else {
       const [mediaResult, urlResult, refResult] = await Promise.all([
-        mcpClientManager.callTool("cms", "get-media-by-id", { id }),
-        mcpClientManager.callTool("cms", "get-media-urls", { id: [id] }),
-        mcpClientManager.callTool("cms", "get-media-by-id-referenced-by", { id }),
+        chainCms("get-media-by-id", { id }),
+        chainCms("get-media-urls", { id: [id] }),
+        chainCms("get-media-by-id-referenced-by", { id }),
       ]);
 
       let name = "Unknown";
-      if (!mediaResult.isError) {
-        const media = extractChainedResult(mediaResult);
-        name = media.variants?.[0]?.name ?? media.name ?? "Unknown";
+      if (mediaResult.ok) {
+        name = mediaResult.data.variants?.[0]?.name ?? "Unknown";
       }
 
       let url = "";
-      if (!urlResult.isError) {
-        const urlData = extractChainedResult(urlResult);
-        url = urlData?.[0]?.url ?? urlData?.url ?? "";
+      if (urlResult.ok) {
+        const entry = urlResult.data.items?.find((u) => u.id === id);
+        url = entry?.urlInfos?.[0]?.url ?? "";
       }
 
       const referencedBy: { id: string; name: string; url: string; documentType: string }[] = [];
-      if (!refResult.isError) {
-        const refData = extractChainedResult(refResult);
-        const refs: any[] = refData?.items ?? (Array.isArray(refData) ? refData : []);
-        for (const ref of refs) {
-          referencedBy.push({
-            id: ref.id ?? "",
-            name: ref.name ?? ref.variants?.[0]?.name ?? "Unknown",
-            url: ref.urls?.[0]?.url ?? ref.url ?? "",
-            documentType: ref.documentType?.alias ?? ref.contentType?.alias ?? "",
-          });
+      if (refResult.ok) {
+        for (const ref of refResult.data.items ?? []) {
+          if (ref.$type === "DocumentReferenceResponseModel") {
+            referencedBy.push({
+              id: ref.id,
+              name: ref.variants?.[0]?.name ?? ref.name ?? "(unnamed)",
+              url: (ref as { urls?: { url?: string }[]; url?: string }).urls?.[0]?.url ?? (ref as { url?: string }).url ?? "",
+              documentType: ref.documentType?.alias ?? "",
+            });
+          } else {
+            referencedBy.push({
+              id: ref.id,
+              name: ref.name ?? "(unnamed)",
+              url: "",
+              documentType: "",
+            });
+          }
         }
       }
 

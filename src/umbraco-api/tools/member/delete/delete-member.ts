@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the member to permanently delete"),
@@ -21,23 +22,19 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["delete"],
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   handler: async ({ id }, extra) => {
-    // Step 1: Fetch member details for confirmation
-    const memberResult = await mcpClientManager.callTool("cms", "get-member", { id });
-    if (memberResult.isError) return createToolResultError(memberResult);
-    const member = extractChainedResult(memberResult);
-    const name = member.variants?.[0]?.name ?? member.name ?? "Unknown";
-    const email = member.email ?? "";
+    const memberResult = await chainCms("get-member", { id });
+    if (!memberResult.ok) return memberResult.errorResult;
+    const name = memberResult.data.variants?.[0]?.name ?? "Unknown";
+    const email = memberResult.data.email ?? "";
 
-    // Step 2: Elicit confirmation with strong warning (default: false)
     const confirmMessage = `Permanently delete member "${name}" (${email})? This cannot be undone. The member and all their data will be removed.`;
 
-    if (!await confirmAction(extra, confirmMessage, { title: "Confirm delete member", defaultValue: false })) {
+    if (!await confirmStep(extra, confirmMessage)) {
       return createToolResult({ message: "Delete cancelled", id, name, email });
     }
 
-    // Step 3: Permanently delete the member
-    const deleteResult = await mcpClientManager.callTool("cms", "delete-member", { id });
-    if (deleteResult.isError) return createToolResultError(deleteResult);
+    const deleteResult = await chainCms("delete-member", { id });
+    if (!deleteResult.ok) return deleteResult.errorResult;
 
     return createToolResult({
       message: `Permanently deleted member "${name}" (${email})`,

@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 import {
   validateBulkIds,
   fetchBulkItemDetails,
@@ -24,7 +25,7 @@ const outputSchema = z.object({
     name: z.string(),
     success: z.boolean(),
     previousVersionId: z.string().optional(),
-    error: z.string().optional(),
+    error: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
   })),
   successCount: z.number(),
   failureCount: z.number(),
@@ -33,17 +34,15 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "bulk-set-property",
-  description: "Set the same property value on multiple pages at once (max 10). Call get-page first to verify the property alias exists. Lists all page names and the property change for confirmation. Each result includes a previousVersionId for rollback.",
+  description: "Set the same property value on multiple pages at once (max 10). Call get-page first to verify the property alias exists. For non-string non-block property values (media pickers, content/multi-node pickers, image cropper, slider, color, date, etc.) call get-property-value-template with the editor alias first to see the expected JSON shape. For block-shaped values use bulk-set-block-property (or the per-page block tools — add-blocklist-block / add-blockgrid-block / add-rte-block / edit-block) instead of hand-constructing the JSON here. Lists all page names and the property change for confirmation. Each result includes a previousVersionId for rollback.",
   inputSchema,
   outputSchema,
   slices: ["update"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   handler: async ({ ids, alias, value, culture, segment }, extra) => {
-    // 1. Validate cap
     const validationError = validateBulkIds(ids);
     if (validationError) return createToolResult(validationError as BulkOperationOutput);
 
-    // 2. Fetch details for confirmation + rollback
     const items = await fetchBulkItemDetails(ids);
     if (items.length === 0) {
       return createToolResult({
@@ -55,13 +54,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    // 3. Build confirmation listing every name
     const valuePreview = JSON.stringify(value).substring(0, 100);
     const nameList = items.map(i => `- ${i.name}`).join("\n");
     const message = `Set '${alias}' to '${valuePreview}' on these ${items.length} pages?\n${nameList}`;
 
-    // 4. Confirm
-    if (!await confirmAction(extra, message, { title: "Confirm bulk set property", defaultValue: true })) {
+    if (!await confirmStep(extra, message)) {
       return createToolResult({
         message: "Cancelled",
         results: [],
@@ -71,19 +68,17 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    // 5. Execute sequentially
     const results = await executeBulkSequentially(items, async (item) => {
-      const result = await mcpClientManager.callTool("cms", "update-document-properties", {
+      const result = await chainCms("update-document-properties", {
         id: item.id,
         properties: [{ alias, value, culture: culture ?? null, segment: segment ?? null }],
       });
-      if (result.isError) {
-        return extractChainedResult(result)?.detail ?? "Property update failed";
+      if (!result.ok) {
+        return result.errorResult;
       }
       return null;
     });
 
-    // 6. Return summary
     return createToolResult(buildBulkOutput("Updated", results));
   },
 };

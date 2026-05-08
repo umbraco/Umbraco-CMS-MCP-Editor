@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import { extractTextContent, stripHtml } from "../../helpers/tree-walker.js";
 
 const META_DESC_ALIASES = ["metaDescription", "seoMetaDescription", "description"];
@@ -30,16 +30,16 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["read"],
   annotations: { readOnlyHint: true },
   handler: async ({ id }) => {
-    const result = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (result.isError) return createToolResultError(result);
-    const doc = extractChainedResult(result);
+    const result = await chainCms("get-document-by-id", { id });
+    if (!result.ok) return result.errorResult;
+    const doc = result.data;
 
-    const variant = doc.variants?.[0] ?? {};
-    const values: any[] = doc.values ?? [];
+    const variant = doc.variants?.[0];
+    const values = doc.values ?? [];
 
     const findValue = (aliases: string[]): string => {
       for (const alias of aliases) {
-        const found = values.find((v: any) => v.alias === alias);
+        const found = values.find((v) => v.alias === alias);
         if (found && typeof found.value === "string" && found.value.trim()) {
           return found.value.trim();
         }
@@ -55,16 +55,21 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       ? fullBodyText.split(/\s+/).filter(Boolean).length
       : 0;
 
+    // GetDocumentByIdOutput doesn't include `urls` or documentType.name —
+    // they're present at runtime but not in the upstream Zod schema.
+    const extra = doc as { urls?: { url?: string }[] };
+    const dt = doc.documentType as { name?: string };
+
     return createToolResult({
       id: doc.id,
-      name: variant.name ?? doc.name ?? "Unknown",
-      url: doc.urls?.[0]?.url ?? "",
+      name: variant?.name ?? "Unknown",
+      url: extra.urls?.[0]?.url ?? "",
       hasMetaDescription: metaDescription.length > 0,
       bodyWordCount: wordCount,
       metaDescription,
       bodyContent,
-      documentType: doc.documentType?.name ?? "",
-      lastModified: variant.updateDate ?? doc.updateDate ?? "",
+      documentType: dt?.name ?? "",
+      lastModified: variant?.updateDate ?? "",
     });
   },
 };

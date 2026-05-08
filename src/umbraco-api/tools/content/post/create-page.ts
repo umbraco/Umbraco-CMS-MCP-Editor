@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
+import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   name: z.string().describe("The name of the page to create"),
@@ -18,40 +19,37 @@ const outputSchema = z.object({
   message: z.string(),
   id: z.string(),
   name: z.string(),
+  previewUrl: previewUrlSchema,
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "create-page",
-  description: "Create a new content page as a draft. The page will NOT be published automatically. Call list-document-types first to find a valid documentTypeId. You will be asked to confirm before creating.",
+  description: "Create a new content page as a draft — the page will NOT be published automatically. Call list-document-types first to find a valid documentTypeId. Use this as a starting point: pass `name`, `documentTypeId`, optional `parentId`, and at most a small number of simple initial values (strings, numbers, booleans). For everything else, follow up with the dedicated tools after creation — they're shorter, safer, and avoid the JSON-payload errors that come from cramming a full page into one call: edit-page for property updates, add-blocklist-block / add-blockgrid-block / add-rte-block for block content, edit-block for block-property edits, and get-property-value-template for the value shape of structured non-block editors (media pickers, image cropper, etc.).",
   inputSchema,
   outputSchema,
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-  handler: async ({ name, documentTypeId, parentId, values }, extra) => {
-    const fieldCount = values?.length ?? 0;
-
-    // Resolve parent name for human-readable confirmation
-    let location = "at the root";
-    if (parentId) {
-      const parentResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: parentId });
-      if (!parentResult.isError) {
-        const parent = extractChainedResult(parentResult);
-        const parentName = parent?.variants?.[0]?.name ?? parent?.name ?? parentId;
-        location = `under "${parentName}"`;
-      } else {
-        location = `under parent ${parentId}`;
+  handler: async ({ name, documentTypeId, parentId, values }) => {
+    // CreateDocumentInput requires editorAlias on each value. The LLM only
+    // supplies the property alias, so resolve editorAlias by looking up the
+    // document type's properties → their data types → editorAlias.
+    const editorAliasByPropertyAlias = new Map<string, string>();
+    if (values && values.length > 0) {
+      const docTypeResult = await chainCms("get-document-type-by-id", { id: documentTypeId });
+      if (!docTypeResult.ok) return docTypeResult.errorResult;
+      const dataTypeIds = Array.from(new Set(docTypeResult.data.properties.map(p => p.dataType.id)));
+      const dataTypesResult = await chainCms("get-data-types-by-id-array", { id: dataTypeIds });
+      if (!dataTypesResult.ok) return dataTypesResult.errorResult;
+      const editorAliasByDataTypeId = new Map(
+        dataTypesResult.data.items.map(dt => [dt.id, dt.editorAlias]),
+      );
+      for (const prop of docTypeResult.data.properties) {
+        const editorAlias = editorAliasByDataTypeId.get(prop.dataType.id);
+        if (editorAlias) editorAliasByPropertyAlias.set(prop.alias, editorAlias);
       }
     }
 
-    // Elicit confirmation
-    const confirmMessage = `Create page "${name}" ${location} with ${fieldCount} field(s)? The page will be saved as a draft (not published).`;
-
-    if (!await confirmAction(extra, confirmMessage, { title: "Confirm create", defaultValue: true })) {
-      return createToolResult({ message: "Create cancelled", id: "", name });
-    }
-
-    // Execute create via dev MCP
-    const createArgs: Record<string, unknown> = {
+    const createResult = await chainCms("create-document", {
       documentTypeId,
       name,
       values: (values ?? []).map(v => ({
@@ -59,20 +57,18 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         value: v.value,
         culture: v.culture ?? null,
         segment: v.segment ?? null,
+        editorAlias: editorAliasByPropertyAlias.get(v.alias) ?? "",
       })),
-    };
-    if (parentId) createArgs.parentId = parentId;
-
-    const createResult = await mcpClientManager.callTool("cms", "create-document", createArgs);
-    if (createResult.isError) return createToolResultError(createResult);
-
-    const created = extractChainedResult(createResult);
-    const createdId = created?.id ?? "";
+      ...(parentId ? { parentId } : {}),
+    });
+    if (!createResult.ok) return createResult.errorResult;
+    const createdId = createResult.data.id;
 
     return createToolResult({
       message: `Created draft page "${name}"`,
       id: createdId,
       name,
+      previewUrl: createdId ? await fetchPreviewUrl(createdId) : null,
     });
   },
 };

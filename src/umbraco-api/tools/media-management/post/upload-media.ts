@@ -1,12 +1,13 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { readFile } from "node:fs/promises";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   filePath: z.string().describe("Local file path of the file to upload"),
   name: z.string().describe("Display name for the media item"),
   parentId: z.string().uuid().optional().describe("ID of the target folder (omit to upload to the root)"),
-  mediaTypeId: z.string().uuid().optional().describe("ID of the media type to use. Call list-media-types first to find a valid ID."),
+  mediaTypeName: z.string().default("Image").describe("Media type name (e.g. 'Image', 'Article', 'Audio', 'Video', 'Vector Graphics', 'File'). Defaults to 'Image' — omit unless uploading a non-image asset."),
 };
 
 const outputSchema = z.object({
@@ -17,40 +18,42 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "upload-media",
-  description: "Upload a file from a local path to the media library. Optionally specify a target folder. Call list-media-types first to find a valid media type ID. You will be asked to confirm before uploading.",
+  description: "Upload a file from a local path to the media library — the canonical way to add image, video, or document assets. Use create-media-folder first if you need to organise the upload into a specific folder, then pass that folder's id as parentId. Defaults to media type 'Image'; pass mediaTypeName for other types (Video, Audio, File, etc.).",
   inputSchema,
   outputSchema,
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-  handler: async ({ filePath, name, parentId, mediaTypeId }, extra) => {
-    // Step 1: Resolve location for confirmation message
+  handler: async ({ filePath, name, parentId, mediaTypeName }) => {
+    let fileAsBase64: string;
+    try {
+      const buffer = await readFile(filePath);
+      fileAsBase64 = buffer.toString("base64");
+    } catch (err) {
+      return createToolResultError({
+        detail: `Failed to read file at "${filePath}": ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+
+    const createResult = await chainCms("create-media", {
+      sourceType: "base64",
+      name,
+      mediaTypeName,
+      fileAsBase64,
+      ...(parentId ? { parentId } : {}),
+    });
+    if (!createResult.ok) return createResult.errorResult;
+
     let location = "the root of the media library";
     if (parentId) {
-      const folderResult = await mcpClientManager.callTool("cms", "get-media-by-id", { id: parentId });
-      if (folderResult.isError) return createToolResultError(folderResult);
-      const folder = extractChainedResult(folderResult);
-      const folderName = folder.name ?? "Unknown";
-      location = `"${folderName}"`;
+      const folderResult = await chainCms("get-media-by-id", { id: parentId });
+      if (folderResult.ok) {
+        location = `"${folderResult.data.variants?.[0]?.name ?? "Unknown"}"`;
+      }
     }
-
-    // Step 2: Elicit confirmation
-    if (!await confirmAction(extra, `Upload "${name}" to ${location}?`, { title: "Confirm upload" })) {
-      return createToolResult({ message: "Upload cancelled", id: "", name });
-    }
-
-    // Step 3: Delegate to CMS
-    const createResult = await mcpClientManager.callTool("cms", "create-media", {
-      name,
-      parent: parentId ? { id: parentId } : null,
-      mediaType: mediaTypeId ? { id: mediaTypeId } : undefined,
-      file: filePath,
-    });
-    if (createResult.isError) return createToolResultError(createResult);
-    const created = extractChainedResult(createResult);
 
     return createToolResult({
       message: `Uploaded "${name}" to ${location}`,
-      id: created.id ?? "",
+      id: createResult.data.id,
       name,
     });
   },

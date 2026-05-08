@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, extractChainedResult, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 import { walkContentTree } from "../../helpers/tree-walker.js";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   parentId: z.string().uuid().optional().describe("Scope to a subtree by parent page ID. Omit to scan root-level pages."),
@@ -44,8 +44,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   annotations: { readOnlyHint: true },
   handler: async ({ parentId, take, skip }) => {
     // Fetch all configured languages
-    const langResult = await mcpClientManager.callTool("cms", "get-language", { cursor: encodeCursor({ s: 0, t: 100 }) });
-    const langData = langResult.isError ? null : extractChainedResult(langResult);
+    const langResult = await chainCms("get-language", { cursor: encodeCursor({ s: 0, t: 100 }) });
+    const langData = langResult.ok ? langResult.data : null;
     const languages: { isoCode: string; name: string }[] = (langData?.items ?? []).map((l: any) => ({
       isoCode: l.isoCode ?? l.languageIsoCode ?? "",
       name: l.name ?? l.cultureName ?? l.isoCode ?? "",

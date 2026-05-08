@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("UUID of the dictionary item to retrieve"),
@@ -26,16 +26,19 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["read"],
   annotations: { readOnlyHint: true },
   handler: async ({ id }) => {
-    const result = await mcpClientManager.callTool("cms", "get-dictionary", { id });
+    const result = await chainCms("get-dictionary", { id });
 
-    if (result.isError) return createToolResultError(result);
-    const data = extractChainedResult(result);
+    if (!result.ok) return result.errorResult;
+    const data = result.data;
 
-    const translations = (data.translations ?? []).map((t: any) => ({
-      isoCode: t.isoCode ?? t.language?.isoCode ?? "",
-      languageName: t.language?.name ?? t.languageName ?? t.isoCode ?? "",
-      translation: t.translation ?? "",
-    }));
+    const translations = (data.translations ?? []).map((t) => {
+      const extra = t as { language?: { name?: string; isoCode?: string }; languageName?: string };
+      return {
+        isoCode: t.isoCode ?? extra.language?.isoCode ?? "",
+        languageName: extra.language?.name ?? extra.languageName ?? t.isoCode ?? "",
+        translation: t.translation ?? "",
+      };
+    });
 
     return createToolResult({
       id: data.id,

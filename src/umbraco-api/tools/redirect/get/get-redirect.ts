@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the redirect to retrieve"),
@@ -23,9 +23,21 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["read"],
   annotations: { readOnlyHint: true },
   handler: async ({ id }) => {
-    const result = await mcpClientManager.callTool("cms", "get-redirect-by-id", { id });
-    if (result.isError) return createToolResultError(result);
-    const data = extractChainedResult(result);
+    const result = await chainCms("get-redirect-by-id", { id });
+    if (!result.ok) return result.errorResult;
+    // The dev MCP types this as { items: [...] } but the runtime response is the
+    // single redirect at the top level. Narrow at this single boundary.
+    const data = result.data as {
+      id?: string;
+      originalUrl?: string;
+      url?: string;
+      destinationUrl?: string;
+      destinationPath?: string;
+      destinationType?: string;
+      isAutomatic?: boolean;
+      createDate?: string;
+      createdAt?: string;
+    };
 
     return createToolResult({
       id: data.id ?? id,

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import { buildChainedCursor } from "../../helpers/tree-walker.js";
 
 const inputSchema = {
@@ -30,35 +30,34 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["search"],
   annotations: { readOnlyHint: true },
   handler: async ({ query, parentId, take, skip }) => {
-    const searchResult = await mcpClientManager.callTool("cms", "get-collection-media", {
+    const searchResult = await chainCms("get-collection-media", {
       id: parentId,
       filter: query,
       cursor: buildChainedCursor(skip, take),
+      orderBy: "name",
     });
-    if (searchResult.isError) return createToolResultError(searchResult);
-    const searchData = extractChainedResult(searchResult);
+    if (!searchResult.ok) return searchResult.errorResult;
 
-    const items: any[] = searchData.items ?? [];
-    const total: number = searchData.total ?? 0;
+    const items = searchResult.data.items ?? [];
+    const total = searchResult.data.total ?? 0;
 
     if (items.length === 0) {
       return createToolResult({ items: [], total });
     }
 
-    const itemIds: string[] = items.map((item: any) => item.id);
+    const itemIds = items.map((item) => item.id);
 
-    const urlResult = await mcpClientManager.callTool("cms", "get-media-urls", { id: itemIds });
-    const urlData = urlResult.isError ? [] : extractChainedResult(urlResult);
-    const urlItems: any[] = Array.isArray(urlData) ? urlData : (urlData?.items ?? urlData ?? []);
+    const urlResult = await chainCms("get-media-urls", { id: itemIds });
+    const urlItems = urlResult.ok ? (urlResult.data.items ?? []) : [];
 
     return createToolResult({
-      items: items.map((item: any) => {
-        const urlEntry = urlItems.find?.((u: any) => u.id === item.id);
-        const url = urlEntry?.urls?.[0] ?? "";
+      items: items.map((item) => {
+        const urlEntry = urlItems.find((u) => u.id === item.id);
+        const url = urlEntry?.urlInfos?.[0]?.url ?? "";
         return {
           id: item.id,
-          name: item.variants?.[0]?.name ?? item.name ?? "Unknown",
-          mediaType: item.mediaType?.alias ?? item.mediaType ?? "",
+          name: item.variants?.[0]?.name ?? "Unknown",
+          mediaType: item.mediaType?.alias ?? "",
           url,
         };
       }),

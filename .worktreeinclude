@@ -1,0 +1,10 @@
+# Files and directories copied from the main repo into new worktrees.
+# One entry per line. Lines starting with # and blank lines are ignored.
+# Files are copied with cp; directories are rsynced with standard
+# demo-site excludes.
+
+# Environment config (API credentials for MCP tools)
+.env
+
+# Working Umbraco instance (gitignored, so must be copied explicitly)
+demo-site

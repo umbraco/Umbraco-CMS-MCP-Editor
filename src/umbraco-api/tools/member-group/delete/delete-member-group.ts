@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the member group to delete"),
@@ -21,21 +22,21 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   handler: async ({ id }, extra) => {
     // Step 1: Fetch group details for confirmation
-    const groupResult = await mcpClientManager.callTool("cms", "get-member-group", { id });
-    if (groupResult.isError) return createToolResultError(groupResult);
-    const group = extractChainedResult(groupResult);
+    const groupResult = await chainCms("get-member-group", { id });
+    if (!groupResult.ok) return groupResult.errorResult;
+    const group = groupResult.data;
     const name = group.name ?? "Unknown";
 
     // Step 2: Elicit confirmation (default: false)
     const confirmMessage = `Delete member group "${name}"? Members in this group will lose this group assignment.`;
 
-    if (!await confirmAction(extra, confirmMessage, { title: "Confirm delete member group", defaultValue: false })) {
+    if (!await confirmStep(extra, confirmMessage)) {
       return createToolResult({ message: "Delete cancelled", id, name });
     }
 
     // Step 3: Delete the member group
-    const deleteResult = await mcpClientManager.callTool("cms", "delete-member-group", { id });
-    if (deleteResult.isError) return createToolResultError(deleteResult);
+    const deleteResult = await chainCms("delete-member-group", { id });
+    if (!deleteResult.ok) return deleteResult.errorResult;
 
     return createToolResult({
       message: `Deleted member group "${name}"`,

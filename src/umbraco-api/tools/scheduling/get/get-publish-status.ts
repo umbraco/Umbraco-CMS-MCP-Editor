@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
+import { buildPublishStatus, publishStatusVariantSchema } from "../../helpers/publish-status.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to check publish status for"),
@@ -11,16 +12,7 @@ const outputSchema = z.object({
   name: z.string(),
   isPublished: z.boolean(),
   state: z.string(),
-  variants: z.array(
-    z.object({
-      name: z.string(),
-      culture: z.string().nullable(),
-      state: z.string(),
-      publishDate: z.string().nullable(),
-      scheduledPublishDate: z.string().nullable(),
-      scheduledUnpublishDate: z.string().nullable(),
-    })
-  ),
+  variants: z.array(publishStatusVariantSchema),
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
@@ -31,43 +23,21 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["read"],
   annotations: { readOnlyHint: true },
   handler: async ({ id }) => {
-    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (docResult.isError) return createToolResultError(docResult);
-    const doc = extractChainedResult(docResult);
-    const name = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
+    const docResult = await chainCms("get-document-by-id", { id });
+    if (!docResult.ok) return docResult.errorResult;
+    const doc = docResult.data;
+    const name = doc.variants?.[0]?.name ?? "Unknown";
 
-    const publishResult = await mcpClientManager.callTool("cms", "get-document-publish", { id });
-
-    if (publishResult.isError) {
-      // 404 means the page has never been published — not an error
-      return createToolResult({
-        id,
-        name,
-        isPublished: false,
-        state: "NotPublished",
-        variants: [],
-      });
-    }
-
-    const publishData = extractChainedResult(publishResult);
-    const variants = (publishData?.variants ?? []).map((v: any) => ({
-      name: v.name ?? "",
-      culture: v.culture ?? null,
-      state: v.state ?? "Unknown",
-      publishDate: v.publishDate ?? null,
-      scheduledPublishDate: v.scheduledPublishDate ?? null,
-      scheduledUnpublishDate: v.scheduledUnpublishDate ?? null,
-    }));
-
-    const isPublished = variants.some((v: any) => v.state === "Published");
-    const overallState = publishData?.state ?? (isPublished ? "Published" : "NotPublished");
+    // The draft document is the source of truth for both current state and
+    // any pending schedule — get-document-publish 404s on unpublished pages
+    // (losing schedule info), and even when it succeeds it mirrors the same
+    // schedule fields, so we read everything from the draft.
+    const status = buildPublishStatus(doc);
 
     return createToolResult({
       id,
       name,
-      isPublished,
-      state: overallState,
-      variants,
+      ...status,
     });
   },
 };

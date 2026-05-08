@@ -1,0 +1,29 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`inspect-blocks should return block structure for a page 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "blockProperties": [
+      {
+        "blocks": [
+          {
+            "contentKey": "11111111-1111-4111-8111-111111111111",
+            "contentTypeKey": "00000000-0000-0000-0000-000000000000",
+            "properties": [
+              {
+                "alias": "caption",
+                "value": "_audit fixture block value",
+              },
+            ],
+          },
+        ],
+        "editorAlias": "Umbraco.BlockList",
+        "propertyAlias": "contentRows",
+      },
+    ],
+    "id": "00000000-0000-0000-0000-000000000000",
+    "name": "_Test inspect-blocks deterministic",
+  },
+}
+`;

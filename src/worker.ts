@@ -25,6 +25,7 @@ import {
   type AuthProps,
   type ChainedServerConsentConfig,
 } from "@umbraco-cms/mcp-hosted";
+import { umbracoCloudSiteRouting } from "@umbraco-cms/mcp-hosted/cloud";
 
 // Import tool collections and registries (shared with stdio mode via collections.ts)
 import { collections, allModes, allModeNames, allSliceNames } from "./collections.js";
@@ -53,8 +54,21 @@ const cmsChainedServer: ChainedServerConsentConfig = {
   allSliceNames: cmsSliceNames,
 };
 
+// Umbraco Cloud multi-tenancy.
+// When enabled, the MCP endpoint becomes /at/{alias}/ (where {alias} is the
+// Cloud project alias) and per-request URLs resolve to
+// https://{alias}.{region}.umbraco.io. Region defaults to
+// env.UMBRACO_CLOUD_REGION or "euwest01".
+// Each Cloud project must register an OAuth client with the id below.
+// Leave false for single-tenant deployments that use UMBRACO_BASE_URL.
+const ENABLE_UMBRACO_CLOUD_ROUTING = false;
+
+const cloudSiteRouting = ENABLE_UMBRACO_CLOUD_ROUTING
+  ? umbracoCloudSiteRouting({ oauthClientId: "umbraco-cms-editor-mcp-hosted" })
+  : undefined;
+
 const options = {
-  name: "umbraco-editor-mcp",
+  name: "umbraco-cms-editor-mcp-hosted",
   version: "1.0.0",
   collections,
   modeRegistry: allModes,
@@ -63,6 +77,7 @@ const options = {
   enableConsentToolSelection: true,
   authOptions: { showReauthButton: true },
   chainedServers: [cmsChainedServer],
+  siteRouting: cloudSiteRouting,
 };
 
 const serverOptions = getServerOptions(options);
@@ -106,6 +121,7 @@ export class UmbracoMcpAgent extends McpAgent<HostedMcpEnv, unknown, AuthProps> 
           "Umb.Document.Create", "Umb.Document.Read", "Umb.Document.Update",
           "Umb.Document.Delete", "Umb.Document.Publish", "Umb.Document.Unpublish",
           "Umb.Document.Move", "Umb.Document.Sort", "Umb.Document.Duplicate",
+          "Umb.Document.PublicAccess",
         ],
         allowedSections: [
           "Umb.Section.Content", "Umb.Section.Media", "Umb.Section.Settings",

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import { buildChainedCursor } from "../../helpers/tree-walker.js";
 
 const inputSchema = {
@@ -30,21 +30,22 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["list"],
   annotations: { readOnlyHint: true },
   handler: async ({ take, skip, filter }) => {
-    const result = await mcpClientManager.callTool("cms", "get-all-redirects", { cursor: buildChainedCursor(skip, take), filter });
-    if (result.isError) return createToolResultError(result);
-    const data = extractChainedResult(result);
+    const result = await chainCms("get-all-redirects", { cursor: buildChainedCursor(skip, take), filter });
+    if (!result.ok) return result.errorResult;
 
     return createToolResult({
-      items: (data.items ?? []).map((item: any) => ({
-        id: item.id,
-        originalUrl: item.originalUrl ?? item.url ?? "",
-        destinationUrl: item.destinationUrl ?? item.destinationPath ?? "",
-        destinationType: (["content", "media"].includes(item.destinationType?.toLowerCase?.())
-          ? item.destinationType.toLowerCase()
-          : "other") as "content" | "media" | "other",
-        isAutomatic: item.isAutomatic ?? false,
-      })),
-      total: data.total ?? 0,
+      items: (result.data.items ?? []).map((item) => {
+        const extra = item as { url?: string; destinationPath?: string; destinationType?: string; isAutomatic?: boolean };
+        const dt = extra.destinationType?.toLowerCase?.();
+        return {
+          id: item.id,
+          originalUrl: item.originalUrl ?? extra.url ?? "",
+          destinationUrl: item.destinationUrl ?? extra.destinationPath ?? "",
+          destinationType: (dt === "content" || dt === "media" ? dt : "other") as "content" | "media" | "other",
+          isAutomatic: extra.isAutomatic ?? false,
+        };
+      }),
+      total: result.data.total ?? 0,
     });
   },
 };

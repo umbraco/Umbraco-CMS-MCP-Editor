@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import { buildChainedCursor } from "../../helpers/tree-walker.js";
 
 const inputSchema = {
@@ -29,38 +29,47 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["read"],
   annotations: { readOnlyHint: true },
   handler: async ({ groupName, take, skip }) => {
-    // Attempt group-filtered search. The CMS find-member API may support memberGroupName filtering.
-    // If not, we fall back to fetching all members and filtering client-side.
-    const result = await mcpClientManager.callTool("cms", "find-member", {
+    // Step 1: Resolve the group name to an id.
+    // m.groups stores group ids (UUIDs), not names — filtering by name never matches.
+    const groupsResult = await chainCms("get-all-member-groups", { cursor: undefined });
+    if (!groupsResult.ok) return groupsResult.errorResult;
+    const groupMatch = (groupsResult.data.items ?? []).find(
+      (g: any) => g.name?.toLowerCase() === groupName.toLowerCase(),
+    );
+    if (!groupMatch) {
+      return createToolResultError({
+        status: 404,
+        title: "Member group not found",
+        detail: `No member group named "${groupName}". Use list-member-groups to see existing group names.`,
+      });
+    }
+    const groupId: string = groupMatch.id;
+
+    // Step 2: Fetch members, using memberGroupName hint if the API supports it.
+    const result = await chainCms("find-member", {
       memberGroupName: groupName,
       cursor: buildChainedCursor(skip, take),
+      orderBy: "username",
     });
-    if (result.isError) return createToolResultError(result);
-    const data = extractChainedResult(result);
-    const items: any[] = data.items ?? [];
+    if (!result.ok) return result.errorResult;
+    const items: any[] = result.data.items ?? [];
 
-    // If the API returned an unfiltered result set (doesn't support memberGroupName),
-    // do a client-side filter on the member's groups array.
+    // Step 3: Client-side filter by group id (m.groups is an array of UUIDs).
     const filtered = items.filter((m: any) => {
       const groups: string[] = m.groups ?? [];
-      return groups.some((g) => g.toLowerCase() === groupName.toLowerCase());
+      return groups.includes(groupId);
     });
-
-    // If the API natively filtered (filtered length same as items), use API total.
-    // If we had to filter client-side, the total is approximate from what was returned.
-    const isClientFiltered = filtered.length < items.length;
-    const total = isClientFiltered ? filtered.length : (data.total ?? items.length);
 
     return createToolResult({
       groupName,
       items: filtered.map((m: any) => ({
         id: m.id ?? "",
-        name: m.variants?.[0]?.name ?? m.name ?? "Unknown",
+        name: m.variants?.[0]?.name ?? "Unknown",
         email: m.email ?? "",
         isApproved: m.isApproved ?? false,
         lastLoginDate: m.lastLoginDate ?? null,
       })),
-      total,
+      total: filtered.length,
     });
   },
 };

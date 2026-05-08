@@ -1,0 +1,74 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`create-blueprint should create a blueprint from a page 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "documentType": {
+      "alias": undefined,
+      "id": "00000000-0000-0000-0000-000000000000",
+      "name": undefined,
+    },
+    "id": "00000000-0000-0000-0000-000000000000",
+    "name": "_Test Create Blueprint",
+    "values": [
+      {
+        "alias": "socialIconLinks",
+        "culture": null,
+        "editorAlias": "Umbraco.BlockList",
+        "segment": null,
+        "value": "[NORMALIZED_VALUE]",
+      },
+      {
+        "alias": "title",
+        "culture": null,
+        "editorAlias": "Umbraco.TextBox",
+        "segment": null,
+        "value": "[NORMALIZED_VALUE]",
+      },
+      {
+        "alias": "subtitle",
+        "culture": null,
+        "editorAlias": "Umbraco.TextBox",
+        "segment": null,
+        "value": "[NORMALIZED_VALUE]",
+      },
+      {
+        "alias": "contentRows",
+        "culture": null,
+        "editorAlias": "Umbraco.BlockList",
+        "segment": null,
+        "value": "[NORMALIZED_VALUE]",
+      },
+      {
+        "alias": "mainImage",
+        "culture": null,
+        "editorAlias": "Umbraco.MediaPicker3",
+        "segment": null,
+        "value": "[NORMALIZED_VALUE]",
+      },
+      {
+        "alias": "isIndexable",
+        "culture": null,
+        "editorAlias": "Umbraco.TrueFalse",
+        "segment": null,
+        "value": "[NORMALIZED_VALUE]",
+      },
+      {
+        "alias": "isFollowable",
+        "culture": null,
+        "editorAlias": "Umbraco.TrueFalse",
+        "segment": null,
+        "value": "[NORMALIZED_VALUE]",
+      },
+    ],
+    "variants": [
+      {
+        "culture": null,
+        "name": "_Test Create Blueprint",
+        "segment": null,
+      },
+    ],
+  },
+}
+`;

@@ -1,0 +1,18 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`update-dictionary should update translations for a dictionary item 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "name": "_Test Update Dictionary",
+    "translations": [
+      {
+        "isoCode": "en-US",
+        "languageName": "en-US",
+        "translation": "Updated value",
+      },
+    ],
+  },
+}
+`;

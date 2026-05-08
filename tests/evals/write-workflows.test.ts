@@ -24,7 +24,14 @@ const allTools = [
   "create-page",
   "edit-page",
   "edit-block",
+  "add-blocklist-block",
+  "add-blockgrid-block",
+  "add-rte-block",
+  "get-property-value-template",
+  "list-page-templates",
+  "set-page-template",
   "delete-page",
+  "delete-block",
   "restore-page",
   // Publishing
   "publish-page",
@@ -32,6 +39,7 @@ const allTools = [
   // Versioning
   "list-versions",
   "rollback-page",
+  "get-page-change-history",
   // Media
   "search-media",
   "list-media-children",
@@ -43,6 +51,11 @@ const allTools = [
   "delete-media",
   "restore-media",
   "bulk-move-media",
+  "get-media-change-history",
+  // Recycle Bin
+  "list-recycle-bin",
+  "permanent-delete-recycle-bin-item",
+  "empty-recycle-bin",
   // Blueprints
   "list-blueprints",
   "get-blueprint",
@@ -69,23 +82,17 @@ const allTools = [
   // Content Health
   "audit-page-seo",
   "audit-page-content",
-  "report-empty-fields",
-  "report-short-content",
-  "report-media-missing-alt",
-  // Content Reporting
-  "report-stale-content",
-  "report-unpublished",
-  "report-recently-changed",
-  "report-content-by-type",
-  "report-translation-coverage",
+  // DISABLED (tree walk, scanLimit=100): "report-empty-fields", "report-short-content", "report-media-missing-alt"
+  // Content Reporting — DISABLED at collection level (tree walk, scanLimit=100–500):
+  // "report-stale-content", "report-unpublished", "report-recently-changed",
+  // "report-content-by-type", "report-translation-coverage"
   // Site Structure
   "report-site-tree-summary",
   "report-deep-pages",
-  // Media Health
-  "report-large-media",
+  // Media Health — DISABLED at collection level (tree walk, scanLimit=100): "report-large-media"
   // Relationships
   "report-content-references",
-  "report-orphan-pages",
+  // DISABLED (tree walk, scanLimit=100): "report-orphan-pages"
   "report-outbound-links",
   // Bulk Operations
   "bulk-publish",
@@ -109,9 +116,8 @@ const allTools = [
   "report-member-count",
   "report-members-by-group",
   "report-member-activity",
-  // Scheduling
+  // Scheduling — DISABLED (tree walk, scanLimit=100): "list-scheduled-content"
   "get-publish-status",
-  "list-scheduled-content",
   "schedule-publish",
   "cancel-schedule",
   // Redirects
@@ -119,6 +125,13 @@ const allTools = [
   "get-redirect",
   "delete-redirect",
   "get-redirect-status",
+  // Public Access
+  "get-public-access",
+  "set-public-access",
+  "remove-public-access",
+  // Notifications (hosted-only — exposed in evals for coverage)
+  "get-content-notifications",
+  "set-content-notifications",
 ];
 
 describe("Write Workflows", () => {
@@ -148,7 +161,7 @@ describe("Write Workflows", () => {
     "editor asks to update content on a page",
     runScenarioTest({
       prompt:
-        "Find the homepage and use edit-page to set its heroHeader field to 'Explore Our World'. Always make the edit even if the value appears unchanged.",
+        "Find the homepage and use edit-page to set its title field to 'Explore Our World'. Always make the edit even if the value appears unchanged.",
       tools: [
         "search-content",
         "get-page",
@@ -184,7 +197,7 @@ describe("Write Workflows", () => {
     "editor asks to revert a page to a previous version",
     runScenarioTest({
       prompt:
-        "The homepage was changed by mistake. Can you roll it back to the previous version?",
+        "The homepage was changed by mistake. Use list-versions to fetch its version history, pick the most recent previously-published version (the second entry — the first is the current draft), and roll back to it. Don't ask for clarification — just proceed.",
       tools: [
         "search-content",
         "get-page",
@@ -219,6 +232,66 @@ describe("Write Workflows", () => {
   );
 
   it(
+    "editor asks to add a new block under an existing one",
+    runScenarioTest({
+      prompt:
+        "Add a new block of the same type to the end of the contentRows property on the homepage. Use inspect-blocks to find the property and a sample contentTypeKey on the homepage, then call add-blocklist-block to append the new block. Seed the new block with values matching the existing block's property types — copy the existing values verbatim if you're unsure. Do not pass a string for non-string fields.",
+      tools: [
+        "search-content",
+        "get-page",
+        "list-children",
+        "inspect-blocks",
+        "add-blocklist-block",
+        "add-blockgrid-block",
+        "add-rte-block",
+        "get-property-value-template",
+      ],
+      requiredTools: ["inspect-blocks", "add-blocklist-block"],
+      successPattern: /added|block|saved|new/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "editor asks to remove a block from a page",
+    runScenarioTest({
+      prompt:
+        "Remove a block from the contentRows property on the homepage. Use inspect-blocks to find the property and pick any block's contentKey, then call delete-block to remove it.",
+      tools: [
+        "search-content",
+        "get-page",
+        "list-children",
+        "inspect-blocks",
+        "delete-block",
+      ],
+      requiredTools: ["inspect-blocks", "delete-block"],
+      successPattern: /remove|deleted|gone|saved/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "editor asks to apply a page's template explicitly",
+    runScenarioTest({
+      prompt:
+        "Find the homepage, use list-page-templates to discover which template it allows, and use set-page-template to explicitly apply that template (the default one) — useful when restoring after a template was cleared. Always go through with the change.",
+      tools: [
+        "search-content",
+        "get-page",
+        "list-children",
+        "list-page-templates",
+        "set-page-template",
+      ],
+      requiredTools: ["list-page-templates", "set-page-template"],
+      successPattern: /template|applied|saved|set/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
     "full tool set: multi-step edit and publish",
     runScenarioTest({
       prompt:
@@ -227,6 +300,45 @@ describe("Write Workflows", () => {
       requiredTools: ["inspect-blocks", "edit-block", "publish-page"],
       successPattern: /publish|updated|block|live/i,
       verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "manage content notification subscriptions",
+    runScenarioTest({
+      prompt:
+        "Find the homepage with search-content, then use get-content-notifications to see the current subscriptions, then use set-content-notifications to subscribe to every available action on that page. Finally confirm with get-content-notifications that the subscriptions were saved.",
+      tools: [
+        "search-content",
+        "get-content-notifications",
+        "set-content-notifications",
+      ],
+      requiredTools: [
+        "get-content-notifications",
+        "set-content-notifications",
+      ],
+      successPattern: /subscrib|notific|saved|confirm|action/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "recycle bin: list and cancel empty when confirmation declined",
+    runScenarioTest({
+      prompt:
+        "First call list-recycle-bin with type 'content' to see what's in the content recycle bin. Then try to empty-recycle-bin for type 'content'. When the elicitation asks you to confirm, decline it. Finally, state whether the bin was emptied or not.",
+      tools: allTools,
+      requiredTools: ["list-recycle-bin", "empty-recycle-bin"],
+      successPattern: /cancel|declin|not empt|still|aborted|empty/i,
+      verbose: true,
+      options: {
+        onElicitation: async () => ({
+          action: "decline",
+          content: {},
+        }),
+      },
     }),
     timeout
   );

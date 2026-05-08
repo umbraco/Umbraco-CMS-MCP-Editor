@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the media item to delete"),
@@ -20,20 +21,16 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["delete"],
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   handler: async ({ id }, extra) => {
-    // Step 1: Fetch item name for confirmation
-    const itemResult = await mcpClientManager.callTool("cms", "get-media-by-id", { id });
-    if (itemResult.isError) return createToolResultError(itemResult);
-    const item = extractChainedResult(itemResult);
-    const itemName = item.name ?? "Unknown";
+    const itemResult = await chainCms("get-media-by-id", { id });
+    if (!itemResult.ok) return itemResult.errorResult;
+    const itemName = itemResult.data.variants?.[0]?.name ?? "Unknown";
 
-    // Step 2: Elicit confirmation (default: false for destructive action)
-    if (!await confirmAction(extra, `Delete "${itemName}"? It will be moved to the recycle bin.`, { title: "Confirm delete", defaultValue: false })) {
+    if (!await confirmStep(extra, `Delete "${itemName}"? It will be moved to the recycle bin.`)) {
       return createToolResult({ message: "Delete cancelled", id, name: itemName });
     }
 
-    // Step 3: Move to recycle bin
-    const deleteResult = await mcpClientManager.callTool("cms", "move-media-to-recycle-bin", { id });
-    if (deleteResult.isError) return createToolResultError(deleteResult);
+    const deleteResult = await chainCms("move-media-to-recycle-bin", { id });
+    if (!deleteResult.ok) return deleteResult.errorResult;
 
     return createToolResult({
       message: `Moved "${itemName}" to the recycle bin`,

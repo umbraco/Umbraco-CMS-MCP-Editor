@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the media item or folder to move"),
@@ -21,31 +22,26 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["move"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   handler: async ({ id, targetParentId }, extra) => {
-    // Step 1: Fetch item and target names for confirmation
     const [itemResult, targetResult] = await Promise.all([
-      mcpClientManager.callTool("cms", "get-media-by-id", { id }),
-      mcpClientManager.callTool("cms", "get-media-by-id", { id: targetParentId }),
+      chainCms("get-media-by-id", { id }),
+      chainCms("get-media-by-id", { id: targetParentId }),
     ]);
 
-    if (itemResult.isError) return createToolResultError(itemResult);
-    if (targetResult.isError) return createToolResultError(targetResult);
+    if (!itemResult.ok) return itemResult.errorResult;
+    if (!targetResult.ok) return targetResult.errorResult;
 
-    const item = extractChainedResult(itemResult);
-    const target = extractChainedResult(targetResult);
-    const itemName = item.name ?? "Unknown";
-    const targetName = target.name ?? "Unknown";
+    const itemName = itemResult.data.variants?.[0]?.name ?? "Unknown";
+    const targetName = targetResult.data.variants?.[0]?.name ?? "Unknown";
 
-    // Step 2: Elicit confirmation
-    if (!await confirmAction(extra, `Move "${itemName}" to "${targetName}"?`, { title: "Confirm move" })) {
+    if (!await confirmStep(extra, `Move "${itemName}" to "${targetName}"?`)) {
       return createToolResult({ message: "Move cancelled", id, name: itemName });
     }
 
-    // Step 3: Delegate to CMS
-    const moveResult = await mcpClientManager.callTool("cms", "move-media", {
+    const moveResult = await chainCms("move-media", {
       id,
-      target: { id: targetParentId },
+      data: { target: { id: targetParentId } },
     });
-    if (moveResult.isError) return createToolResultError(moveResult);
+    if (!moveResult.ok) return moveResult.errorResult;
 
     return createToolResult({
       message: `Moved "${itemName}" to "${targetName}"`,

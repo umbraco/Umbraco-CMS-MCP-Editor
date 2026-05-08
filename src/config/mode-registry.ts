@@ -57,20 +57,14 @@ export const toolModes: ToolModeDefinition[] = [
   {
     name: 'content-health',
     displayName: 'Content Health',
-    description: 'Content auditing, SEO analysis, and content reporting',
-    collections: ['content-health', 'content-reporting']
+    description: 'Per-page content auditing and SEO analysis',
+    collections: ['content-health']
   },
   {
     name: 'site-structure',
     displayName: 'Site Structure',
     description: 'Site architecture analysis and structure reporting',
     collections: ['site-structure']
-  },
-  {
-    name: 'media-health',
-    displayName: 'Media Health',
-    description: 'Media library health and usage analysis',
-    collections: ['media-health']
   },
   {
     name: 'bulk-operations',
@@ -101,6 +95,24 @@ export const toolModes: ToolModeDefinition[] = [
     displayName: 'Content Relationships',
     description: 'View inbound/outbound references, relationship mapping, and external link inventory',
     collections: ['relationships']
+  },
+  {
+    name: 'public-access',
+    displayName: 'Public Access',
+    description: 'Restrict content pages to members of specific groups (member-gated content)',
+    collections: ['public-access']
+  },
+  {
+    name: 'notifications',
+    displayName: 'Content Notifications',
+    description: 'Manage per-user email notification subscriptions on content pages (hosted-only)',
+    collections: ['notifications']
+  },
+  {
+    name: 'recycle-bin',
+    displayName: 'Recycle Bin',
+    description: 'List the content or media recycle bin and permanently delete items or empty the bin (irreversible)',
+    collections: ['recycle-bin']
   },
 ];
 

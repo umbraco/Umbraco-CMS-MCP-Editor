@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
+import { memberTypeToString } from "./member-type-helper.js";
 
 const inputSchema = {
   inactiveDays: z.number().optional().default(90).describe("Number of days without a login before a member is considered inactive (default 90)"),
@@ -38,13 +39,14 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     let cursor: string | undefined = encodeCursor({ s: 0, t: PAGE_SIZE });
 
     while (allMembers.length < MEMBER_CAP) {
-      const result = await mcpClientManager.callTool("cms", "find-member", { cursor });
-      if (result.isError) return createToolResultError(result);
-      const data = extractChainedResult(result);
+      const result = await chainCms("find-member", { cursor: cursor as string | undefined, orderBy: "username" });
+      if (!result.ok) return result.errorResult;
+      const data: any = result.data;
       const items: any[] = data.items ?? [];
       allMembers.push(...items);
-      if (!data.nextCursor || items.length === 0) break;
-      cursor = data.nextCursor;
+      const nextCursor: string | null | undefined = data.nextCursor;
+      if (!nextCursor || items.length === 0) break;
+      cursor = nextCursor;
     }
 
     const now = Date.now();
@@ -60,9 +62,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       }
       return {
         id: member.id ?? "",
-        name: member.variants?.[0]?.name ?? member.name ?? "Unknown",
+        name: member.variants?.[0]?.name ?? "Unknown",
         email: member.email ?? "",
-        memberType: member.memberType?.alias ?? member.memberType ?? "",
+        memberType: memberTypeToString(member.memberType),
         lastLoginDate,
         daysSinceLogin,
       };

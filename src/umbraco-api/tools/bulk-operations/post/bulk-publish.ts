@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, confirmAction, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
 import {
   validateBulkIds,
   fetchBulkItemDetails,
@@ -21,7 +22,7 @@ const outputSchema = z.object({
     name: z.string(),
     success: z.boolean(),
     previousVersionId: z.string().optional(),
-    error: z.string().optional(),
+    error: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
   })),
   successCount: z.number(),
   failureCount: z.number(),
@@ -36,11 +37,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["publish"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   handler: async ({ ids, includeDescendants }, extra) => {
-    // 1. Validate cap
     const validationError = validateBulkIds(ids);
     if (validationError) return createToolResult(validationError as BulkOperationOutput);
 
-    // 2. Fetch details for confirmation + rollback
     const items = await fetchBulkItemDetails(ids);
     if (items.length === 0) {
       return createToolResult({
@@ -52,12 +51,10 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    // 3. Build confirmation listing every name
     const nameList = items.map(i => `- ${i.name}`).join("\n");
     const message = `Publish these ${items.length} pages?\n${nameList}`;
 
-    // 4. Confirm
-    if (!await confirmAction(extra, message, { title: "Confirm bulk publish", defaultValue: false })) {
+    if (!await confirmStep(extra, message)) {
       return createToolResult({
         message: "Cancelled",
         results: [],
@@ -67,20 +64,28 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    // 5. Execute sequentially
-    const toolName = includeDescendants ? "publish-document-with-descendants" : "publish-document";
     const results = await executeBulkSequentially(items, async (item) => {
-      const result = await mcpClientManager.callTool("cms", toolName, {
-        id: item.id,
-        data: { publishSchedules: [] },
-      });
-      if (result.isError) {
-        return extractChainedResult(result)?.detail ?? "Publish failed";
+      // publish-document needs one publishSchedules entry per culture — passing
+      // an empty array silently no-ops in Umbraco. Derive from the doc's variants.
+      const cultures = item.cultures ?? [null];
+      const result = includeDescendants
+        ? await chainCms("publish-document-with-descendants", {
+            id: item.id,
+            data: {
+              includeUnpublishedDescendants: false,
+              cultures: cultures.filter((c): c is string => c !== null),
+            },
+          })
+        : await chainCms("publish-document", {
+            id: item.id,
+            data: { publishSchedules: cultures.map((c) => ({ culture: c })) },
+          });
+      if (!result.ok) {
+        return result.errorResult;
       }
       return null;
     });
 
-    // 6. Return summary
     return createToolResult(buildBulkOutput("Published", results));
   },
 };

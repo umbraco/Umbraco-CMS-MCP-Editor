@@ -1,6 +1,8 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
+import { checkVariesByCulture } from "../helpers/check-varies-by-culture.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to copy a variant on"),
@@ -19,20 +21,23 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "copy-variant",
-  description: "Copy all content from one language variant to another as a starting point for translation. Overwrites the target variant's content. Creates the target variant if it does not exist. You will be asked to confirm.",
+  description: "Copy all content from one language variant to another as a starting point for translation. Overwrites the target variant's content and creates the variant if it does not exist — you will be asked to confirm. Note: Umbraco supports language fallback chains, so a property left unset on a variant can fall back to the default language automatically — copy-variant is for when you want explicit content per culture rather than relying on fallback.",
   inputSchema,
   outputSchema,
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   handler: async ({ id, sourceCulture, targetCulture }, extra) => {
+    const variesError = await checkVariesByCulture(id);
+    if (variesError) return variesError;
+
     // Step 1: Fetch page details
-    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (docResult.isError) return createToolResultError(docResult);
-    const doc = extractChainedResult(docResult);
+    const docResult = await chainCms("get-document-by-id", { id });
+    if (!docResult.ok) return docResult.errorResult;
+    const doc = docResult.data;
 
     const existingVariants: any[] = doc.variants ?? [];
     const existingValues: any[] = doc.values ?? [];
-    const pageName = existingVariants[0]?.name ?? doc.name ?? "Unknown";
+    const pageName = existingVariants[0]?.name ?? "Unknown";
 
     // Step 2: Find values for the source culture
     const sourceValues = existingValues.filter((v: any) => v.culture === sourceCulture);
@@ -44,12 +49,15 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       culture: targetCulture,
     }));
 
-    // Step 4: Confirm
-    if (!await confirmAction(
-      extra,
-      `Copy ${sourceCulture} content to ${targetCulture} for "${pageName}"? This will overwrite any existing ${targetCulture} content.`,
-      { title: "Confirm copy variant" }
-    )) {
+    // Step 4: Confirm. Show the editor exactly what's at stake — how many fields
+    // will be copied, and whether the target variant already has content that
+    // will be replaced.
+    const existingTargetFieldCount = existingValues.filter((v: any) => v.culture === targetCulture).length;
+    const overwriteWarning = existingTargetFieldCount > 0
+      ? ` ⚠️  This will overwrite ${existingTargetFieldCount} existing ${targetCulture} field(s).`
+      : "";
+    const confirmMessage = `Copy ${copiedFields.length} field(s) from ${sourceCulture} to ${targetCulture} on "${pageName}"?${overwriteWarning}`;
+    if (!await confirmStep(extra, confirmMessage)) {
       return createToolResult({ message: "Copy variant cancelled", id, name: pageName, sourceCulture, targetCulture, copiedFields: [] });
     }
 
@@ -67,12 +75,14 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       : [...existingVariants, { culture: targetCulture, name: pageName, segment: null }];
 
     // Step 7: Delegate to update-document
-    const updateResult = await mcpClientManager.callTool("cms", "update-document", {
+    const updateResult = await chainCms("update-document", {
       id,
-      variants: updatedVariants,
-      values: mergedValues,
+      data: {
+        variants: updatedVariants,
+        values: mergedValues,
+      },
     });
-    if (updateResult.isError) return createToolResultError(updateResult);
+    if (!updateResult.ok) return updateResult.errorResult;
 
     return createToolResult({
       message: `Copied ${sourceCulture} content to ${targetCulture} for "${pageName}" (${copiedFields.length} field(s))`,

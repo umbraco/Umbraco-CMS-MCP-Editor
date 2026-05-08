@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import { buildChainedCursor } from "../../helpers/tree-walker.js";
 
 const inputSchema = {
@@ -28,26 +28,36 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["list", "tree"],
   annotations: { readOnlyHint: true },
   handler: async ({ parentId, take, skip }) => {
+    const cursor = buildChainedCursor(skip, take);
     const result = parentId
-      ? await mcpClientManager.callTool("cms", "get-dictionary-children", { parentId, cursor: buildChainedCursor(skip, take) })
-      : await mcpClientManager.callTool("cms", "get-dictionary-root", { cursor: buildChainedCursor(skip, take) });
+      ? await chainCms("get-dictionary-children", { parentId, cursor })
+      : await chainCms("get-dictionary-root", { cursor });
 
-    if (result.isError) return createToolResultError(result);
-    const data = extractChainedResult(result);
+    if (!result.ok) return result.errorResult;
 
-    return createToolResult({
-      items: (data.items ?? []).map((item: any) => {
-        const translations: any[] = item.translations ?? [];
+    // The dictionary tree endpoints return id/name/hasChildren but no
+    // translations data. The schema's contract is "each item shows which
+    // languages have translations" — fan out to get-dictionary per item to
+    // recover the translation iso codes.
+    const items = result.data.items ?? [];
+    const enriched = await Promise.all(
+      items.map(async (item) => {
+        const detail = await chainCms("get-dictionary", { id: item.id });
+        const translations = detail.ok ? detail.data.translations ?? [] : [];
         const translatedLanguages = translations
-          .filter((t: any) => t.translation != null && t.translation !== "")
-          .map((t: any) => t.isoCode ?? t.language?.isoCode ?? "");
+          .filter((t) => t.translation != null && t.translation !== "")
+          .map((t) => t.isoCode);
         return {
           id: item.id,
           name: item.name ?? "Unknown",
           translatedLanguages,
         };
       }),
-      total: data.total ?? 0,
+    );
+
+    return createToolResult({
+      items: enriched,
+      total: result.data.total ?? enriched.length,
     });
   },
 };

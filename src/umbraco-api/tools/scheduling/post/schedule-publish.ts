@@ -1,6 +1,8 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
+import { confirmStep } from "../../helpers/confirm-step.js";
+import { formatDate } from "../../helpers/format-date.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to schedule for publish"),
@@ -23,24 +25,23 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["publish"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   handler: async ({ id, publishDate, culture }, extra) => {
-    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (docResult.isError) return createToolResultError(docResult);
-    const doc = extractChainedResult(docResult);
-    const pageName = doc.variants?.[0]?.name ?? doc.name ?? "Unknown";
+    const docResult = await chainCms("get-document-by-id", { id });
+    if (!docResult.ok) return docResult.errorResult;
+    const pageName = docResult.data.variants?.[0]?.name ?? "Unknown";
 
-    if (!await confirmAction(extra, `Schedule "${pageName}" to publish on ${publishDate}?`, { title: "Confirm schedule publish" })) {
+    if (!await confirmStep(extra, `Schedule "${pageName}" to publish on ${formatDate(publishDate)}?`)) {
       return createToolResult({ message: "Schedule publish cancelled", id, name: pageName, scheduledDate: publishDate });
     }
 
-    const publishResult = await mcpClientManager.callTool("cms", "publish-document", {
+    const publishResult = await chainCms("publish-document", {
       id,
-      data: { publishSchedules: [{ culture: culture ?? null, schedule: publishDate }] },
+      data: { publishSchedules: [{ culture: culture ?? null, schedule: { publishTime: publishDate } }] },
     });
-    if (publishResult.isError) return createToolResultError(publishResult);
+    if (!publishResult.ok) return publishResult.errorResult;
 
     const cultureLabel = culture ? ` (${culture})` : "";
     return createToolResult({
-      message: `Scheduled "${pageName}"${cultureLabel} to publish on ${publishDate}`,
+      message: `Scheduled "${pageName}"${cultureLabel} to publish on ${formatDate(publishDate)}`,
       id,
       name: pageName,
       scheduledDate: publishDate,

@@ -1,0 +1,14 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`get-language should get default language details by ISO code 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "fallbackIsoCode": null,
+    "isDefault": true,
+    "isMandatory": false,
+    "isoCode": "en-US",
+    "name": "English (United States)",
+  },
+}
+`;
