@@ -161,7 +161,7 @@ describe("Write Workflows", () => {
     "editor asks to update content on a page",
     runScenarioTest({
       prompt:
-        "Find the homepage and use edit-page to set its heroHeader field to 'Explore Our World'. Always make the edit even if the value appears unchanged.",
+        "Find the homepage and use edit-page to set its title field to 'Explore Our World'. Always make the edit even if the value appears unchanged.",
       tools: [
         "search-content",
         "get-page",
