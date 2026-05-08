@@ -134,6 +134,23 @@ describe("my-tool", () => {
 });
 ```
 
+## Hosted Worker (Cloudflare)
+
+`src/worker.ts` is the entry point for the hosted Cloudflare Worker deployment. It wires `umbracoCloudSiteRouting` unconditionally; the library decides per request whether to engage multi-tenant routing by reading `siteRouting.enabled?(env)`.
+
+The Cloud preset gates engagement on a single env var:
+
+```toml
+# wrangler.toml
+[vars]
+UMBRACO_CLOUD_ROUTING_ENABLED = "true"  # multi-tenant: /at/{alias}/ + per-request URLs
+```
+
+- Set `UMBRACO_CLOUD_ROUTING_ENABLED = "true"` in `wrangler.toml [vars]` to flip the Worker into multi-tenant Cloud mode — no source edit required.
+- Leave it unset (or set to anything else) for single-tenant deployments that honor `UMBRACO_BASE_URL`.
+
+Each Cloud project served by a multi-tenant Worker must register an OpenIddict client with id `umbraco-cms-editor-mcp-hosted` (the per-MCP-type identity baked into `worker.ts`).
+
 ## Publishing
 
 1. Update `package.json` with your package name and details

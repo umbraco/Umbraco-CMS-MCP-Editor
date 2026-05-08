@@ -18,6 +18,7 @@ import OAuthProvider from "@cloudflare/workers-oauth-provider";
 // Hosted MCP building blocks
 import {
   createDefaultHandler,
+  createSiteRoutingApiHandler,
   createWorkerExport,
   createPerRequestServer,
   getServerOptions,
@@ -55,18 +56,15 @@ const cmsChainedServer: ChainedServerConsentConfig = {
 };
 
 // Umbraco Cloud multi-tenancy.
-// When enabled, the MCP endpoint becomes /at/{alias}/ (where {alias} is the
+// Wired unconditionally; the lib gates engagement at request time via
+// siteRouting.enabled?(env). The Cloud preset defaults that to
+// (env) => env.UMBRACO_CLOUD_ROUTING_ENABLED === "true", so multi-tenant mode
+// is flipped from wrangler.toml [vars] without a source edit.
+// When engaged, the MCP endpoint becomes /at/{alias}/ (where {alias} is the
 // Cloud project alias) and per-request URLs resolve to
 // https://{alias}.{region}.umbraco.io. Region defaults to
 // env.UMBRACO_CLOUD_REGION or "euwest01".
 // Each Cloud project must register an OAuth client with the id below.
-// Leave false for single-tenant deployments that use UMBRACO_BASE_URL.
-const ENABLE_UMBRACO_CLOUD_ROUTING = false;
-
-const cloudSiteRouting = ENABLE_UMBRACO_CLOUD_ROUTING
-  ? umbracoCloudSiteRouting({ oauthClientId: "umbraco-cms-editor-mcp-hosted" })
-  : undefined;
-
 const options = {
   name: "umbraco-cms-editor-mcp-hosted",
   version: "1.0.0",
@@ -77,7 +75,9 @@ const options = {
   enableConsentToolSelection: true,
   authOptions: { showReauthButton: true },
   chainedServers: [cmsChainedServer],
-  siteRouting: cloudSiteRouting,
+  siteRouting: umbracoCloudSiteRouting({
+    oauthClientId: "umbraco-cms-editor-mcp-hosted",
+  }),
 };
 
 const serverOptions = getServerOptions(options);
@@ -139,8 +139,10 @@ export class UmbracoMcpAgent extends McpAgent<HostedMcpEnv, unknown, AuthProps> 
 // ============================================================================
 
 const provider = new OAuthProvider({
-  apiRoute: "/mcp",
-  apiHandler: UmbracoMcpAgent.serve("/mcp", { binding: "MCP_AGENT" }),
+  apiRoute: ["/mcp", "/at/"],
+  apiHandler: createSiteRoutingApiHandler(
+    UmbracoMcpAgent.serve("/mcp", { binding: "MCP_AGENT" })
+  ),
   defaultHandler: createDefaultHandler(options) as any,
   authorizeEndpoint: "/authorize",
   tokenEndpoint: "/token",

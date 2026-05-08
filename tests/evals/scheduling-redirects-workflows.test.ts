@@ -155,7 +155,7 @@ describe("Scheduling and Redirect Workflows", () => {
   );
 
   // SKIPPED: list-scheduled-content is disabled (tree walk, scanLimit=100).
-  it.skip(
+  it(
     "list scheduled content",
     runScenarioTest({
       prompt:

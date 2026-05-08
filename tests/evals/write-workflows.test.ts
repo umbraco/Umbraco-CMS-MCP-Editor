@@ -235,7 +235,7 @@ describe("Write Workflows", () => {
     "editor asks to add a new block under an existing one",
     runScenarioTest({
       prompt:
-        "Add a new block of the same type to the end of the contentRows property on the homepage. Use inspect-blocks to find the property and a sample contentTypeKey on the homepage, then call add-blocklist-block to append the new block. Seed the new block with values matching the existing block's property types — copy the existing values verbatim if you're unsure. Do not pass a string for non-string fields.",
+        "Add a new block of the same type to the end of the contentRows property on the homepage. Use inspect-blocks to find the property and a sample contentTypeKey on the homepage, then call add-blocklist-block to append the new block. Pick any one of the block's properties to seed with a placeholder string value.",
       tools: [
         "search-content",
         "get-page",

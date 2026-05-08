@@ -167,7 +167,7 @@ describe("Content Health and Reporting Workflows", () => {
   );
 
   // SKIPPED: report-stale-content is disabled (tree walk, scanLimit=100).
-  it.skip(
+  it(
     "editor finds stale content",
     runScenarioTest({
       prompt:
@@ -194,7 +194,7 @@ describe("Content Health and Reporting Workflows", () => {
   );
 
   // SKIPPED: report-media-missing-alt is disabled (tree walk, scanLimit=100).
-  it.skip(
+  it(
     "editor checks media alt text",
     runScenarioTest({
       prompt:
@@ -208,7 +208,7 @@ describe("Content Health and Reporting Workflows", () => {
   );
 
   // SKIPPED: report-translation-coverage is disabled (tree walk, scanLimit=100).
-  it.skip(
+  it(
     "editor checks translation coverage",
     runScenarioTest({
       prompt:
