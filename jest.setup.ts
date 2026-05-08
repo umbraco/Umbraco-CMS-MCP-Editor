@@ -7,6 +7,12 @@
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 import "dotenv/config";
+
+// UMBRACO_AUTO_CONFIRM is set in some local .env files for audit campaigns
+// (see docs/audits/mcp-live-validation/) to short-circuit elicitInput. Tests
+// must drive elicitation themselves, so always clear it before any test runs.
+delete process.env.UMBRACO_AUTO_CONFIRM;
+
 import https from "node:https";
 import { Agent, setGlobalDispatcher, fetch as undiciFetch } from "undici";
 

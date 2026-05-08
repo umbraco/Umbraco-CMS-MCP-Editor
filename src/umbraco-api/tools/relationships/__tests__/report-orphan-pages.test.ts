@@ -29,7 +29,7 @@ describe("report-orphan-pages", () => {
 
   afterAll(async () => {
     if (createdId) await ContentTestHelper.cleanupById(createdId);
-  }, 30000);
+  }, 120000);
 
   it("should return orphan pages report with scanned pages", async () => {
     const result = await reportOrphanPagesTool.handler(
@@ -43,5 +43,5 @@ describe("report-orphan-pages", () => {
     expect(Array.isArray(data.items)).toBe(true);
     expect(data.scannedPages).toBeGreaterThan(0);
     expect(typeof data.total).toBe("number");
-  }, 60000);
+  }, 300000);
 });

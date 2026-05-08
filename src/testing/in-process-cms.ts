@@ -35,7 +35,7 @@ async function getCmsToolMap(): Promise<Map<string, any>> {
   const { collections, UmbracoManagementClient } = await import("@umbraco-cms/mcp-dev/collections");
   const sdk = await import("@umbraco-cms/mcp-server-sdk");
 
-  sdk.initializeUmbracoAxios({
+  sdk.initializeUmbracoFetch({
     clientId: process.env.UMBRACO_CLIENT_ID ?? "",
     clientSecret: process.env.UMBRACO_CLIENT_SECRET ?? "",
     baseUrl: process.env.UMBRACO_BASE_URL ?? "https://localhost:44391",
