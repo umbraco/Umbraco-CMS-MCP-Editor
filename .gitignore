@@ -28,6 +28,7 @@ test-results/
 
 # Demo site port discovery
 .demo-site-port
+.demo-site-pid
 
 # Live-MCP audit scratchpad (templates ship in .claude/skills/audit-tool/)
 docs/audits/
