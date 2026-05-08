@@ -134,3 +134,24 @@ The first systematic audit campaign produced 11 fixes (rollback-page, restore-pa
 ## Reference: `callTool` test helper
 
 For new tests added alongside fixes (regression tests), use `callTool(tool, args, extra)` from `src/testing/call-tool-with-validation.ts` instead of `tool.handler(args, extra)`. It runs the response through the tool's `outputSchema` — the same validation the live MCP transport does. That's how `report-member-count`'s schema bug would have been caught at integration-test time rather than only live.
+
+## Reference: scripted batch harness
+
+The in-conversation flow above is for one tool at a time, with you in the loop. For batch validation of a focused set of related tools (a PR, a feature, a regression hunt), there's a complementary scripted pattern — spawn `dist/index.js` as a subprocess and drive it over stdio JSON-RPC from a `.mjs` file. Two worked examples live in `scripts/`:
+
+- **`scripts/audit-block-tools.mjs`** — drives the block-editing tools added in PR #42 (`add-blocklist-block`, `add-blockgrid-block`, `add-rte-block`, `edit-block`) through `dist/index.js`. Auto-accepts `elicitation/create` requests with schema defaults so destructive confirmations don't block the run. Records each finding as PASS / FAIL / WARN.
+- **`scripts/provision-block-donors.mjs`** — sets up the donor doc types and pages (`BlockGrid` page, RTE-with-blocks doc type) the audit harness needs. Uses `--cleanup` to tear down. Talks to `@umbraco-cms/mcp-dev` directly so it doesn't need the Editor MCP wired in.
+
+Both read `.demo-site-port` and `.env` from the working directory, so they only run against your local instance. They are deliberately not generalised — copy and adapt for the next PR's tools rather than trying to parameterise the originals.
+
+When to reach for this pattern over the in-conversation flow:
+
+- A PR adds 3+ related tools and you want a reproducible end-to-end check before merging
+- Investigating a regression where the failure mode is "sometimes" — a script can repeat the call
+- You want the audit reproducible by a teammate without their having to drive it interactively
+
+When to stick with the in-conversation flow:
+
+- One tool, one run
+- Exploratory — you want to read each response before deciding what to call next
+- Anything where you don't want elicitation auto-accepted (the script bypass is destructive-by-default)
