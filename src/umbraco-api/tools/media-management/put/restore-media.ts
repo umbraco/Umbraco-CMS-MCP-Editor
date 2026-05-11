@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the media item to restore from the recycle bin"),
@@ -25,7 +24,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     if (!itemResult.ok) return itemResult.errorResult;
     const itemName = itemResult.data.variants?.[0]?.name ?? "Unknown";
 
-    if (!await confirmStep(extra, `Restore "${itemName}" from the recycle bin?`)) {
+    if (!await requestApproval(extra, `Restore "${itemName}" from the recycle bin?`)) {
       return createToolResult({ message: "Restore cancelled", id, name: itemName });
     }
 

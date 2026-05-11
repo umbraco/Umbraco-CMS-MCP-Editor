@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 import { isBlockListOrGridValue, isRteWithBlocks, removeBlockFromContainer } from "../../helpers/block-builder.js";
 
 const inputSchema = {
@@ -144,7 +143,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       return createToolResultError({ content: [{ type: "text", text: plan.errorText }], isError: true });
     }
 
-    if (!await confirmStep(extra, plan.confirmMessage)) {
+    if (!await requestApproval(extra, plan.confirmMessage)) {
       return createToolResultError({ content: [{ type: "text", text: "Cancelled by user." }], isError: true });
     }
 

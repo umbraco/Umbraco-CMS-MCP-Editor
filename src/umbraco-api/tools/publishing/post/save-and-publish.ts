@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 import { fetchPublishedUrls, publishedUrlsSchema } from "../../helpers/preview-url.js";
 import { verifyDocumentPublished } from "../../helpers/verify-published.js";
 
@@ -42,7 +41,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     // Match the UI: publishing with descendants has unknown scope, so confirm it.
     if (includeDescendants) {
-      if (!await confirmStep(extra, `Publish "${pageName}" and all its descendants?`)) {
+      if (!await requestApproval(extra, `Publish "${pageName}" and all its descendants?`)) {
         return createToolResult({
           message: "Save and publish cancelled",
           id,

@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 import { buildPublishStatus, publishStatusSchema } from "../../helpers/publish-status.js";
 
 const inputSchema = {
@@ -63,7 +62,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     const oldLabel = oldTemplate ? `"${oldTemplate.name}"` : "(none)";
     const newLabel = newTemplate ? `"${newTemplate.name}"` : "(none — clear to default)";
-    if (!await confirmStep(extra, `Switch template on "${pageName}" from ${oldLabel} to ${newLabel}?`)) {
+    if (!await requestApproval(extra, `Switch template on "${pageName}" from ${oldLabel} to ${newLabel}?`)) {
       return createToolResult({
         message: "Template change cancelled",
         id,

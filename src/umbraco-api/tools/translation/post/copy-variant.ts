@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 import { checkVariesByCulture } from "../helpers/check-varies-by-culture.js";
 
 const inputSchema = {
@@ -57,7 +56,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       ? ` ⚠️  This will overwrite ${existingTargetFieldCount} existing ${targetCulture} field(s).`
       : "";
     const confirmMessage = `Copy ${copiedFields.length} field(s) from ${sourceCulture} to ${targetCulture} on "${pageName}"?${overwriteWarning}`;
-    if (!await confirmStep(extra, confirmMessage)) {
+    if (!await requestApproval(extra, confirmMessage)) {
       return createToolResult({ message: "Copy variant cancelled", id, name: pageName, sourceCulture, targetCulture, copiedFields: [] });
     }
 
