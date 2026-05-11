@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to delete"),
@@ -27,7 +26,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     const confirmMessage = `WARNING: Move "${pageName}" to the recycle bin? This will remove the page from the site.`;
 
-    if (!await confirmStep(extra, confirmMessage)) {
+    if (!await requestApproval(extra, confirmMessage)) {
       return createToolResult({ message: "Delete cancelled", id, name: pageName });
     }
 

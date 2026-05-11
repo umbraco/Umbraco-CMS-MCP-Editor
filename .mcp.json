@@ -8,6 +8,10 @@
         "UMBRACO_CLIENT_SECRET": "1234567890",
         "NODE_TLS_REJECT_UNAUTHORIZED": "0"
       }
+    },
+    "umbraco-editor-hosted": {
+      "type": "http",
+      "url": "http://localhost:8787/mcp"
     }
   }
 }

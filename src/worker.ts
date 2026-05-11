@@ -72,7 +72,7 @@ const options = {
   modeRegistry: allModes,
   allModeNames,
   allSliceNames,
-  enableConsentToolSelection: true,
+  enableConsentToolSelection: false,
   authOptions: { showReauthButton: true },
   chainedServers: [cmsChainedServer],
   siteRouting: umbracoCloudSiteRouting({

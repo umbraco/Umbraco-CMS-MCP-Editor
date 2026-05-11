@@ -150,13 +150,18 @@ for (const collection of collections) {
     // Build annotations from tool definition
     const annotations = createToolAnnotations(tool);
 
-    // Register tool with MCP server using registerTool API
+    // Register tool with MCP server using registerTool API.
+    // Pass _meta through so widget-aware tools (createConfirmedToolDefinition)
+    // can declare _meta.ui.resourceUri on the tool definition itself.
     server.registerTool(tool.name, {
       description: tool.description,
       inputSchema: tool.inputSchema,
       outputSchema: tool.outputSchema,
       annotations,
-    }, tool.handler);
+      ...((tool as { _meta?: Record<string, unknown> })._meta
+        ? { _meta: (tool as { _meta?: Record<string, unknown> })._meta! }
+        : {}),
+    } as Parameters<typeof server.registerTool>[1], tool.handler);
 
     registeredToolCount++;
   }

@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 import { verifyDocumentPublished } from "../../helpers/verify-published.js";
 
 const inputSchema = {
@@ -29,7 +28,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const pageName = doc.variants?.[0]?.name ?? "Unknown";
 
     if (includeDescendants) {
-      if (!await confirmStep(extra, `Publish "${pageName}" and all its descendants?`)) {
+      if (!await requestApproval(extra, `Publish "${pageName}" and all its descendants?`)) {
         return createToolResult({ message: "Publish cancelled", id, name: pageName });
       }
     }

@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 import {
   validateBulkIds,
   parseBulkError,
@@ -138,7 +137,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     }).join("\n");
     const message = `Update ${fieldNames.length} field(s) on ${totalBlocks} block(s) across ${pagesWithBlocks.length} page(s):\n${nameList}\nFields: ${fieldNames.join(", ")}\nChanges will be saved but not published.`;
 
-    if (!await confirmStep(extra, message)) {
+    if (!await requestApproval(extra, message)) {
       return createToolResult({
         message: "Cancelled",
         results: [],
