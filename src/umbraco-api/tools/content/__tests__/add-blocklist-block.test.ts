@@ -1,16 +1,13 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
+import { describe, it, expect, beforeAll, afterAll } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
-  createElicitation,
-  expectElicitationCancel,
   ContentTestHelper,
   extractChainedResult,
 } from "./setup.js";
 import { mcpClientManager } from "../../../mcp-client.js";
 import addBlocklistBlockTool from "../post/add-blocklist-block.js";
-import inspectBlocksTool from "../get/inspect-blocks.js";
 import { createBlockListFixture, type BlockListFixture } from "./helpers/block-fixture.js";
 import { ContentBuilder } from "./helpers/content-builder.js";
 import { callTool } from "../../../../testing/call-tool-with-validation.js";
@@ -23,8 +20,6 @@ async function getBlockListLayout(pageId: string, propertyAlias: string): Promis
   return prop?.value?.layout?.["Umbraco.BlockList"] ?? [];
 }
 
-const elicitation = createElicitation();
-
 describe("add-blocklist-block", () => {
   setupTestEnvironment();
 
@@ -36,12 +31,7 @@ describe("add-blocklist-block", () => {
     fixture = await createBlockListFixture(extra, "_Test add-blocklist-block fixture");
   }, 120000);
 
-  beforeEach(() => {
-    elicitation.reset();
-  });
-
   afterAll(async () => {
-    elicitation.cleanup();
     if (fixture) await fixture.cleanup();
     while (adHocPages.length > 0) {
       const id = adHocPages.pop()!;
@@ -254,37 +244,6 @@ describe("add-blocklist-block", () => {
     expect(newEntry).toBeDefined();
     expect(typeof newEntry!.settingsKey).toBe("string");
     expect(newEntry!.settingsKey).toMatch(/^[0-9a-f-]{36}$/i);
-  }, 60000);
-
-  it("does not modify the page when the user declines confirmation", async () => {
-    if (skipIfNoFixture()) return;
-    const f = fixture!;
-
-    const inspectBefore = await inspectBlocksTool.handler({ id: f.pageId, propertyAlias: f.propertyAlias }, extra);
-    const propBefore = (getStructuredContent(inspectBefore) as any).blockProperties.find((p: any) => p.propertyAlias === f.propertyAlias);
-    const beforeCount = propBefore.blocks.length;
-
-    elicitation.rejectAll();
-    await expectElicitationCancel(() =>
-      addBlocklistBlockTool.handler(
-        {
-          id: f.pageId,
-          propertyAlias: f.propertyAlias,
-          contentTypeKey: f.elementTypeId,
-          values: [{ alias: f.blockPropertyAlias, value: "_should-not-land" }],
-          position: undefined,
-          settingsTypeKey: undefined,
-          settingsValues: undefined,
-          culture: undefined,
-          segment: undefined,
-        },
-        extra,
-      ),
-    );
-
-    const inspectAfter = await inspectBlocksTool.handler({ id: f.pageId, propertyAlias: f.propertyAlias }, extra);
-    const propAfter = (getStructuredContent(inspectAfter) as any).blockProperties.find((p: any) => p.propertyAlias === f.propertyAlias);
-    expect(propAfter.blocks.length).toBe(beforeCount);
   }, 60000);
 
   it("adds first block to a BlockList property that has no value yet (regression: empty property)", async () => {

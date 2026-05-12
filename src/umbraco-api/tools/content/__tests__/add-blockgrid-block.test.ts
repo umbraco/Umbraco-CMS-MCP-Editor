@@ -1,10 +1,8 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
+import { describe, it, expect, beforeAll, afterAll } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
-  createElicitation,
-  expectElicitationCancel,
   ContentTestHelper,
   extractChainedResult,
 } from "./setup.js";
@@ -29,8 +27,6 @@ async function getBlockGridLayout(pageId: string, propertyAlias: string): Promis
   return prop?.value?.layout?.["Umbraco.BlockGrid"] ?? [];
 }
 
-const elicitation = createElicitation();
-
 describe("add-blockgrid-block", () => {
   setupTestEnvironment();
 
@@ -41,12 +37,7 @@ describe("add-blockgrid-block", () => {
     fixture = await createBlockGridFixture(extra, "_Test add-blockgrid-block fixture");
   }, 120000);
 
-  beforeEach(() => {
-    elicitation.reset();
-  });
-
   afterAll(async () => {
-    elicitation.cleanup();
     if (fixture) await fixture.cleanup();
   }, 60000);
 
@@ -249,33 +240,6 @@ describe("add-blockgrid-block", () => {
     );
     expect(result.isError).toBe(true);
   }, 30000);
-
-  it("does not modify the page when the user declines confirmation", async () => {
-    if (skipIfNoFixture()) return;
-    const f = fixture!;
-
-    const layoutBefore = await getBlockGridLayout(f.pageId, f.propertyAlias);
-    const beforeCount = layoutBefore.length;
-
-    elicitation.rejectAll();
-    await expectElicitationCancel(() =>
-      addBlockgridBlockTool.handler(
-        {
-          id: f.pageId,
-          propertyAlias: f.propertyAlias,
-          contentTypeKey: f.elementTypeId,
-          values: [{ alias: f.blockPropertyAlias, value: "_should-not-land" }],
-          position: undefined,
-          columnSpan: undefined, rowSpan: undefined, areaKey: undefined, parentContentKey: undefined,
-          settingsTypeKey: undefined, settingsValues: undefined, culture: undefined, segment: undefined,
-        },
-        extra,
-      ),
-    );
-
-    const layoutAfter = await getBlockGridLayout(f.pageId, f.propertyAlias);
-    expect(layoutAfter.length).toBe(beforeCount);
-  }, 60000);
 
   it("adds first block to a BlockGrid property that has no value yet (regression: empty property)", async () => {
     if (skipIfNoFixture()) return;

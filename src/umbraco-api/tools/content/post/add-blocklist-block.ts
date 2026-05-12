@@ -4,7 +4,6 @@ import {
   withStandardDecorators,
   createToolResult,
   createToolResultError,
-  requestApproval,
   ToolDefinition,
 } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
@@ -47,12 +46,12 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "add-blocklist-block",
-  description: "Add a new block to a BlockList property on a page. Use inspect-blocks first to find the propertyAlias and a sample contentTypeKey. For non-string property values inside the block (media pickers, content pickers, image cropper, slider, color, date, etc.) call get-property-value-template with the editor alias first to see the expected JSON shape. For BlockGrid use add-blockgrid-block; for blocks inside a Rich Text property use add-rte-block. Changes are saved as a draft, NOT published. You will be asked to confirm before adding.",
+  description: "Add a new block to a BlockList property on a page. Use inspect-blocks first to find the propertyAlias and a sample contentTypeKey. For non-string property values inside the block (media pickers, content pickers, image cropper, slider, color, date, etc.) call get-property-value-template with the editor alias first to see the expected JSON shape. For BlockGrid use add-blockgrid-block; for blocks inside a Rich Text property use add-rte-block. Changes are saved as a draft, NOT published.",
   inputSchema,
   outputSchema,
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-  handler: async ({ id, propertyAlias, contentTypeKey, values, position, settingsTypeKey, settingsValues, culture, segment }, extra) => {
+  handler: async ({ id, propertyAlias, contentTypeKey, values, position, settingsTypeKey, settingsValues, culture, segment }) => {
     if (settingsTypeKey && (!settingsValues || settingsValues.length === 0)) {
       return createToolResultError({ content: [{ type: "text", text: "settingsValues is required when settingsTypeKey is provided." }], isError: true });
     }
@@ -126,12 +125,6 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         : (propValue.settingsData ?? []),
       expose: [...(propValue.expose ?? []), exposeEntry(newContentKey, cultureValue, segmentValue)],
     };
-
-    const positionLabel = resolvedPosition.mode === "append" ? "at the end" : resolvedPosition.mode === "prepend" ? "at the start" : `${resolvedPosition.mode} block ${resolvedPosition.anchorContentKey}`;
-    const confirmMessage = `Add a new block to "${pageName}" (${positionLabel} of ${propertyAlias}). Will be saved as a draft, not published.`;
-    if (!await requestApproval(extra, confirmMessage)) {
-      return createToolResultError({ content: [{ type: "text", text: "Cancelled by user." }], isError: true });
-    }
 
     const updateResult = await chainCms("update-document-properties", {
       id,
