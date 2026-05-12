@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page whose scheduled publish should be cancelled"),
@@ -40,7 +39,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       return createToolResult({ message: "No scheduled publish found for this page", id, name: pageName });
     }
 
-    if (!await confirmStep(extra, `Cancel the scheduled publish for "${pageName}"?`)) {
+    if (!await requestApproval(extra, `Cancel the scheduled publish for "${pageName}"?`)) {
       return createToolResult({ message: "Cancel schedule aborted", id, name: pageName });
     }
 

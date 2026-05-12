@@ -1,7 +1,11 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import {
+  withStandardDecorators,
+  createToolResult,
+  requestApproval,
+  ToolDefinition,
+} from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to unpublish"),
@@ -15,7 +19,8 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "unpublish-page",
-  description: "Unpublish a content page, removing it from the live website. The page will still exist as a draft. You will be asked to confirm before unpublishing.",
+  description:
+    "Unpublish a content page, removing it from the live website. The page will still exist as a draft. You will be asked to confirm before unpublishing.",
   inputSchema,
   outputSchema,
   slices: ["publish"],
@@ -26,7 +31,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const doc = docResult.data;
     const pageName = doc.variants?.[0]?.name ?? "Unknown";
 
-    if (!await confirmStep(extra, `Unpublish "${pageName}"? This will remove it from the live website.`)) {
+    if (!await requestApproval(extra, `Unpublish "${pageName}"? This will remove it from the live website.`)) {
       return createToolResult({ message: "Unpublish cancelled", id, name: pageName });
     }
 

@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   isoCode: z.string().describe("ISO language code of the language to delete (e.g. fr-FR)"),
@@ -30,7 +29,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // Step 2: Elicit confirmation with strong warning (default: false)
     const confirmMessage = `Delete language "${name}" (${isoCode})? All content variants in this language will become inaccessible.`;
 
-    if (!await confirmStep(extra, confirmMessage)) {
+    if (!await requestApproval(extra, confirmMessage)) {
       return createToolResult({ message: "Delete cancelled", isoCode, name });
     }
 

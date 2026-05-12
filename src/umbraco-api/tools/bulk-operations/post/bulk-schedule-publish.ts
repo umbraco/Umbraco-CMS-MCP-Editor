@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 import { formatDate } from "../../helpers/format-date.js";
 import {
   validateBulkIds,
@@ -55,7 +54,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const nameList = items.map(i => `- ${i.name}`).join("\n");
     const message = `Schedule these ${items.length} pages to publish on ${formatDate(publishDate)}?\n${nameList}`;
 
-    if (!await confirmStep(extra, message)) {
+    if (!await requestApproval(extra, message)) {
       return createToolResult({
         message: "Cancelled",
         results: [],

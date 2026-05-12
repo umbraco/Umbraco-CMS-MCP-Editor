@@ -1,8 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 import {
   buildBlockEntry,
   exposeEntry,
@@ -175,7 +174,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const scopeLabel = areaKey ? `area ${areaKey} of block ${parentContentKey}` : propertyAlias;
     const positionLabel = resolvedPosition.mode === "append" ? "at the end" : resolvedPosition.mode === "prepend" ? "at the start" : `${resolvedPosition.mode} block ${resolvedPosition.anchorContentKey}`;
     const confirmMessage = `Add a new block to "${pageName}" (${positionLabel} of ${scopeLabel}). Will be saved as a draft, not published.`;
-    if (!await confirmStep(extra, confirmMessage)) {
+    if (!await requestApproval(extra, confirmMessage)) {
       return createToolResultError({ content: [{ type: "text", text: "Cancelled by user." }], isError: true });
     }
 

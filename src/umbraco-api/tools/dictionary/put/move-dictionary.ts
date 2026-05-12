@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("UUID of the dictionary item to move"),
@@ -38,7 +37,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       targetLabel = target ? `"${target.name}"` : "the root";
     }
 
-    if (!await confirmStep(extra, `Move dictionary item "${name}" to ${targetLabel}?`)) {
+    if (!await requestApproval(extra, `Move dictionary item "${name}" to ${targetLabel}?`)) {
       return createToolResult({ message: "Move cancelled", id, name });
     }
 

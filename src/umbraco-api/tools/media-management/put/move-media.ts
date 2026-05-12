@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the media item or folder to move"),
@@ -33,7 +32,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const itemName = itemResult.data.variants?.[0]?.name ?? "Unknown";
     const targetName = targetResult.data.variants?.[0]?.name ?? "Unknown";
 
-    if (!await confirmStep(extra, `Move "${itemName}" to "${targetName}"?`)) {
+    if (!await requestApproval(extra, `Move "${itemName}" to "${targetName}"?`)) {
       return createToolResult({ message: "Move cancelled", id, name: itemName });
     }
 

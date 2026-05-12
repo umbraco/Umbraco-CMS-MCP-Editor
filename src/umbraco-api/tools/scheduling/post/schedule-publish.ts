@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 import { formatDate } from "../../helpers/format-date.js";
 
 const inputSchema = {
@@ -29,7 +28,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     if (!docResult.ok) return docResult.errorResult;
     const pageName = docResult.data.variants?.[0]?.name ?? "Unknown";
 
-    if (!await confirmStep(extra, `Schedule "${pageName}" to publish on ${formatDate(publishDate)}?`)) {
+    if (!await requestApproval(extra, `Schedule "${pageName}" to publish on ${formatDate(publishDate)}?`)) {
       return createToolResult({ message: "Schedule publish cancelled", id, name: pageName, scheduledDate: publishDate });
     }
 

@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, UmbracoManagementClient } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, UmbracoManagementClient, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to restore from the recycle bin"),
@@ -28,7 +27,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       pageName = docResult.data.variants?.[0]?.name ?? "Unknown";
     }
 
-    if (!await confirmStep(extra, `Restore "${pageName}" from the recycle bin?`)) {
+    if (!await requestApproval(extra, `Restore "${pageName}" from the recycle bin?`)) {
       return createToolResult({ message: "Restore cancelled", id, name: pageName });
     }
 

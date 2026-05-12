@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 import { chainedTools, itemName, formatNamePreview } from "../helpers.js";
 
 const inputSchema = {
@@ -45,7 +44,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     // Step 2: First confirmation — scope.
     const firstMessage = `Empty the entire ${kindLabel} recycle bin? This will permanently delete ${topLevelCount} top-level item${topLevelCount === 1 ? "" : "s"} AND every descendant inside any trashed folders.${preview}`;
-    if (!await confirmStep(extra, firstMessage)) {
+    if (!await requestApproval(extra, firstMessage)) {
       return createToolResult({
         message: "Empty recycle bin cancelled",
         type,
@@ -56,7 +55,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // Step 3: Second confirmation — finality. Yes/no is easy to misfire on bulk destructive ops;
     // requiring a second prompt forces the user to re-acknowledge before we wipe the bin.
     const secondMessage = `Really sure? This **cannot** be undone. ${topLevelCount} item${topLevelCount === 1 ? "" : "s"} plus every nested descendant will be permanently destroyed.`;
-    if (!await confirmStep(extra, secondMessage)) {
+    if (!await requestApproval(extra, secondMessage)) {
       return createToolResult({
         message: "Empty recycle bin cancelled",
         type,

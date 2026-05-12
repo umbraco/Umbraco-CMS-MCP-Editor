@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 import { hasSensitiveDataAccess } from "../sensitive-data-access.js";
 
 const inputSchema = {
@@ -75,7 +74,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     let passwordChanged = false;
     if (newPassword !== undefined) {
-      const passwordConfirmed = await confirmStep(
+      const passwordConfirmed = await requestApproval(
         extra,
         `Reset the password for "${memberName}" (${memberEmail})? The old password will no longer work — make sure the member knows their new password.`,
       );
