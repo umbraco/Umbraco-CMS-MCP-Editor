@@ -114,6 +114,12 @@ export const toolModes: ToolModeDefinition[] = [
     description: 'List the content or media recycle bin and permanently delete items or empty the bin (irreversible)',
     collections: ['recycle-bin']
   },
+  {
+    name: 'account',
+    displayName: 'Account',
+    description: 'Identify which Umbraco backoffice user the MCP server is authenticated as',
+    collections: ['account']
+  },
 ];
 
 /**
