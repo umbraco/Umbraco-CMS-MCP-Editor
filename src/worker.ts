@@ -30,6 +30,7 @@ import { umbracoCloudSiteRouting } from "@umbraco-cms/mcp-hosted/cloud";
 
 // Import tool collections and registries (shared with stdio mode via collections.ts)
 import { collections, allModes, allModeNames, allSliceNames } from "./collections.js";
+import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
 import { setServerRef } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "./umbraco-api/mcp-client.js";
 
@@ -68,6 +69,7 @@ const cmsChainedServer: ChainedServerConsentConfig = {
 const options = {
   name: "umbraco-cms-editor-mcp-hosted",
   version: "1.0.0",
+  instructions: SERVER_INSTRUCTIONS,
   collections,
   modeRegistry: allModes,
   allModeNames,
