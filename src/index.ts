@@ -14,11 +14,13 @@ import {
   createToolAnnotations,
   createCollectionConfigLoader,
   shouldIncludeTool,
+  gatherChainedTools,
   setServerRef,
   initializeUmbracoFetch,
   type CollectionConfiguration,
   type ToolCollectionExport,
 } from "@umbraco-cms/mcp-server-sdk";
+import { CHAINED_DEPS } from "./auth/chained-deps.generated.js";
 
 // Import the Orval-generated API client
 // Import tool collections
@@ -135,46 +137,14 @@ const collections: ToolCollectionExport[] = [
   recycleBinCollection,
   accountCollection,
 ];
-let registeredToolCount = 0;
-
-for (const collection of collections) {
-  const collectionName = collection.metadata.name;
-
-  // Get tools for current user (pass user context if needed)
-  const tools = collection.tools({});
-
-  for (const tool of tools) {
-    // Check if tool should be included based on filtering config
-    if (!shouldIncludeTool(tool, { collectionName, config: filterConfig })) {
-      continue;
-    }
-
-    // Build annotations from tool definition
-    const annotations = createToolAnnotations(tool);
-
-    // Register tool with MCP server using registerTool API.
-    // Pass _meta through so widget-aware tools (createConfirmedToolDefinition)
-    // can declare _meta.ui.resourceUri on the tool definition itself.
-    server.registerTool(tool.name, {
-      description: tool.description,
-      inputSchema: tool.inputSchema,
-      outputSchema: tool.outputSchema,
-      annotations,
-      ...((tool as { _meta?: Record<string, unknown> })._meta
-        ? { _meta: (tool as { _meta?: Record<string, unknown> })._meta! }
-        : {}),
-    } as Parameters<typeof server.registerTool>[1], tool.handler);
-
-    registeredToolCount++;
-  }
-}
-
 // Start the server
 async function main() {
-  // Connect to chained MCP servers for delegation (no proxied tools)
-  // Skip if chaining is disabled via config (DISABLE_MCP_CHAINING=true)
+  // Connect to chained MCP servers. The dev MCP filters its own tool list by
+  // the authenticated user — we read that filtered list back and let
+  // shouldIncludeTool gate each editor wrapper against its chainedDeps.
   const chainingEnabled = mcpServers.length > 0 && !serverConfig.custom.disableMcpChaining;
 
+  let availableChainedTools: ReadonlySet<string> | undefined;
   if (chainingEnabled) {
     console.error("MCP chaining enabled — pre-connecting to chained servers...");
     try {
@@ -182,15 +152,61 @@ async function main() {
         await mcpClientManager.connect(srv.name);
         console.error(`Connected to chained server: ${srv.name}`);
       }
+      availableChainedTools = await gatherChainedTools(
+        mcpClientManager,
+        mcpServers.map((s) => s.name),
+      );
+      console.error(`Chained servers expose ${availableChainedTools.size} tool(s) for this user.`);
     } catch (error) {
       console.error("Warning: Failed to pre-connect chained servers:", error);
-      // Continue — tools will retry connection on first call
+      // Without the chained list we can't gate by deps, so leave it undefined
+      // and shouldIncludeTool will register all tools (they'll fail at runtime
+      // if a dep is missing).
+    }
+  }
+
+  let registeredToolCount = 0;
+  let skippedByDeps = 0;
+  for (const collection of collections) {
+    const collectionName = collection.metadata.name;
+    const tools = collection.tools({});
+
+    for (const tool of tools) {
+      // Overlay deps from the generated map so the SDK's shouldIncludeTool
+      // can apply the chained-deps rule. Future: declare chainedDeps inline
+      // on each tool and drop the overlay entirely.
+      const toolWithDeps =
+        CHAINED_DEPS[tool.name] && !tool.chainedDeps
+          ? { ...tool, chainedDeps: CHAINED_DEPS[tool.name] }
+          : tool;
+
+      if (!shouldIncludeTool(toolWithDeps, { collectionName, config: filterConfig, availableChainedTools })) {
+        if (availableChainedTools && CHAINED_DEPS[tool.name]) skippedByDeps++;
+        continue;
+      }
+
+      const annotations = createToolAnnotations(tool);
+
+      server.registerTool(tool.name, {
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+        outputSchema: tool.outputSchema,
+        annotations,
+        ...((tool as { _meta?: Record<string, unknown> })._meta
+          ? { _meta: (tool as { _meta?: Record<string, unknown> })._meta! }
+          : {}),
+      } as Parameters<typeof server.registerTool>[1], tool.handler);
+
+      registeredToolCount++;
     }
   }
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error(`MCP Server started with ${registeredToolCount} tool(s) from ${collections.length} collection(s)`);
+  console.error(
+    `MCP Server started with ${registeredToolCount} tool(s) from ${collections.length} collection(s)` +
+      (skippedByDeps > 0 ? ` (${skippedByDeps} tool(s) hidden — chained deps not available for this user)` : ""),
+  );
 }
 
 // Cleanup on shutdown
