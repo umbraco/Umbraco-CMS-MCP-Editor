@@ -1,0 +1,60 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`compare-draft-to-published snapshots a never-published comparison (happy path) 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "changes": [],
+    "documentType": {
+      "id": "00000000-0000-0000-0000-000000000000",
+    },
+    "hasDraftChanges": false,
+    "id": "00000000-0000-0000-0000-000000000000",
+    "name": "_Test Compare Never Published",
+    "publishStatus": "NotPublished",
+    "summary": "Page has never been published and has no content changes to compare",
+  },
+}
+`;
+
+exports[`compare-draft-to-published snapshots a pending-changes comparison after editing a published page (happy path) 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "changes": [
+      {
+        "alias": "title",
+        "changeType": "added",
+        "culture": null,
+        "draftValue": "[VALUE]",
+        "segment": null,
+      },
+    ],
+    "documentType": {
+      "id": "00000000-0000-0000-0000-000000000000",
+    },
+    "hasDraftChanges": true,
+    "id": "00000000-0000-0000-0000-000000000000",
+    "name": "_Test Compare With Changes",
+    "publishStatus": "PendingChanges",
+    "summary": "1 property changed: [ALIASES]",
+  },
+}
+`;
+
+exports[`compare-draft-to-published snapshots an unchanged-draft comparison (happy path) 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "changes": [],
+    "documentType": {
+      "id": "00000000-0000-0000-0000-000000000000",
+    },
+    "hasDraftChanges": false,
+    "id": "00000000-0000-0000-0000-000000000000",
+    "name": "_Test Compare No Changes",
+    "publishStatus": "Published",
+    "summary": "No changes between draft and published",
+  },
+}
+`;

@@ -23,6 +23,7 @@ const allTools = [
   "list-children",
   "list-document-types",
   "inspect-blocks",
+  "compare-draft-to-published",
   "create-page",
   "edit-page",
   "rename-page",
