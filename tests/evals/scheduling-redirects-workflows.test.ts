@@ -25,6 +25,7 @@ const allTools = [
   "inspect-blocks",
   "create-page",
   "edit-page",
+  "rename-page",
   "edit-block",
   "add-blocklist-block",
   "add-blockgrid-block",
