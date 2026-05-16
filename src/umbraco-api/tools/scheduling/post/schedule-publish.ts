@@ -2,6 +2,7 @@ import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { formatDate } from "../../helpers/format-date.js";
+import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to schedule for publish"),
@@ -14,6 +15,7 @@ const outputSchema = z.object({
   id: z.string(),
   name: z.string(),
   scheduledDate: z.string(),
+  previewUrl: previewUrlSchema,
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
@@ -29,7 +31,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const pageName = docResult.data.variants?.[0]?.name ?? "Unknown";
 
     if (!await requestApproval(extra, `Schedule "${pageName}" to publish on ${formatDate(publishDate)}?`)) {
-      return createToolResult({ message: "Schedule publish cancelled", id, name: pageName, scheduledDate: publishDate });
+      return createToolResult({ message: "Schedule publish cancelled", id, name: pageName, scheduledDate: publishDate, previewUrl: null });
     }
 
     const publishResult = await chainCms("publish-document", {
@@ -44,6 +46,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       id,
       name: pageName,
       scheduledDate: publishDate,
+      previewUrl: await fetchPreviewUrl(id, culture ? { culture } : undefined),
     });
   },
 };

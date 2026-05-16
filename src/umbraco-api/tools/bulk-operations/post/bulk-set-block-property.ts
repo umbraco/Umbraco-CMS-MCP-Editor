@@ -7,6 +7,8 @@ import {
   SKIPPED_SENTINEL,
   type BulkItemDetail,
 } from "../../helpers/bulk-handler.js";
+import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
+import { validateDocumentState, validationResultSchema, type ValidationResult } from "../../helpers/validate-document.js";
 
 const inputSchema = {
   ids: z.array(z.string().uuid()).min(1).max(10).describe("The IDs of the pages to update (max 10)"),
@@ -29,6 +31,8 @@ const outputSchema = z.object({
     blocksUpdated: z.number(),
     previousVersionId: z.string().optional(),
     error: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
+    previewUrl: previewUrlSchema.optional(),
+    validation: validationResultSchema.optional(),
   })),
   successCount: z.number(),
   failureCount: z.number(),
@@ -81,7 +85,7 @@ function findMatchingBlocks(doc: any, propertyAlias: string, contentTypeKey: str
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "bulk-set-block-property",
-  description: "Update properties on blocks of a specific type across multiple pages (max 10). Targets all blocks matching the given element type within the specified property. Use inspect-blocks first on a sample page to find contentTypeKey and propertyAlias. For non-string property values inside the block (media pickers, content pickers, image cropper, slider, color, date, etc.) call get-property-value-template with the editor alias first to see the expected JSON shape. Changes are saved but NOT published. You will be asked to confirm before updating.",
+  description: "Update properties on blocks of a specific type across multiple pages (max 10). Targets all blocks matching the given element type within the specified property. Use inspect-blocks first on a sample page to find contentTypeKey and propertyAlias. For non-string property values inside the block (media pickers, content pickers, image cropper, slider, color, date, etc.) call get-property-value-template with the editor alias first to see the expected JSON shape. Changes are saved but NOT published. You will be asked to confirm before updating. Each successful per-page result includes a previewUrl (parent page draft preview) and a `validation` outcome — if `valid` is false the changes were saved but the page cannot be published until the listed errors are resolved.",
   inputSchema,
   outputSchema,
   slices: ["update"],
@@ -155,6 +159,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       blocksUpdated: number;
       previousVersionId?: string;
       error?: unknown;
+      previewUrl?: { url: string; requiresBackofficeAuth: true } | null;
+      validation?: ValidationResult;
     }> = [];
     let stopped = false;
     let totalBlocksUpdated = 0;
@@ -223,6 +229,14 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
           previousVersionId: item.currentVersionId || undefined,
         });
       }
+    }
+
+    // Decorate succeeded rows with validation outcome + preview URL. Sequential
+    // to avoid hammering the backoffice at the 10-item cap.
+    for (const row of results) {
+      if (!row.success || row.blocksUpdated === 0) continue;
+      row.validation = await validateDocumentState(row.id);
+      row.previewUrl = await fetchPreviewUrl(row.id);
     }
 
     const successCount = results.filter(r => r.success).length;

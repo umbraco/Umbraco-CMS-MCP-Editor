@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page whose scheduled publish should be cancelled"),
@@ -11,6 +12,7 @@ const outputSchema = z.object({
   message: z.string(),
   id: z.string(),
   name: z.string(),
+  previewUrl: previewUrlSchema,
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
@@ -36,11 +38,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     });
 
     if (!hasSchedule) {
-      return createToolResult({ message: "No scheduled publish found for this page", id, name: pageName });
+      return createToolResult({ message: "No scheduled publish found for this page", id, name: pageName, previewUrl: null });
     }
 
     if (!await requestApproval(extra, `Cancel the scheduled publish for "${pageName}"?`)) {
-      return createToolResult({ message: "Cancel schedule aborted", id, name: pageName });
+      return createToolResult({ message: "Cancel schedule aborted", id, name: pageName, previewUrl: null });
     }
 
     // Passing an empty publishSchedules array is a no-op in Umbraco — schedules
@@ -66,6 +68,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       message: `Cancelled scheduled publish for "${pageName}"`,
       id,
       name: pageName,
+      previewUrl: await fetchPreviewUrl(id, culture ? { culture } : undefined),
     });
   },
 };

@@ -8,6 +8,7 @@ import {
   buildBulkOutput,
   type BulkOperationOutput,
 } from "../../helpers/bulk-handler.js";
+import { fetchPublishedUrls, publishedUrlsSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   ids: z.array(z.string().uuid()).min(1).max(10).describe("The IDs of the pages to unpublish (max 10)"),
@@ -21,6 +22,7 @@ const outputSchema = z.object({
     success: z.boolean(),
     previousVersionId: z.string().optional(),
     error: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
+    previouslyPublishedUrls: publishedUrlsSchema.describe("Live URLs this page resolved to BEFORE it was unpublished — now dead. Surface as 'previously at' so the editor knows what just came offline.").optional(),
   })),
   successCount: z.number(),
   failureCount: z.number(),
@@ -62,6 +64,15 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
+    // Capture live URLs for every page BEFORE we start unpublishing so the
+    // result can surface 'previously at <url>' per row. Doing this up-front
+    // (rather than per row alongside the unpublish call) keeps the snapshot
+    // aligned with the editor's mental model: "what was live when I asked".
+    const previousUrlsById = new Map<string, string[]>();
+    for (const item of items) {
+      previousUrlsById.set(item.id, await fetchPublishedUrls(item.id));
+    }
+
     const results = await executeBulkSequentially(items, async (item) => {
       const docResult = await chainCms("get-document-by-id", { id: item.id });
       if (!docResult.ok) {
@@ -78,6 +89,13 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       }
       return null;
     });
+
+    for (const row of results) {
+      const previous = previousUrlsById.get(row.id) ?? [];
+      if (previous.length > 0) {
+        row.previouslyPublishedUrls = previous;
+      }
+    }
 
     return createToolResult(buildBulkOutput("Unpublished", results));
   },

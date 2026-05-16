@@ -2,6 +2,7 @@ import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { buildChainedCursor } from "../../helpers/tree-walker.js";
+import { buildPreviewUrl, fetchPublishedUrlsBatch, previewUrlSchema, publishedUrlsSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to find references for"),
@@ -17,7 +18,9 @@ const outputSchema = z.object({
     kind: z.enum(["document", "documentTypeProperty", "other"]),
     documentType: z.string().optional(),
     published: z.boolean().optional(),
-  })).describe("Items that reference this page"),
+    previewUrl: previewUrlSchema.optional(),
+    publishedUrls: publishedUrlsSchema.optional(),
+  })).describe("Items that reference this page. `previewUrl` and `publishedUrls` are populated only for `kind: 'document'` entries — non-document references (document type properties, etc.) don't have routable URLs."),
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
@@ -31,6 +34,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const result = await chainCms("get-document-by-id-referenced-by", { id, cursor: buildChainedCursor(skip, take) });
     if (!result.ok) return result.errorResult;
 
+    const documentIds = result.data.items
+      .filter((item) => item.$type === "DocumentReferenceResponseModel")
+      .map((item) => item.id);
+    const publishedUrlsById = await fetchPublishedUrlsBatch(documentIds);
+
     const items = result.data.items.map((item) => {
       if (item.$type === "DocumentReferenceResponseModel") {
         const name = item.variants?.[0]?.name ?? item.name ?? "(unnamed)";
@@ -40,6 +48,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
           kind: "document" as const,
           documentType: item.documentType?.name ?? item.documentType?.alias ?? undefined,
           published: item.published ?? undefined,
+          previewUrl: buildPreviewUrl(item.id),
+          publishedUrls: publishedUrlsById.get(item.id) ?? [],
         };
       }
       if (item.$type === "DocumentTypePropertyTypeReferenceResponseModel") {

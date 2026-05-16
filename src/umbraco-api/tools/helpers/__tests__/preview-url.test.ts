@@ -185,7 +185,30 @@ describe("preview-url helper", () => {
     });
   });
 
-  describe("flattenPublishedUrls", () => {
+  describe("flattenPublishedUrls (shape parsing — no base URL)", () => {
+    // Pin the env to "no base URL" so these tests stay about the input-shape
+    // → output-shape mapping. The absolutization behaviour is exercised in
+    // the dedicated block below.
+    let tmpDir: string;
+    let origCwd: () => string;
+
+    beforeEach(() => {
+      tmpDir = mkdtempSync(join(tmpdir(), "preview-url-shape-"));
+      origCwd = process.cwd;
+      process.cwd = () => tmpDir;
+      delete process.env.UMBRACO_BASE_URL;
+      _resetCacheForTests();
+    });
+
+    afterEach(() => {
+      process.cwd = origCwd;
+      try {
+        rmSync(tmpDir, { recursive: true, force: true });
+      } catch {
+        // best effort
+      }
+    });
+
     it("flattens the get-document-by-id shape", () => {
       const urls = [
         { culture: "en-US", url: "/home" },
@@ -225,6 +248,74 @@ describe("preview-url helper", () => {
       expect(flattenPublishedUrls(undefined)).toEqual([]);
       expect(flattenPublishedUrls(null)).toEqual([]);
       expect(flattenPublishedUrls({ nope: true })).toEqual([]);
+    });
+  });
+
+  describe("flattenPublishedUrls absolutization", () => {
+    // Reuse the fallback fixture so getUmbracoBaseUrl() resolves from
+    // process.env without a real .env file getting in the way.
+    let tmpDir: string;
+    let origCwd: () => string;
+
+    beforeEach(() => {
+      tmpDir = mkdtempSync(join(tmpdir(), "preview-url-absolutize-"));
+      origCwd = process.cwd;
+      process.cwd = () => tmpDir;
+      _resetCacheForTests();
+    });
+
+    afterEach(() => {
+      process.cwd = origCwd;
+      try {
+        rmSync(tmpDir, { recursive: true, force: true });
+      } catch {
+        // best effort
+      }
+    });
+
+    it("prefixes a root-relative URL with the resolved base", () => {
+      process.env.UMBRACO_BASE_URL = "https://localhost:1234";
+      const urls = [{ url: "/about-us", culture: "en-US" }];
+      expect(flattenPublishedUrls(urls)).toEqual(["https://localhost:1234/about-us"]);
+    });
+
+    it("leaves an absolute http(s) URL untouched", () => {
+      process.env.UMBRACO_BASE_URL = "https://localhost:1234";
+      const urls = [{ url: "https://example.com/about-us", culture: "en-US" }];
+      expect(flattenPublishedUrls(urls)).toEqual(["https://example.com/about-us"]);
+    });
+
+    it("handles mixed relative + absolute entries in a single urlInfos response", () => {
+      process.env.UMBRACO_BASE_URL = "https://localhost:1234";
+      const urls = [{
+        id: "abc",
+        urlInfos: [
+          { culture: "en-US", url: "/", message: null, provider: "x" },
+          { culture: "nb-NO", url: "https://nb.example.com/", message: null, provider: "x" },
+        ],
+      }];
+      expect(flattenPublishedUrls(urls)).toEqual([
+        "https://localhost:1234/",
+        "https://nb.example.com/",
+      ]);
+    });
+
+    it("trims a trailing slash on the base before prefixing", () => {
+      process.env.UMBRACO_BASE_URL = "https://localhost:1234/";
+      const urls = [{ url: "/about-us", culture: "en-US" }];
+      expect(flattenPublishedUrls(urls)).toEqual(["https://localhost:1234/about-us"]);
+    });
+
+    it("returns relative URLs unchanged when no base URL is resolvable", () => {
+      delete process.env.UMBRACO_BASE_URL;
+      const urls = [{ url: "/about-us", culture: "en-US" }];
+      expect(flattenPublishedUrls(urls)).toEqual(["/about-us"]);
+    });
+
+    it("leaves protocol-relative URLs untouched", () => {
+      process.env.UMBRACO_BASE_URL = "https://localhost:1234";
+      const urls = [{ url: "//cdn.example.com/asset", culture: "en-US" }];
+      expect(flattenPublishedUrls(urls)).toEqual(["//cdn.example.com/asset"]);
     });
   });
 });

@@ -9,6 +9,7 @@ import {
   buildBulkOutput,
   type BulkOperationOutput,
 } from "../../helpers/bulk-handler.js";
+import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   ids: z.array(z.string().uuid()).min(1).max(10).describe("The IDs of the pages to schedule for publishing (max 10)"),
@@ -23,6 +24,7 @@ const outputSchema = z.object({
     success: z.boolean(),
     previousVersionId: z.string().optional(),
     error: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
+    previewUrl: previewUrlSchema.optional(),
   })),
   successCount: z.number(),
   failureCount: z.number(),
@@ -74,6 +76,13 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       }
       return null;
     });
+
+    // Preview URL on the scheduled draft so the editor can review what's queued
+    // up to go live without waiting for the scheduled publish.
+    for (const row of results) {
+      if (!row.success) continue;
+      row.previewUrl = await fetchPreviewUrl(row.id);
+    }
 
     return createToolResult(buildBulkOutput("Scheduled", results));
   },

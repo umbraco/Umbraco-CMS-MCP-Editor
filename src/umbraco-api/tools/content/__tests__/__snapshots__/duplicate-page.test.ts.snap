@@ -6,6 +6,10 @@ exports[`duplicate-page duplicates a page under the same parent 1`] = `
   "structuredContent": {
     "id": "00000000-0000-0000-0000-000000000000",
     "message": "Duplicated "_Test Duplicate Source"",
+    "previewUrl": {
+      "requiresBackofficeAuth": true,
+      "url": "<preview-url>",
+    },
     "sourceId": "00000000-0000-0000-0000-000000000000",
     "sourceName": "_Test Duplicate Source",
   },

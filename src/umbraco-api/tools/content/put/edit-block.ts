@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
+import { validateDocumentState, validationResultSchema } from "../../helpers/validate-document.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page containing the block"),
@@ -21,11 +23,13 @@ const outputSchema = z.object({
   name: z.string(),
   contentKey: z.string(),
   updatedFields: z.array(z.string()),
+  previewUrl: previewUrlSchema,
+  validation: validationResultSchema,
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "edit-block",
-  description: "Update properties within a specific block (BlockList, BlockGrid, or Rich Text block). Use inspect-blocks first to find the propertyAlias and contentKey. Pass blockType='settings' to edit a block's settings instead of its content. For non-block page properties, use edit-page instead. For structured property values inside the block (media pickers, content pickers, image cropper, slider, color, date, etc.) call get-property-value-template with the editor alias first to see the expected JSON shape. Culture/segment applies to the document property level — use separate calls for mixed-variant blocks. Changes are saved but NOT published.",
+  description: "Update properties within a specific block (BlockList, BlockGrid, or Rich Text block). Use inspect-blocks first to find the propertyAlias and contentKey. Pass blockType='settings' to edit a block's settings instead of its content. For non-block page properties, use edit-page instead. For structured property values inside the block (media pickers, content pickers, image cropper, slider, color, date, etc.) call get-property-value-template with the editor alias first to see the expected JSON shape. Culture/segment applies to the document property level — use separate calls for mixed-variant blocks. Changes are saved but NOT published. The response includes a `validation` field — if `validation.valid` is false the changes were saved but the parent page cannot be published until the listed errors are resolved.",
   inputSchema,
   outputSchema,
   slices: ["update"],
@@ -53,13 +57,21 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     });
     if (!updateResult.ok) return updateResult.errorResult;
 
+    const validation = await validateDocumentState(id);
     const target = resolvedBlockType === "settings" ? "settings" : "content";
+    const baseMessage = `Updated ${fieldNames.length} field(s) in block ${target} on "${pageName}" (saved, not published)`;
+    const message = validation.valid
+      ? baseMessage
+      : `${baseMessage} — but ${validation.errors.length} validation error(s) must be resolved before this page can be published`;
+
     return createToolResult({
-      message: `Updated ${fieldNames.length} field(s) in block ${target} on "${pageName}" (saved, not published)`,
+      message,
       id,
       name: pageName,
       contentKey,
       updatedFields: fieldNames,
+      previewUrl: await fetchPreviewUrl(id),
+      validation,
     });
   },
 };

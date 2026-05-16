@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, encodeCursor, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
+import { validateDocumentState, validationResultSchema } from "../../helpers/validate-document.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The page ID to rollback"),
@@ -16,6 +18,8 @@ const outputSchema = z.object({
   id: z.string(),
   name: z.string(),
   versionId: z.string(),
+  previewUrl: previewUrlSchema,
+  validation: validationResultSchema,
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
@@ -76,7 +80,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       : `Rollback "${pageName}" to a previous version? This replaces the current draft. The published version is not affected until you publish again.`;
 
     if (!await requestApproval(extra, confirmMessage)) {
-      return createToolResult({ message: "Rollback cancelled", id, name: pageName, versionId });
+      return createToolResult({ message: "Rollback cancelled", id, name: pageName, versionId, previewUrl: null, validation: { valid: true, errors: [] } });
     }
 
     // Step 3: Execute rollback
@@ -86,11 +90,19 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     });
     if (!rollbackResult.ok) return rollbackResult.errorResult;
 
+    const validation = await validateDocumentState(id);
+    const baseMessage = `Rolled back "${pageName}" to a previous version. The draft has been updated. Publish the page to make this version live.`;
+    const message = validation.valid
+      ? baseMessage
+      : `${baseMessage} However, ${validation.errors.length} validation error(s) must be resolved before this version can be published — the doc-type schema may have changed since this version was saved.`;
+
     return createToolResult({
-      message: `Rolled back "${pageName}" to a previous version. The draft has been updated. Publish the page to make this version live.`,
+      message,
       id,
       name: pageName,
       versionId,
+      previewUrl: await fetchPreviewUrl(id),
+      validation,
     });
   },
 };

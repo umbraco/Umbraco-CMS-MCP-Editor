@@ -2,6 +2,7 @@ import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
+import { validateDocumentState, validationResultSchema } from "../../helpers/validate-document.js";
 
 const inputSchema = {
   name: z.string().describe("The name of the page to create"),
@@ -20,6 +21,7 @@ const outputSchema = z.object({
   id: z.string(),
   name: z.string(),
   previewUrl: previewUrlSchema,
+  validation: validationResultSchema,
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
@@ -64,11 +66,20 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     if (!createResult.ok) return createResult.errorResult;
     const createdId = createResult.data.id;
 
+    const validation = createdId
+      ? await validateDocumentState(createdId)
+      : { valid: true, errors: [] };
+    const baseMessage = `Created draft page "${name}"`;
+    const message = validation.valid
+      ? baseMessage
+      : `${baseMessage} — but ${validation.errors.length} validation error(s) must be resolved before this page can be published`;
+
     return createToolResult({
-      message: `Created draft page "${name}"`,
+      message,
       id: createdId,
       name,
       previewUrl: createdId ? await fetchPreviewUrl(createdId) : null,
+      validation,
     });
   },
 };

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { buildChainedCursor } from "../../helpers/tree-walker.js";
+import { buildPreviewUrl, fetchPublishedUrlsBatch, previewUrlSchema, publishedUrlsSchema } from "../../helpers/preview-url.js";
 
 
 const inputSchema = {
@@ -11,7 +12,12 @@ const inputSchema = {
 };
 
 const outputSchema = z.object({
-  items: z.array(z.object({ id: z.string(), name: z.string() })).describe("Matching content pages"),
+  items: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    previewUrl: previewUrlSchema,
+    publishedUrls: publishedUrlsSchema,
+  })).describe("Matching content pages"),
   total: z.number().describe("Total number of matches"),
 });
 
@@ -26,10 +32,14 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const result = await chainCms("search-document", { query, cursor: buildChainedCursor(skip, take) });
     if (!result.ok) return result.errorResult;
     const data = result.data;
+    const items = data.items ?? [];
+    const publishedUrlsById = await fetchPublishedUrlsBatch(items.map((i: any) => i.id));
     return createToolResult({
-      items: (data.items ?? []).map((item: any) => ({
+      items: items.map((item: any) => ({
         id: item.id,
         name: item.variants?.[0]?.name ?? "Unknown",
+        previewUrl: buildPreviewUrl(item.id),
+        publishedUrls: publishedUrlsById.get(item.id) ?? [],
       })),
       total: data.total ?? 0,
     });

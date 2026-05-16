@@ -68,7 +68,7 @@ export const previewUrlSchema = z
 export const publishedUrlsSchema = z
   .array(z.string())
   .describe(
-    "Live public URLs for the page (one per culture / hostname). Empty array when the page has no resolvable routes (draft-only or not yet published)."
+    "Absolute live public URLs for the page (one per culture / hostname). Empty array when the page has no resolvable routes (draft-only or not yet published)."
   );
 
 /**
@@ -183,13 +183,35 @@ export async function fetchPreviewUrl(
 }
 
 /**
+ * Prefix a root-relative URL with the resolved Umbraco base. Leaves
+ * already-absolute URLs (`http://…`, `https://…`) and protocol-relative
+ * URLs (`//host/…`) untouched. When no base URL is resolvable (hosted
+ * runtime without `process.env.UMBRACO_BASE_URL`), returns the input as-is
+ * — callers tolerate relative URLs in that case.
+ */
+function absolutizePublishedUrl(url: string, baseUrl: string | null): string {
+  if (!baseUrl) return url;
+  if (/^(https?:)?\/\//i.test(url)) return url;
+  const trimmedBase = baseUrl.replace(/\/+$/, "");
+  const prefixedPath = url.startsWith("/") ? url : `/${url}`;
+  return `${trimmedBase}${prefixedPath}`;
+}
+
+/**
  * Extract published URL strings from a `urls` array that follows either the
  * `get-document-by-id` shape (`{ culture, url, ... }[]`) or the
  * `get-document-urls` shape (`{ id, urlInfos: [{ culture, url, ... }] }[]`).
- * Drops entries without a concrete URL string.
+ *
+ * Umbraco's `urlInfos[i].url` is usually a root-relative path (`/about-us`,
+ * `/en/contact`) — unusable as a click-through. We resolve the configured
+ * base URL once and prefix every relative URL with it so callers always get
+ * an absolute, shareable link. Multi-hostname setups where Umbraco already
+ * returns an absolute URL pass through unchanged. Drops entries without a
+ * concrete URL string.
  */
 export function flattenPublishedUrls(urls: unknown): string[] {
   if (!Array.isArray(urls)) return [];
+  const baseUrl = getUmbracoBaseUrl();
   const out: string[] = [];
   for (const entry of urls) {
     if (!entry || typeof entry !== "object") continue;
@@ -198,14 +220,14 @@ export function flattenPublishedUrls(urls: unknown): string[] {
     if (Array.isArray(e.urlInfos)) {
       for (const info of e.urlInfos) {
         if (info && typeof info.url === "string" && info.url.length > 0) {
-          out.push(info.url);
+          out.push(absolutizePublishedUrl(info.url, baseUrl));
         }
       }
       continue;
     }
     // get-document-by-id shape: { url, culture, ... }
     if (typeof e.url === "string" && e.url.length > 0) {
-      out.push(e.url);
+      out.push(absolutizePublishedUrl(e.url, baseUrl));
     }
   }
   return out;
@@ -224,4 +246,30 @@ export async function fetchPublishedUrls(id: string): Promise<string[]> {
   } catch {
     return [];
   }
+}
+
+/**
+ * Batch variant of `fetchPublishedUrls` for list endpoints. Calls
+ * `get-document-urls` once with all ids and returns a map keyed by document id
+ * with the flattened URL list per page. Missing entries → empty array.
+ *
+ * Use this on list-children / search-content / report-page-references where
+ * the per-id fan-out would otherwise be N round-trips.
+ */
+export async function fetchPublishedUrlsBatch(
+  ids: string[],
+): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  if (ids.length === 0) return out;
+  try {
+    const result = await chainCms("get-document-urls", { id: ids });
+    if (!result.ok) return out;
+    for (const entry of result.data.items ?? []) {
+      if (!entry?.id) continue;
+      out.set(entry.id, flattenPublishedUrls([entry]));
+    }
+  } catch {
+    // Fall through with whatever we collected so far.
+  }
+  return out;
 }

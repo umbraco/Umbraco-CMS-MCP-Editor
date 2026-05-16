@@ -8,6 +8,7 @@ import {
   buildBulkOutput,
   type BulkOperationOutput,
 } from "../../helpers/bulk-handler.js";
+import { fetchPublishedUrls, publishedUrlsSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   ids: z.array(z.string().uuid()).min(1).max(10).describe("The IDs of the pages to publish (max 10)"),
@@ -22,6 +23,7 @@ const outputSchema = z.object({
     success: z.boolean(),
     previousVersionId: z.string().optional(),
     error: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
+    publishedUrls: publishedUrlsSchema.optional(),
   })),
   successCount: z.number(),
   failureCount: z.number(),
@@ -84,6 +86,12 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       }
       return null;
     });
+
+    // Surface live URLs per successful row so the editor knows what's now live.
+    for (const row of results) {
+      if (!row.success) continue;
+      row.publishedUrls = await fetchPublishedUrls(row.id);
+    }
 
     return createToolResult(buildBulkOutput("Published", results));
   },

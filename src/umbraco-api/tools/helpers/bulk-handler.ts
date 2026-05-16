@@ -31,6 +31,41 @@ export interface BulkResult {
   success: boolean;
   previousVersionId?: string;
   error?: unknown;
+  /**
+   * Backoffice preview URL for the per-item draft. Populated only when the
+   * caller passes a previewUrl in via the post-success hook — bulk tools that
+   * mutate per-page content (bulk-set-property, bulk-set-block-property, bulk-move)
+   * should set it; tools that operate on the page outside of editable content
+   * (bulk-schedule-publish) may leave it absent.
+   */
+  previewUrl?: { url: string; requiresBackofficeAuth: true } | null;
+  /**
+   * Server-side validation outcome for the saved per-item draft. Only present
+   * on bulk save tools (bulk-set-property, bulk-set-block-property). When
+   * `valid` is false the row's edits were saved but the page cannot be
+   * published until the listed errors are resolved.
+   */
+  validation?: {
+    valid: boolean;
+    errors: Array<{
+      propertyAlias: string;
+      culture?: string | null;
+      segment?: string | null;
+      message: string;
+    }>;
+  };
+  /**
+   * Live public URLs the page resolved to BEFORE the bulk operation. Populated
+   * by destructive bulk tools (bulk-unpublish, future bulk-delete) so the
+   * agent can relay "here's what just came down" without handing the editor a
+   * dead link as if it were still live.
+   */
+  previouslyPublishedUrls?: string[];
+  /**
+   * Live public URLs the page resolves to after the bulk operation. Populated
+   * by bulk-publish so the agent can show the editor what's now live.
+   */
+  publishedUrls?: string[];
 }
 
 export interface BulkOperationOutput {
@@ -92,55 +127,31 @@ export function validateBulkIds(ids: string[]): BulkOperationOutput | null {
 }
 
 /**
- * Extract problem-details from a chained CMS call error.
+ * Extract the ProblemDetails out of a chained CMS errorResult.
  *
- * chainCms wraps the raw CMS MCP result in a second createToolResultError call:
- *
- *   errorResult = createToolResultError(rawCmsResult)
- *   errorResult.structuredContent = rawCmsResult
- *   errorResult.structuredContent.structuredContent = <problem-details>
- *   errorResult.content[0].text = JSON.stringify(rawCmsResult)  [compat mode only]
- *
- * Structured-only mode (used in tests) omits content[0].text, so we cannot rely
- * on it. Instead, drill into structuredContent twice. Falls back to content[0].text
- * for callers that pass the text string directly (legacy path).
+ * chainCms now surfaces the ProblemDetails directly under `errorResult.structuredContent`
+ * (single layer), so this just reads that. The legacy string path is kept for
+ * callers that pass `content[0].text` (a JSON-serialized ProblemDetails) directly.
  *
  * @param err - The full errorResult object (preferred) or the content[0].text string.
  */
 export function parseBulkError(err: unknown): unknown {
   if (err === null || err === undefined) return "Unknown error";
 
-  // Preferred path: caller passes the full errorResult object.
-  // Drill through two layers of createToolResultError wrapping to reach problem-details.
   if (typeof err === "object") {
     const asRecord = err as Record<string, unknown>;
-    // Layer 1: errorResult.structuredContent = rawCmsResult
-    const layer1 = asRecord.structuredContent;
-    if (layer1 !== null && layer1 !== undefined && typeof layer1 === "object") {
-      const layer1Rec = layer1 as Record<string, unknown>;
-      // Layer 2: rawCmsResult.structuredContent = problem-details
-      if (layer1Rec.structuredContent !== null && layer1Rec.structuredContent !== undefined) {
-        return layer1Rec.structuredContent;
-      }
-      // rawCmsResult has content[0].text = JSON.stringify(problem-details)
-      const inner = layer1Rec.content;
-      if (Array.isArray(inner) && inner[0]?.text) {
-        try {
-          return JSON.parse(inner[0].text as string);
-        } catch { /* fall through */ }
-      }
-      return layer1;
+    const sc = asRecord.structuredContent;
+    if (sc !== null && sc !== undefined && typeof sc === "object") {
+      return sc;
     }
     return err;
   }
 
-  // Legacy path: caller passes content[0].text (a JSON string of rawCmsResult).
+  // Legacy path: caller passes content[0].text (a JSON string of the ProblemDetails).
   if (typeof err === "string") {
     try {
       const inner = JSON.parse(err);
       if (inner !== null && typeof inner === "object") {
-        const innerRec = inner as Record<string, unknown>;
-        if (innerRec.structuredContent !== undefined) return innerRec.structuredContent;
         return inner;
       }
     } catch {

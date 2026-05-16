@@ -14,6 +14,8 @@ import {
   isBlockListOrGridValue,
   resolveBlockEditorAliases,
 } from "../../helpers/block-builder.js";
+import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
+import { validateDocumentState, validationResultSchema } from "../../helpers/validate-document.js";
 
 const positionSchema = z.object({
   mode: z.enum(["append", "prepend", "before", "after"]).describe("Where to place the new block relative to existing blocks"),
@@ -42,6 +44,8 @@ const outputSchema = z.object({
   id: z.string(),
   name: z.string(),
   contentKey: z.string(),
+  previewUrl: previewUrlSchema,
+  validation: validationResultSchema,
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
@@ -137,11 +141,19 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     });
     if (!updateResult.ok) return updateResult.errorResult;
 
+    const validation = await validateDocumentState(id);
+    const baseMessage = `Added a new block to "${pageName}" (saved, not published)`;
+    const message = validation.valid
+      ? baseMessage
+      : `${baseMessage} — but ${validation.errors.length} validation error(s) must be resolved before this page can be published`;
+
     return createToolResult({
-      message: `Added a new block to "${pageName}" (saved, not published)`,
+      message,
       id,
       name: pageName,
       contentKey: newContentKey,
+      previewUrl: await fetchPreviewUrl(id),
+      validation,
     });
   },
 };

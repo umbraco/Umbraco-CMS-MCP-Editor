@@ -2,6 +2,8 @@ import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { checkVariesByCulture } from "../helpers/check-varies-by-culture.js";
+import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
+import { validateDocumentState, validationResultSchema } from "../../helpers/validate-document.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to add a language variant to"),
@@ -19,6 +21,8 @@ const outputSchema = z.object({
   id: z.string(),
   name: z.string(),
   culture: z.string(),
+  previewUrl: previewUrlSchema,
+  validation: validationResultSchema,
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
@@ -62,11 +66,19 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     });
     if (!updateResult.ok) return updateResult.errorResult;
 
+    const validation = await validateDocumentState(id);
+    const baseMessage = `Created ${culture} variant for "${pageName}"`;
+    const message = validation.valid
+      ? baseMessage
+      : `${baseMessage} — but ${validation.errors.length} validation error(s) must be resolved before this page can be published`;
+
     return createToolResult({
-      message: `Created ${culture} variant for "${pageName}"`,
+      message,
       id,
       name: pageName,
       culture,
+      previewUrl: await fetchPreviewUrl(id, { culture }),
+      validation,
     });
   },
 };
