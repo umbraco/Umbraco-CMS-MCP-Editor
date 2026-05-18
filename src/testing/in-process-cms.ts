@@ -31,16 +31,27 @@ async function getCmsToolMap(): Promise<Map<string, any>> {
     return (process as any).__cmsToolMap;
   }
 
-  // Dynamic import — only happens once (Node's ESM loader caches modules)
-  const { collections, UmbracoManagementClient } = await import("@umbraco-cms/mcp-dev/collections");
+  // Dynamic import — only happens once (Node's ESM loader caches modules).
+  // Cast to `any` for the SDK re-exports; the hand-maintained collections.d.ts
+  // in cms-dev doesn't declare them yet.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const collectionsModule = (await import("@umbraco-cms/mcp-dev/collections")) as any;
+  const { collections, UmbracoManagementClient } = collectionsModule;
   const sdk = await import("@umbraco-cms/mcp-server-sdk");
 
-  sdk.initializeUmbracoFetch({
+  // Prefer the re-exports from cms-dev's collections when available — this hits
+  // the right SDK singleton when cms-dev is linked locally (which carries its
+  // own SDK copy in node_modules). Fall back to the editor MCP's SDK for the
+  // published cms-dev package, where the two share the hoisted SDK anyway.
+  const initializeUmbracoFetch = collectionsModule.initializeUmbracoFetch ?? sdk.initializeUmbracoFetch;
+  const configureApiClient = collectionsModule.configureApiClient ?? sdk.configureApiClient;
+
+  initializeUmbracoFetch({
     clientId: process.env.UMBRACO_CLIENT_ID ?? "",
     clientSecret: process.env.UMBRACO_CLIENT_SECRET ?? "",
     baseUrl: process.env.UMBRACO_BASE_URL ?? "https://localhost:44391",
   });
-  sdk.configureApiClient(() => UmbracoManagementClient.getClient());
+  configureApiClient(() => UmbracoManagementClient.getClient());
 
   const toolMap = new Map<string, any>();
   for (const collection of collections) {

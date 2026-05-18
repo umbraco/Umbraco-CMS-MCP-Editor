@@ -1,11 +1,12 @@
 import { z } from "zod";
+import * as fs from "node:fs";
 import { readFile } from "node:fs/promises";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
   filePath: z.string().optional().describe("Local file path of the file to upload. Provide either filePath or fileUrl (exactly one)."),
-  fileUrl: z.string().url().optional().describe("Remote URL to fetch the file from. The chained CMS tool downloads it in-process (30s timeout). Provide either filePath or fileUrl (exactly one)."),
+  fileUrl: z.string().url().optional().describe("[raw] Remote URL to fetch the file from. The chained CMS tool downloads it in-process (30s timeout). Provide either filePath or fileUrl (exactly one)."),
   name: z.string().describe("Display name for the media item"),
   parentId: z.string().uuid().optional().describe("ID of the target folder (omit to upload to the root)"),
   mediaTypeName: z.string().default("Image").describe("Media type name (e.g. 'Image', 'Article', 'Audio', 'Video', 'Vector Graphics', 'File'). Defaults to 'Image' — omit unless uploading a non-image asset."),
@@ -40,6 +41,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     if (fileUrl) {
       sourcePayload = { sourceType: "url", fileUrl };
     } else {
+      if (typeof fs.createReadStream !== "function") {
+        return createToolResultError({
+          detail: "filePath source is not supported in this runtime (no filesystem). Use fileUrl instead.",
+        });
+      }
       try {
         const buffer = await readFile(filePath!);
         sourcePayload = { sourceType: "base64", fileAsBase64: buffer.toString("base64") };
