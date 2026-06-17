@@ -14,7 +14,7 @@ import "dotenv/config";
 delete process.env.UMBRACO_AUTO_CONFIRM;
 
 import https from "node:https";
-import { Agent, setGlobalDispatcher, fetch as undiciFetch } from "undici";
+import { Agent, setGlobalDispatcher, fetch as undiciFetch, FormData as undiciFormData } from "undici";
 
 // Directly configure the global HTTPS agent to accept self-signed certs
 // (process.env alone isn't sufficient in Jest's VM module context)
@@ -26,6 +26,14 @@ https.globalAgent.options.rejectUnauthorized = false;
 const agent = new Agent({ connect: { rejectUnauthorized: false } });
 setGlobalDispatcher(agent);
 globalThis.fetch = undiciFetch as typeof globalThis.fetch;
+
+// When CMS runs in-process (USE_IN_PROCESS_CMS), media uploads build a web
+// FormData and pass it to globalThis.fetch. Since we swap fetch for npm undici's
+// fetch above, FormData must come from the SAME undici realm — otherwise
+// `body instanceof FormData` fails inside npm-undici's fetch, the body is not
+// serialized as multipart, and Umbraco rejects the upload with
+// "$.file: The File field is required". Align FormData with the overridden fetch.
+globalThis.FormData = undiciFormData as typeof globalThis.FormData;
 
 // Enable in-process CMS — bypass MCP subprocess spawning
 process.env.USE_IN_PROCESS_CMS = "true";
