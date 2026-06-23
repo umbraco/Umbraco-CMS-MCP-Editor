@@ -14,7 +14,7 @@ import "dotenv/config";
 delete process.env.UMBRACO_AUTO_CONFIRM;
 
 import https from "node:https";
-import { Agent, setGlobalDispatcher, fetch as undiciFetch } from "undici";
+import { Agent, setGlobalDispatcher, fetch as undiciFetch, FormData as undiciFormData, Request as undiciRequest } from "undici";
 
 // Directly configure the global HTTPS agent to accept self-signed certs
 // (process.env alone isn't sufficient in Jest's VM module context)
@@ -26,6 +26,36 @@ https.globalAgent.options.rejectUnauthorized = false;
 const agent = new Agent({ connect: { rejectUnauthorized: false } });
 setGlobalDispatcher(agent);
 globalThis.fetch = undiciFetch as typeof globalThis.fetch;
+
+// When CMS runs in-process (USE_IN_PROCESS_CMS), media uploads build a web
+// FormData and pass it to globalThis.fetch. Since we swap fetch for npm undici's
+// fetch above, FormData must come from the SAME undici realm — otherwise
+// `body instanceof FormData` fails inside npm-undici's fetch, the body is not
+// serialized as multipart, and Umbraco rejects the upload with
+// "$.file: The File field is required". Align FormData with the overridden fetch.
+globalThis.FormData = undiciFormData as typeof globalThis.FormData;
+
+// Guard against that realm drift ever returning silently: a FormData body must
+// serialize with a multipart content-type through undici's request builder
+// (the same code path undici's fetch uses internally). If globalThis.FormData
+// is ever from a different realm than the overridden fetch, this produces a
+// non-multipart body and uploads fail with a cryptic 400 at runtime. Fail
+// loudly here instead.
+{
+  const probe = new FormData();
+  probe.append("file", new Blob([new Uint8Array([1, 2, 3])]), "probe.bin");
+  const contentType =
+    new undiciRequest("https://realm-check.invalid", { method: "POST", body: probe }).headers.get(
+      "content-type",
+    ) ?? "";
+  if (!contentType.startsWith("multipart/form-data")) {
+    throw new Error(
+      `jest.setup: web-fetch realm mismatch — a FormData body serialized as "${contentType}" ` +
+        "instead of multipart/form-data. globalThis.FormData must come from the same source " +
+        "(npm 'undici') as the overridden globalThis.fetch.",
+    );
+  }
+}
 
 // Enable in-process CMS — bypass MCP subprocess spawning
 process.env.USE_IN_PROCESS_CMS = "true";

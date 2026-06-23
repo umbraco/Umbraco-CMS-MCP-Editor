@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 
 const inputSchema = {
@@ -19,18 +19,29 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["read"],
   annotations: { readOnlyHint: true },
   handler: async ({ editorAlias }) => {
-    const result = await chainCms("get-document-property-value-template", editorAlias ? { editorAlias } : {});
-    if (!result.ok) return result.errorResult;
-    // The dev tool returns plain text content; pass it through as the message.
-    const data = result.data as any;
-    const text = typeof data === "string"
-      ? data
-      : data?.content?.[0]?.text
-        ?? data?.text
-        ?? JSON.stringify(data);
+    const findResult = await chainCms("find-data-type", editorAlias ? { editorAlias } : {});
+    if (!findResult.ok) return findResult.errorResult;
+
+    if (!editorAlias) {
+      const aliases = Array.from(new Set(findResult.data.items.map((item) => item.editorAlias))).sort();
+      return createToolResult({
+        message: `Available editor aliases (${aliases.length}):\n${aliases.join("\n")}`,
+      });
+    }
+
+    const match = findResult.data.items[0];
+    if (!match) {
+      return createToolResultError({
+        detail: `No data type found with editorAlias "${editorAlias}".`,
+      });
+    }
+
+    const schemaResult = await chainCms("get-data-type-schema", { id: match.id });
+    if (!schemaResult.ok) return schemaResult.errorResult;
+
     return createToolResult({
-      message: text,
-      ...(editorAlias ? { editorAlias } : {}),
+      message: JSON.stringify(schemaResult.data, null, 2),
+      editorAlias,
     });
   },
 };
