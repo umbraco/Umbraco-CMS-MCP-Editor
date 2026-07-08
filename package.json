@@ -1,6 +1,6 @@
 {
   "name": "umbraco-mcp-editor-cms",
-  "version": "1.0.4",
+  "version": "17.5.0",
   "type": "module",
   "description": "MCP server for umbraco-mcp-editor-cms",
   "main": "dist/index.js",
@@ -62,7 +62,7 @@
     "@types/node": "^22.14.1",
     "@types/uuid": "^10.0.0",
     "@types/yargs": "^17.0.33",
-    "@umbraco-cms/mcp-dev": "^17.4.2",
+    "@umbraco-cms/mcp-dev": "^17.5.1",
     "jest": "^29.7.0",
     "msw": "^2.12.7",
     "rimraf": "^6.0.1",
