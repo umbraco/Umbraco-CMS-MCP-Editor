@@ -139,9 +139,7 @@ jobs:
 
   evals:
     name: LLM Eval Tests
-    # TEMPORARY (#20): also run evals on PRs into dev to validate the eval-registration
-    # fix. Revert to `github.base_ref == 'main'` before merging.
-    if: github.base_ref == 'main' || github.base_ref == 'dev'
+    if: github.base_ref == 'main'
     runs-on: ubuntu-latest
 
     services:
