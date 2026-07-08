@@ -1,8 +1,9 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 import { isBlockListOrGridValue, isRteWithBlocks, removeBlockFromContainer } from "../../helpers/block-builder.js";
+import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
+import { validateDocumentState, validationResultSchema } from "../../helpers/validate-document.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page containing the block property"),
@@ -17,6 +18,8 @@ const outputSchema = z.object({
   id: z.string(),
   name: z.string(),
   contentKey: z.string(),
+  previewUrl: previewUrlSchema,
+  validation: validationResultSchema,
 });
 
 type GridLayoutItem = {
@@ -144,7 +147,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       return createToolResultError({ content: [{ type: "text", text: plan.errorText }], isError: true });
     }
 
-    if (!await confirmStep(extra, plan.confirmMessage)) {
+    if (!await requestApproval(extra, plan.confirmMessage)) {
       return createToolResultError({ content: [{ type: "text", text: "Cancelled by user." }], isError: true });
     }
 
@@ -154,11 +157,19 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     });
     if (!updateResult.ok) return updateResult.errorResult;
 
+    const validation = await validateDocumentState(id);
+    const baseMessage = `Removed block from "${pageName}" (saved, not published)`;
+    const message = validation.valid
+      ? baseMessage
+      : `${baseMessage} — but ${validation.errors.length} validation error(s) must be resolved before this page can be published`;
+
     return createToolResult({
-      message: `Removed block from "${pageName}" (saved, not published)`,
+      message,
       id,
       name: pageName,
       contentKey,
+      previewUrl: await fetchPreviewUrl(id),
+      validation,
     });
   },
 };

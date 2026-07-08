@@ -7,6 +7,7 @@ exports[`delete-page should delete a page (move to recycle bin) 1`] = `
     "id": "00000000-0000-0000-0000-000000000000",
     "message": "Moved "_Test Delete Page" to the recycle bin",
     "name": "_Test Delete Page",
+    "previouslyPublishedUrls": [],
   },
 }
 `;

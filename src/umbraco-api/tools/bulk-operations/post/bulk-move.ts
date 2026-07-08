@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 import {
   validateBulkIds,
   fetchBulkItemDetails,
@@ -9,6 +8,7 @@ import {
   buildBulkOutput,
   type BulkOperationOutput,
 } from "../../helpers/bulk-handler.js";
+import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   ids: z.array(z.string().uuid()).min(1).max(10).describe("The IDs of the pages to move (max 10)"),
@@ -23,6 +23,7 @@ const outputSchema = z.object({
     success: z.boolean(),
     previousVersionId: z.string().optional(),
     error: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
+    previewUrl: previewUrlSchema.optional(),
   })),
   successCount: z.number(),
   failureCount: z.number(),
@@ -64,7 +65,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const nameList = items.map(i => `- ${i.name}`).join("\n");
     const message = `Move these ${items.length} pages to '${targetName}'?\n${nameList}`;
 
-    if (!await confirmStep(extra, message)) {
+    if (!await requestApproval(extra, message)) {
       return createToolResult({
         message: "Cancelled",
         results: [],
@@ -84,6 +85,14 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       }
       return null;
     });
+
+    // After a successful move the page's URL slug typically changes — surface
+    // the fresh preview URL per row so the agent can hand the editor a working
+    // link in the same turn instead of a stale pre-move one.
+    for (const row of results) {
+      if (!row.success) continue;
+      row.previewUrl = await fetchPreviewUrl(row.id);
+    }
 
     return createToolResult(buildBulkOutput("Moved", results));
   },

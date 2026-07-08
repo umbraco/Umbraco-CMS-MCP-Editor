@@ -14,6 +14,10 @@ exports[`edit-page should edit a page 1`] = `
     "updatedFields": [
       "title",
     ],
+    "validation": {
+      "errors": [],
+      "valid": true,
+    },
   },
 }
 `;

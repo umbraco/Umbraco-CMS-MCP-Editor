@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 import {
   validateBulkIds,
   fetchBulkItemDetails,
@@ -9,6 +8,8 @@ import {
   buildBulkOutput,
   type BulkOperationOutput,
 } from "../../helpers/bulk-handler.js";
+import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
+import { validateDocumentState, validationResultSchema } from "../../helpers/validate-document.js";
 
 const inputSchema = {
   ids: z.array(z.string().uuid()).min(1).max(10).describe("The IDs of the pages to update (max 10)"),
@@ -26,6 +27,8 @@ const outputSchema = z.object({
     success: z.boolean(),
     previousVersionId: z.string().optional(),
     error: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
+    previewUrl: previewUrlSchema.optional(),
+    validation: validationResultSchema.optional(),
   })),
   successCount: z.number(),
   failureCount: z.number(),
@@ -34,7 +37,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "bulk-set-property",
-  description: "Set the same property value on multiple pages at once (max 10). Call get-page first to verify the property alias exists. For non-string non-block property values (media pickers, content/multi-node pickers, image cropper, slider, color, date, etc.) call get-property-value-template with the editor alias first to see the expected JSON shape. For block-shaped values use bulk-set-block-property (or the per-page block tools — add-blocklist-block / add-blockgrid-block / add-rte-block / edit-block) instead of hand-constructing the JSON here. Lists all page names and the property change for confirmation. Each result includes a previousVersionId for rollback.",
+  description: "Set the same property value on multiple pages at once (max 10). Call get-page first to verify the property alias exists. For non-string non-block property values (media pickers, content/multi-node pickers, image cropper, slider, color, date, etc.) call get-property-value-template with the editor alias first to see the expected JSON shape. For block-shaped values use bulk-set-block-property (or the per-page block tools — add-blocklist-block / add-blockgrid-block / add-rte-block / edit-block) instead of hand-constructing the JSON here. Lists all page names and the property change for confirmation. Each successful result includes a previousVersionId for rollback, a previewUrl (draft preview after the change), and a `validation` outcome — if `valid` is false the changes were saved but the page cannot be published until the listed errors are resolved.",
   inputSchema,
   outputSchema,
   slices: ["update"],
@@ -58,7 +61,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const nameList = items.map(i => `- ${i.name}`).join("\n");
     const message = `Set '${alias}' to '${valuePreview}' on these ${items.length} pages?\n${nameList}`;
 
-    if (!await confirmStep(extra, message)) {
+    if (!await requestApproval(extra, message)) {
       return createToolResult({
         message: "Cancelled",
         results: [],
@@ -78,6 +81,15 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       }
       return null;
     });
+
+    // Decorate per-page results that succeeded with the post-save validation
+    // outcome and a fresh preview URL. Run sequentially to avoid hammering the
+    // backoffice when the bulk size is at the 10-item cap.
+    for (const row of results) {
+      if (!row.success) continue;
+      row.validation = await validateDocumentState(row.id);
+      row.previewUrl = await fetchPreviewUrl(row.id);
+    }
 
     return createToolResult(buildBulkOutput("Updated", results));
   },

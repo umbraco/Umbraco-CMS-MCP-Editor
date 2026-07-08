@@ -2,6 +2,7 @@ import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { buildChainedCursor } from "../../helpers/tree-walker.js";
+import { buildPreviewUrl, fetchPublishedUrlsBatch, previewUrlSchema, publishedUrlsSchema } from "../../helpers/preview-url.js";
 
 
 const inputSchema = {
@@ -11,7 +12,13 @@ const inputSchema = {
 };
 
 const outputSchema = z.object({
-  items: z.array(z.object({ id: z.string(), name: z.string(), hasChildren: z.boolean() })).describe("Child pages"),
+  items: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    hasChildren: z.boolean(),
+    previewUrl: previewUrlSchema,
+    publishedUrls: publishedUrlsSchema,
+  })).describe("Child pages"),
   total: z.number().describe("Total number of children"),
 });
 
@@ -28,11 +35,15 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       ? await chainCms("get-document-children", { parentId, cursor })
       : await chainCms("get-document-root", { cursor });
     if (!result.ok) return result.errorResult;
+    const items = result.data.items ?? [];
+    const publishedUrlsById = await fetchPublishedUrlsBatch(items.map((i) => i.id));
     return createToolResult({
-      items: (result.data.items ?? []).map((item) => ({
+      items: items.map((item) => ({
         id: item.id,
         name: item.variants[0]?.name ?? "Unknown",
         hasChildren: item.hasChildren,
+        previewUrl: buildPreviewUrl(item.id),
+        publishedUrls: publishedUrlsById.get(item.id) ?? [],
       })),
       total: result.data.total,
     });

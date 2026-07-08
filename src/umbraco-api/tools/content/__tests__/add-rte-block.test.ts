@@ -1,10 +1,8 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
+import { describe, it, expect, beforeAll, afterAll } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
-  createElicitation,
-  expectElicitationCancel,
   ContentTestHelper,
   extractChainedResult,
 } from "./setup.js";
@@ -21,8 +19,6 @@ async function getRteValue(pageId: string, propertyAlias: string): Promise<{ mar
   return (doc.values ?? []).find((v: any) => v.alias === propertyAlias)?.value;
 }
 
-const elicitation = createElicitation();
-
 describe("add-rte-block", () => {
   setupTestEnvironment();
 
@@ -33,12 +29,7 @@ describe("add-rte-block", () => {
     fixture = await createRteFixture(extra, "_Test add-rte-block fixture");
   }, 120000);
 
-  beforeEach(() => {
-    elicitation.reset();
-  });
-
   afterAll(async () => {
-    elicitation.cleanup();
     if (fixture) await fixture.cleanup();
   }, 60000);
 
@@ -194,35 +185,6 @@ describe("add-rte-block", () => {
     );
     expect(result.isError).toBe(true);
   }, 30000);
-
-  it("does not modify the page when the user declines confirmation", async () => {
-    if (skipIfNoFixture()) return;
-    const f = fixture!;
-
-    const valueBefore = await getRteValue(f.pageId, f.propertyAlias);
-    const beforeMarkup = valueBefore?.markup ?? "";
-
-    elicitation.rejectAll();
-    await expectElicitationCancel(() =>
-      addRteBlockTool.handler(
-        {
-          id: f.pageId,
-          propertyAlias: f.propertyAlias,
-          contentTypeKey: f.elementTypeId,
-          values: [{ alias: f.blockPropertyAlias, value: "_should-not-land" }],
-          position: undefined,
-          settingsTypeKey: undefined,
-          settingsValues: undefined,
-          culture: undefined,
-          segment: undefined,
-        },
-        extra,
-      ),
-    );
-
-    const valueAfter = await getRteValue(f.pageId, f.propertyAlias);
-    expect(valueAfter?.markup).toBe(beforeMarkup);
-  }, 60000);
 
   it("adds first block to an RTE property that has no value yet (regression: empty property)", async () => {
     if (skipIfNoFixture()) return;

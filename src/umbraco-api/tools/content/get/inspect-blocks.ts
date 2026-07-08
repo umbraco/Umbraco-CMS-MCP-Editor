@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { buildPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 
 
 const inputSchema = {
@@ -11,6 +12,7 @@ const inputSchema = {
 const outputSchema = z.object({
   id: z.string(),
   name: z.string(),
+  previewUrl: previewUrlSchema,
   blockProperties: z.array(z.object({
     propertyAlias: z.string().describe("The document property containing these blocks"),
     editorAlias: z.string().optional(),
@@ -95,6 +97,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     return createToolResult({
       id: doc.id,
       name: doc.variants?.[0]?.name ?? "Unknown",
+      previewUrl: buildPreviewUrl(doc.id),
       blockProperties,
     });
   },

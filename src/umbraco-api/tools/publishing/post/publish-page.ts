@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 import { verifyDocumentPublished } from "../../helpers/verify-published.js";
+import { fetchPublishedUrls, publishedUrlsSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to publish"),
@@ -13,6 +13,7 @@ const outputSchema = z.object({
   message: z.string(),
   id: z.string(),
   name: z.string(),
+  publishedUrls: publishedUrlsSchema,
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
@@ -29,8 +30,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const pageName = doc.variants?.[0]?.name ?? "Unknown";
 
     if (includeDescendants) {
-      if (!await confirmStep(extra, `Publish "${pageName}" and all its descendants?`)) {
-        return createToolResult({ message: "Publish cancelled", id, name: pageName });
+      if (!await requestApproval(extra, `Publish "${pageName}" and all its descendants?`)) {
+        return createToolResult({ message: "Publish cancelled", id, name: pageName, publishedUrls: [] });
       }
     }
 
@@ -72,6 +73,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       message: includeDescendants ? `Published "${pageName}" and all child pages` : `Published "${pageName}"`,
       id,
       name: pageName,
+      publishedUrls: await fetchPublishedUrls(id),
     });
   },
 };

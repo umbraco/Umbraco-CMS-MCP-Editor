@@ -2,6 +2,7 @@ import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
+import { validateDocumentState, validationResultSchema } from "../../helpers/validate-document.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to edit"),
@@ -19,11 +20,12 @@ const outputSchema = z.object({
   name: z.string(),
   updatedFields: z.array(z.string()),
   previewUrl: previewUrlSchema,
+  validation: validationResultSchema,
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "edit-page",
-  description: "Update specific fields on a content page. Changes are saved but NOT published. Call get-page first to discover valid property aliases. For non-string non-block property values (media pickers, content/multi-node pickers, image cropper, slider, color, date, etc.), call get-property-value-template with the editor alias first to see the expected JSON shape — the LLM-default shape is often wrong for structured editors. For block-shaped values (BlockList / BlockGrid / Rich-Text-with-blocks) use the dedicated tools — inspect-blocks, add-blocklist-block / add-blockgrid-block / add-rte-block, edit-block — instead of hand-constructing the JSON here.",
+  description: "Update specific fields on a content page. Changes are saved but NOT published. Call get-page first to discover valid property aliases. For non-string non-block property values (media pickers, content/multi-node pickers, image cropper, slider, color, date, etc.), call get-property-value-template with the editor alias first to see the expected JSON shape — the LLM-default shape is often wrong for structured editors. For block-shaped values (BlockList / BlockGrid / Rich-Text-with-blocks) use the dedicated tools — inspect-blocks, add-blocklist-block / add-blockgrid-block / add-rte-block, edit-block — instead of hand-constructing the JSON here. The response includes a `validation` field — if `validation.valid` is false the changes were saved as a draft but the page cannot be published until the listed errors are resolved.",
   inputSchema,
   outputSchema,
   slices: ["update"],
@@ -43,12 +45,19 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const updateResult = await chainCms("update-document-properties", { id, properties });
     if (!updateResult.ok) return updateResult.errorResult;
 
+    const validation = await validateDocumentState(id);
+    const baseMessage = `Updated ${fieldNames.length} field(s) on "${pageName}" (saved, not published)`;
+    const message = validation.valid
+      ? baseMessage
+      : `${baseMessage} — but ${validation.errors.length} validation error(s) must be resolved before this page can be published`;
+
     return createToolResult({
-      message: `Updated ${fieldNames.length} field(s) on "${pageName}" (saved, not published)`,
+      message,
       id,
       name: pageName,
       updatedFields: fieldNames,
       previewUrl: await fetchPreviewUrl(id),
+      validation,
     });
   },
 };

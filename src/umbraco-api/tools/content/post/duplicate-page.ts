@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to duplicate"),
@@ -14,11 +15,12 @@ const outputSchema = z.object({
   id: z.string(),
   sourceId: z.string(),
   sourceName: z.string(),
+  previewUrl: previewUrlSchema,
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "duplicate-page",
-  description: "Duplicate a content page (and optionally all its descendants) to a new location. The copy is created as a draft named 'Original Name (N)'. By default the new page stands on its own — pass relateToOriginal: true only if the user explicitly wants to record an Umbraco relation linking the copy back to the source. Returns the new page ID for follow-up edits.",
+  description: "Duplicate a content page (and optionally all its descendants) to a new location. The copy is created as a draft named 'Original Name (N)'. By default the new page stands on its own — pass relateToOriginal: true only if the user explicitly wants to record an Umbraco relation linking the copy back to the source. Returns the new page ID and a previewUrl for the new draft for follow-up edits.",
   inputSchema,
   outputSchema,
   slices: ["create"],
@@ -43,6 +45,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       id: copyResult.data.id,
       sourceId: id,
       sourceName,
+      previewUrl: await fetchPreviewUrl(copyResult.data.id),
     });
   },
 };

@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 import {
   validateBulkIds,
   fetchBulkItemDetails,
@@ -9,6 +8,7 @@ import {
   buildBulkOutput,
   type BulkOperationOutput,
 } from "../../helpers/bulk-handler.js";
+import { fetchPublishedUrls, publishedUrlsSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   ids: z.array(z.string().uuid()).min(1).max(10).describe("The IDs of the pages to publish (max 10)"),
@@ -23,6 +23,7 @@ const outputSchema = z.object({
     success: z.boolean(),
     previousVersionId: z.string().optional(),
     error: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
+    publishedUrls: publishedUrlsSchema.optional(),
   })),
   successCount: z.number(),
   failureCount: z.number(),
@@ -54,7 +55,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const nameList = items.map(i => `- ${i.name}`).join("\n");
     const message = `Publish these ${items.length} pages?\n${nameList}`;
 
-    if (!await confirmStep(extra, message)) {
+    if (!await requestApproval(extra, message)) {
       return createToolResult({
         message: "Cancelled",
         results: [],
@@ -85,6 +86,12 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       }
       return null;
     });
+
+    // Surface live URLs per successful row so the editor knows what's now live.
+    for (const row of results) {
+      if (!row.success) continue;
+      row.publishedUrls = await fetchPublishedUrls(row.id);
+    }
 
     return createToolResult(buildBulkOutput("Published", results));
   },

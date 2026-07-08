@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   parentId: z.string().uuid().optional().describe("The parent page ID whose children are being reordered. Omit to reorder at the content root."),
@@ -13,6 +14,7 @@ const inputSchema = {
 const outputSchema = z.object({
   message: z.string(),
   sorted: z.number(),
+  parentPreviewUrl: previewUrlSchema.describe("Backoffice preview link for the parent page so the editor can confirm the new order. Null when sorting at the content root or when the base URL is not resolvable."),
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
@@ -32,6 +34,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     return createToolResult({
       message: `Reordered ${sorting.length} child page(s)`,
       sorted: sorting.length,
+      parentPreviewUrl: parentId ? await fetchPreviewUrl(parentId) : null,
     });
   },
 };

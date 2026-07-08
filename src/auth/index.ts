@@ -8,3 +8,5 @@ export {
   AuthorizationPolicies,
   type UserContext,
 } from "./auth-policies.js";
+
+export { CHAINED_DEPS } from "./chained-deps.generated.js";

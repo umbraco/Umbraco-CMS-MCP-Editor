@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { confirmStep } from "../../helpers/confirm-step.js";
 import { buildPublishStatus, publishStatusSchema } from "../../helpers/publish-status.js";
+import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the document whose template to change"),
@@ -22,6 +22,7 @@ const outputSchema = z.object({
   oldTemplate: templateRefSchema.nullable(),
   newTemplate: templateRefSchema.nullable(),
   publishStatus: publishStatusSchema,
+  previewUrl: previewUrlSchema,
 });
 
 async function resolveTemplateRef(id: string | null) {
@@ -63,7 +64,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     const oldLabel = oldTemplate ? `"${oldTemplate.name}"` : "(none)";
     const newLabel = newTemplate ? `"${newTemplate.name}"` : "(none — clear to default)";
-    if (!await confirmStep(extra, `Switch template on "${pageName}" from ${oldLabel} to ${newLabel}?`)) {
+    if (!await requestApproval(extra, `Switch template on "${pageName}" from ${oldLabel} to ${newLabel}?`)) {
       return createToolResult({
         message: "Template change cancelled",
         id,
@@ -71,6 +72,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         oldTemplate,
         newTemplate: oldTemplate,
         publishStatus: buildPublishStatus(doc),
+        previewUrl: null,
       });
     }
 
@@ -105,6 +107,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       oldTemplate,
       newTemplate,
       publishStatus: buildPublishStatus(freshResult.data),
+      previewUrl: await fetchPreviewUrl(id),
     });
   },
 };
