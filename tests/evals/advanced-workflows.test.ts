@@ -84,14 +84,18 @@ const allTools = [
   // Content Health
   "audit-page-seo",
   "audit-page-content",
-  // DISABLED (tree walk, scanLimit=100): "report-empty-fields", "report-short-content", "report-media-missing-alt"
-  // Content Reporting — DISABLED at collection level (tree walk, scanLimit=100–500):
-  // "report-stale-content", "report-unpublished", "report-recently-changed",
-  // "report-content-by-type", "report-translation-coverage"
+  // Dropped from the product (#46) — not registered: "report-empty-fields", "report-short-content", "report-media-missing-alt"
+  // Content Reporting (registered; tree walk scanLimit=100–500, fine on the small demo site)
+  "report-stale-content",
+  "report-unpublished",
+  "report-recently-changed",
+  "report-content-by-type",
+  "report-translation-coverage",
   // Site Structure
   "report-site-tree-summary",
   "report-deep-pages",
-  // Media Health — DISABLED at collection level (tree walk, scanLimit=100): "report-large-media"
+  // Media Health (registered; tree walk scanLimit=100)
+  "report-large-media",
   // Relationships
   "report-content-references",
   // DISABLED (tree walk, scanLimit=100): "report-orphan-pages"
@@ -118,7 +122,7 @@ const allTools = [
   "report-member-count",
   "report-members-by-group",
   "report-member-activity",
-  // Scheduling — DISABLED (tree walk, scanLimit=100): "list-scheduled-content"
+  // Dropped from the product (#46) — not registered: "list-scheduled-content"
   "get-publish-status",
   "schedule-publish",
   "cancel-schedule",
@@ -182,24 +186,9 @@ describe("Advanced Workflows", () => {
     timeout
   );
 
-  // SKIPPED: report-short-content / report-empty-fields / report-stale-content are disabled (tree walk).
-  it(
-    "content health summary",
-    runScenarioTest({
-      prompt:
-        "Give me a quick content health overview — use report-short-content with a threshold of 50 words to find thin pages.",
-      tools: [
-        "report-short-content",
-        "report-empty-fields",
-        "report-stale-content",
-        "list-children",
-      ],
-      requiredTools: ["report-short-content"],
-      successPattern: /short|thin|word|content|page/i,
-      verbose: true,
-    }),
-    timeout
-  );
+  // Removed: "content health summary" required report-short-content, which was
+  // dropped from the product in #46 (tool file + integration test remain, but it
+  // is not registered). See issue #20.
 
   // SKIPPED: report-large-media is disabled (tree walk).
   it(

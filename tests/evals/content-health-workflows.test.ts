@@ -85,14 +85,18 @@ const allTools = [
   // Content Health
   "audit-page-seo",
   "audit-page-content",
-  // DISABLED (tree walk, scanLimit=100): "report-empty-fields", "report-short-content", "report-media-missing-alt"
-  // Content Reporting — DISABLED at collection level (tree walk, scanLimit=100–500):
-  // "report-stale-content", "report-unpublished", "report-recently-changed",
-  // "report-content-by-type", "report-translation-coverage"
+  // Dropped from the product (#46) — not registered: "report-empty-fields", "report-short-content", "report-media-missing-alt"
+  // Content Reporting (registered; tree walk scanLimit=100–500, fine on the small demo site)
+  "report-stale-content",
+  "report-unpublished",
+  "report-recently-changed",
+  "report-content-by-type",
+  "report-translation-coverage",
   // Site Structure
   "report-site-tree-summary",
   "report-deep-pages",
-  // Media Health — DISABLED at collection level (tree walk, scanLimit=100): "report-large-media"
+  // Media Health (registered; tree walk scanLimit=100)
+  "report-large-media",
   // Relationships
   "report-content-references",
   // DISABLED (tree walk, scanLimit=100): "report-orphan-pages"
@@ -119,7 +123,7 @@ const allTools = [
   "report-member-count",
   "report-members-by-group",
   "report-member-activity",
-  // Scheduling — DISABLED (tree walk, scanLimit=100): "list-scheduled-content"
+  // Dropped from the product (#46) — not registered: "list-scheduled-content"
   "get-publish-status",
   "schedule-publish",
   "cancel-schedule",
@@ -195,19 +199,8 @@ describe("Content Health and Reporting Workflows", () => {
     timeout
   );
 
-  // SKIPPED: report-media-missing-alt is disabled (tree walk, scanLimit=100).
-  it(
-    "editor checks media alt text",
-    runScenarioTest({
-      prompt:
-        "Use report-media-missing-alt to scan the media library for images without alt text.",
-      tools: ["report-media-missing-alt", "list-media-children"],
-      requiredTools: ["report-media-missing-alt"],
-      successPattern: /alt|image|media|accessibility|missing/i,
-      verbose: true,
-    }),
-    timeout
-  );
+  // Removed: "editor checks media alt text" required report-media-missing-alt, which
+  // was dropped from the product in #46 (not registered). See issue #20.
 
   // SKIPPED: report-translation-coverage is disabled (tree walk, scanLimit=100).
   it(

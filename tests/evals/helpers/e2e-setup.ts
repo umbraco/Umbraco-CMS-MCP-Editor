@@ -42,7 +42,7 @@ configureEvals({
     // Enable every mode so tree-walker tools (report-stale-content,
     // report-large-media, list-scheduled-content, etc.) register too.
     // The demo site is small enough that the scanLimit=100 cap covers it.
-    UMBRACO_TOOL_MODES: "content,media,blueprints,translation,tags,content-health,site-structure,media-health,bulk-operations,members,scheduling,redirects,relationships,public-access,notifications,recycle-bin",
+    UMBRACO_TOOL_MODES: "content,media,blueprints,translation,tags,content-health,content-reporting,site-structure,media-health,bulk-operations,members,scheduling,redirects,relationships,public-access,notifications,recycle-bin",
   },
 
   // Test defaults
