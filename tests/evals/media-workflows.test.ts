@@ -192,8 +192,13 @@ describe("Media and Blueprint Workflows", () => {
   it(
     "editor asks to upload a file",
     runScenarioTest({
+      // upload-media has no local-file-path source (removed in #71); the valid
+      // sources are url / file / base64. Use a tiny inline base64 PNG so the
+      // call is unambiguous and self-contained (no network dependency).
       prompt:
-        "Upload the file at /tmp/test-banner.jpg to the media library root",
+        "Upload this 1x1 PNG image to the media library root as an Image named 'Test Banner'. " +
+        "Use upload-media with sourceType 'base64' and this data: " +
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
       tools: [
         "search-media",
         "list-media-children",
