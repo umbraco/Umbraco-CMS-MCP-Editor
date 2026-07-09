@@ -61,18 +61,6 @@ export const toolModes: ToolModeDefinition[] = [
     collections: ['content-health']
   },
   {
-    name: 'content-reporting',
-    displayName: 'Content Reporting',
-    description: 'Site-wide content lifecycle, freshness, and translation reporting (tree-walking)',
-    collections: ['content-reporting']
-  },
-  {
-    name: 'media-health',
-    displayName: 'Media Health',
-    description: 'Media library health and usage analysis (tree-walking)',
-    collections: ['media-health']
-  },
-  {
     name: 'site-structure',
     displayName: 'Site Structure',
     description: 'Site architecture analysis and structure reporting',
