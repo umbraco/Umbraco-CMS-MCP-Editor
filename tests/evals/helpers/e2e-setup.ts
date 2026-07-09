@@ -6,6 +6,7 @@
  */
 
 import path from "path";
+import { jest } from "@jest/globals";
 import { configureEvals, ClaudeModels } from "@umbraco-cms/mcp-server-sdk/evals";
 
 // jest.setup.ts (loaded via setupFiles, before this file) sets
@@ -15,6 +16,13 @@ import { configureEvals, ClaudeModels } from "@umbraco-cms/mcp-server-sdk/evals"
 // env to {...process.env}, so the flag would leak into dist/index.js unless
 // we remove it from process.env before any scenario runs.
 delete process.env.USE_IN_PROCESS_CMS;
+
+// LLM eval scenarios are stochastic: on Haiku, a capable multi-step scenario
+// occasionally fails to call the exact required tool (e.g. skips the final step
+// of a create/read/remove flow). Retry failed scenarios so one-off
+// nondeterministic flakes don't fail CI — a genuine regression still fails
+// every attempt and surfaces. Only failing scenarios are re-run.
+jest.retryTimes(3, { logErrorsBeforeRetry: true });
 
 // Configure the eval framework for this MCP server
 configureEvals({

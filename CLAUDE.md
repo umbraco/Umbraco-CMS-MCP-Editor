@@ -18,6 +18,15 @@ A live-MCP audit campaign in `docs/audits/mcp-live-validation/` exercised every 
 - `main` — release branch, only merged from `dev`
 - Feature branches: `feature/<name>` (auto-prefixed by worktree hook)
 
+## PR / CI workflow
+
+Pushing is not the finish line — watch CI and fix failures before reporting a PR as ready:
+
+1. Open / update the PR (`gh pr create` / `git push`).
+2. Poll `gh pr checks <number>` until every check has reported (or one has clearly failed).
+3. For a failing check, read the log (`gh run view --job <job-id> --log-failed`), diagnose the root cause, fix it in code or the workflow, and push a new commit.
+4. Loop on 2–3 until all checks are green. Treat a CI failure like a local test failure — a real regression that blocks shipping, not something to hand to the reviewer.
+
 ## Demo Site
 
 The local Umbraco instance used by dev and CI lives in two places:
@@ -81,6 +90,8 @@ Integration tests require a running Umbraco instance with an API user. Both are 
 Run Umbraco in the background, wait for `.demo-site-port` to exist and the base URL to respond, then run tests.
 
 **Before asking to create a PR, run ALL tests (`npm run test:all`) and confirm they pass.** `npm run compile` alone is not sufficient — integration tests are where regressions show up. If Umbraco isn't running, start it first.
+
+**Stale test data:** file-based entities (partial views, scripts, stylesheets) live on the filesystem, and content/media live in the database. If a test run dies mid-way, leftover state can cause spurious failures in later runs (duplicate items, wrong tree counts). To reset, recycle the database: change the DB name in `demo-site/appsettings.local.json` and restart Umbraco (or spin up a fresh worktree, which gets its own DB). After recycling, re-run `node scripts/create-api-user.mjs` — tests fail with 401 until the API user exists in the new database.
 
 ## Source Structure
 
@@ -184,6 +195,15 @@ Custom fields defined in `config/server-config.ts`.
 - Set `slices` array for filtering categorisation
 - Set `annotations` for MCP hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`)
 
+### Schema validation: `uuid()` vs `guid()`
+
+Umbraco emits GUIDs that are **not** RFC 4122 compliant — e.g. sequential version IDs like `000005e3-0000-0000-0000-000000000000`, whose version/variant nibbles fail Zod's `uuid()` check. Rule of thumb:
+
+- **Input schemas** (what the LLM sends) → `z.string().uuid()` for strict validation.
+- **Output schemas / values Umbraco returns** (version IDs especially) → `z.guid()`, which accepts any `8-4-4-4-12` hex string.
+
+Getting this wrong causes tools to pass integration tests but fail on the wire with `-32602`. See `src/umbraco-api/tools/versioning/post/rollback-page.ts` for the canonical example (`versionId` uses `guid()`, the page `id` uses `uuid()`).
+
 ## Shared Helpers
 
 **`helpers/bulk-handler.ts`** — shared bulk operation infrastructure:
@@ -223,18 +243,26 @@ Custom fields defined in `config/server-config.ts`.
 
 ## API User Setup
 
-Integration tests require an API user in Umbraco. **You must create this manually via the Umbraco backoffice UI:**
+Integration tests authenticate as an API user (`umbraco-back-office-mcp` / `1234567890`). **This is created automatically — you rarely need to do it by hand:**
 
-1. Go to **Settings > Users** in the Umbraco backoffice
-2. Create an API user with:
-   - **Client ID:** `umbraco-back-office-mcp`
-   - **Client Secret:** `1234567890`
-3. Grant the user appropriate permissions for the APIs being tested
-4. Add these to your `.env` file:
-   ```
-   UMBRACO_CLIENT_ID=umbraco-back-office-mcp
-   UMBRACO_CLIENT_SECRET=1234567890
-   ```
+- The worktree hook and `npm run start:umbraco` run `scripts/create-api-user.mjs` for you, and CI runs it explicitly.
+- The script is **idempotent** — it checks for the user first and prints `API user already exists — skipping creation`.
+
+To (re)create it manually after recycling the database:
+
+```bash
+node scripts/create-api-user.mjs <baseUrl> <adminEmail> <adminPassword>
+# e.g. node scripts/create-api-user.mjs http://localhost:56472 admin@admin.com 1234567890
+```
+
+Then ensure `.env` has the matching credentials:
+
+```
+UMBRACO_CLIENT_ID=umbraco-back-office-mcp
+UMBRACO_CLIENT_SECRET=1234567890
+```
+
+If you'd rather create it via the backoffice: **Settings > Users**, new API user with the client ID/secret above, granted permissions for the APIs under test.
 
 ## Hosted Worker (`src/worker.ts`)
 

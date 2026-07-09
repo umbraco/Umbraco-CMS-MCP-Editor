@@ -85,17 +85,18 @@ const allTools = [
   // Content Health
   "audit-page-seo",
   "audit-page-content",
-  // DISABLED (tree walk, scanLimit=100): "report-empty-fields", "report-short-content", "report-media-missing-alt"
-  // Content Reporting — DISABLED at collection level (tree walk, scanLimit=100–500):
-  // "report-stale-content", "report-unpublished", "report-recently-changed",
-  // "report-content-by-type", "report-translation-coverage"
+  // DISABLED — global tree-walking collections are not registered (see #20). Do not
+  // add scenarios that require these until the collections are re-enabled:
+  //   Content Reporting: report-stale-content, report-unpublished, report-recently-changed,
+  //                      report-content-by-type, report-translation-coverage
+  //   Content Health (dropped in #46): report-empty-fields, report-short-content, report-media-missing-alt
+  //   Media Health: report-large-media
   // Site Structure
   "report-site-tree-summary",
   "report-deep-pages",
-  // Media Health — DISABLED at collection level (tree walk, scanLimit=100): "report-large-media"
   // Relationships
   "report-content-references",
-  // DISABLED (tree walk, scanLimit=100): "report-orphan-pages"
+  // DISABLED (tree walk): report-orphan-pages
   "report-outbound-links",
   // Bulk Operations
   "bulk-publish",
@@ -119,7 +120,7 @@ const allTools = [
   "report-member-count",
   "report-members-by-group",
   "report-member-activity",
-  // Scheduling — DISABLED (tree walk, scanLimit=100): "list-scheduled-content"
+  // Dropped from the product (#46) — not registered: "list-scheduled-content"
   "get-publish-status",
   "schedule-publish",
   "cancel-schedule",
@@ -168,19 +169,8 @@ describe("Content Health and Reporting Workflows", () => {
     timeout
   );
 
-  // SKIPPED: report-stale-content is disabled (tree walk, scanLimit=100).
-  it(
-    "editor finds stale content",
-    runScenarioTest({
-      prompt:
-        "Use report-stale-content to find pages not updated in 180 days.",
-      tools: ["report-stale-content", "list-children"],
-      requiredTools: ["report-stale-content"],
-      successPattern: /stale|updated|day|page/i,
-      verbose: true,
-    }),
-    timeout
-  );
+  // Removed (see #20): "editor finds stale content" required report-stale-content,
+  // in the disabled Content Reporting collection.
 
   it(
     "editor views site structure",
@@ -195,31 +185,7 @@ describe("Content Health and Reporting Workflows", () => {
     timeout
   );
 
-  // SKIPPED: report-media-missing-alt is disabled (tree walk, scanLimit=100).
-  it(
-    "editor checks media alt text",
-    runScenarioTest({
-      prompt:
-        "Use report-media-missing-alt to scan the media library for images without alt text.",
-      tools: ["report-media-missing-alt", "list-media-children"],
-      requiredTools: ["report-media-missing-alt"],
-      successPattern: /alt|image|media|accessibility|missing/i,
-      verbose: true,
-    }),
-    timeout
-  );
-
-  // SKIPPED: report-translation-coverage is disabled (tree walk, scanLimit=100).
-  it(
-    "editor checks translation coverage",
-    runScenarioTest({
-      prompt:
-        "Use report-translation-coverage to see which pages have which language variants.",
-      tools: ["report-translation-coverage", "list-languages"],
-      requiredTools: ["report-translation-coverage"],
-      successPattern: /translation|coverage|language|variant/i,
-      verbose: true,
-    }),
-    timeout
-  );
+  // Removed (see #20): "editor checks media alt text" (report-media-missing-alt,
+  // dropped in #46) and "editor checks translation coverage" (report-translation-coverage,
+  // in the disabled Content Reporting collection).
 });
