@@ -27,8 +27,6 @@ Pushing is not the finish line — watch CI and fix failures before reporting a 
 3. For a failing check, read the log (`gh run view --job <job-id> --log-failed`), diagnose the root cause, fix it in code or the workflow, and push a new commit.
 4. Loop on 2–3 until all checks are green. Treat a CI failure like a local test failure — a real regression that blocks shipping, not something to hand to the reviewer.
 
-**This repo has no branch protection**, so `gh pr merge --auto` does NOT gate on CI — never merge until you've confirmed `gh pr checks` is green yourself. The `LLM Eval Tests` job only runs on PRs into `main` (skipped for PRs into `dev`) and needs the `ANTHROPIC_API_KEY` repo secret.
-
 ## Demo Site
 
 The local Umbraco instance used by dev and CI lives in two places:
