@@ -26,6 +26,12 @@ test-results/
 # Worktree directories
 .claude/worktrees/
 
+# Personal Claude Code settings (shared config lives in settings.json)
+.claude/settings.local.json
+
+# Claude Code scheduled-tasks runtime lock (per-machine, not shared)
+.claude/scheduled_tasks.lock
+
 # Demo site port discovery
 .demo-site-port
 .demo-site-pid
