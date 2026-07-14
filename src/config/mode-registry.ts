@@ -37,6 +37,12 @@ export const toolModes: ToolModeDefinition[] = [
     collections: ['media', 'media-management']
   },
   {
+    name: 'library',
+    displayName: 'Library Elements',
+    description: 'Browse, view, and manage reusable Library elements (Umbraco 18 Library section)',
+    collections: ['element']
+  },
+  {
     name: 'blueprints',
     displayName: 'Blueprints',
     description: 'List, view, and create page blueprints (templates)',
