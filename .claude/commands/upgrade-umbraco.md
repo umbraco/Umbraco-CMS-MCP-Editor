@@ -1,13 +1,15 @@
 ---
-description: Upgrade the chained @umbraco-cms/mcp-dev server (and the demo-site Umbraco it drives) to the latest release, surface newly-available CMS tools, fix typed-chaining breakages, and wrap meaningful new tools.
+description: Upgrade the chained @umbraco-cms/mcp-dev server (and the demo-site Umbraco it drives) to the latest release, surface newly-available CMS tools, learn each new capability's back office user flow with Playwright, and wrap it as an editor tool that mirrors that flow.
 argument-hint: "[mcp-dev version, e.g. 18.0.1 — omit for latest]"
 ---
 
 # /upgrade-umbraco
 
-Upgrade the **chained Umbraco CMS Developer MCP** (`@umbraco-cms/mcp-dev`) — and the demo-site Umbraco packages it talks to — to the latest release, diff the CMS tool surface to find newly-available tools, fix any typed-chaining breakages, run the tests, and wrap meaningful new CMS tools with editor-friendly interfaces.
+Upgrade the **chained Umbraco CMS Developer MCP** (`@umbraco-cms/mcp-dev`) — and the demo-site Umbraco packages it talks to — to the latest release, diff the CMS tool surface to find newly-available tools, fix any typed-chaining breakages, run the tests, and wrap meaningful new capabilities as editor tools.
 
-Unlike the Developer MCP, **this server never connects to the Umbraco Management API directly**. Every tool delegates to `@umbraco-cms/mcp-dev` via MCP chaining (`AI Client → Editor MCP → CMS Dev MCP → Umbraco API`). So there is **no Orval / OpenAPI regeneration step here**. The "API surface" that matters to us is the *typed CMS tool registry* (`CmsTools` / `CmsToolsName` from `@umbraco-cms/mcp-dev/tool-types`) plus the runtime `collections` export. An upgrade means: bump the chained package, align the demo-site CMS version, and adapt to the tools that appear, disappear, or change shape.
+**The aim of the editor MCP is to replicate, as tools, how the Umbraco back office UI behaves for a human editor.** A raw CMS tool exposes an API operation; an editor tool should reproduce the *user flow* — the same steps, defaults, validation, confirmations, and end state a user experiences in the back office. So the design of each new editor tool comes from observing the back office, **not** from the CMS tool's signature. This command builds that in: after finding new/changed CMS tools, drive the running demo site with Playwright to learn the real UI flow, then model the editor tool on it.
+
+Unlike the Developer MCP, **this server never connects to the Umbraco Management API directly**. Every tool delegates to `@umbraco-cms/mcp-dev` via MCP chaining (`AI Client → Editor MCP → CMS Dev MCP → Umbraco API`). So there is **no Orval / OpenAPI regeneration step here**. The "API surface" that matters to us is the *typed CMS tool registry* (`CmsTools` / `CmsToolsName` from `@umbraco-cms/mcp-dev/tool-types`) plus the runtime `collections` export. An upgrade means: bump the chained package, align the demo-site CMS version, adapt to the tools that appear/disappear/change shape, and — for genuinely new capabilities — replicate the back office flow they correspond to.
 
 ## Usage
 
@@ -23,6 +25,7 @@ ARGUMENTS: $ARGUMENTS
 - SQL Server reachable from `demo-site/appsettings.local.json` (or a worktree DB — see below).
 - A working `.env` with `UMBRACO_CLIENT_ID`, `UMBRACO_CLIENT_SECRET`, `UMBRACO_BASE_URL`.
 - `dotnet`, `npm`, `node`, `curl`, `python3` on PATH.
+- **Playwright + a browser** for the back office flow-discovery step. Chromium is pre-installed in the web/CI sandbox (`PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`; don't run `playwright install`). This repo already uses `@playwright/test` (see `playwright.config.ts` / `tests/hosted-e2e`). The back office runs at `<UMBRACO_BASE_URL>/umbraco` over HTTPS with a self-signed cert, so launch with `ignoreHTTPSErrors: true`; log in as `admin@admin.com` / `1234567890`.
 - Use a **new, empty database** for the upgraded demo-site — don't reuse the previous version's DB. Development config has `InstallUnattended: true` (admin `admin@admin.com` / `1234567890`), so a fresh DB auto-installs on first boot, and `scripts/create-api-user.mjs` then recreates the API user + `umbraco-back-office-mcp` OAuth client. Nothing needs to be carried over.
 
 ## Key architecture facts (why this differs from the Dev MCP's `/upgrade-umbraco`)
@@ -192,36 +195,57 @@ Triage failures into three buckets (same as the Dev MCP command, but the "contra
 
 Always run tests locally and get them green before pushing — CI runs against a fresh Umbraco install, so tests must build their own data (never snapshot pre-existing content).
 
-### 9. Wrap meaningful new CMS tools
+### 9. Triage the new/changed tools, then learn each keeper's back office flow with Playwright
 
-For each tool in the "NEW" list from step 5, decide:
+First, decide which of the "NEW" tools from step 5 are worth an editor tool:
 
 - Is it already covered by an existing editor tool? (Editor tools are deliberately higher-level than the raw CMS tools — one editor tool may compose several.)
-- Is it a meaningful new capability for an editorial LLM caller? (Not every low-level dev tool warrants an editor wrapper.)
+- Does it correspond to something a human actually **does in the back office**? The editor MCP replicates back office behaviour, so a capability with no user-facing counterpart (pure plumbing, internal batch endpoints) usually isn't a good editor tool — note it and move on.
+- Also revisit **changed** tools whose shape drifted in step 6/8: if the back office flow they back has changed, the corresponding editor tool's flow may need to change too, not just its types.
 
-When adding an editor tool, follow this repo's conventions (see `CLAUDE.md` → *Tool Conventions*):
+For each capability you're keeping, **drive the back office on the running demo site to learn the real user flow before designing the tool.** Reproducing the flow — not the API — is the whole point.
+
+```bash
+BASE_URL="$UMBRACO_BASE_URL"   # e.g. https://localhost:<.demo-site-port>; back office is at $BASE_URL/umbraco
+```
+
+Explore with Playwright (Chromium is pre-installed; launch headless with `ignoreHTTPSErrors: true`, log in as `admin@admin.com` / `1234567890`). Trace and write down, for each capability:
+
+- **Entry point & context** — where in the tree/section the action starts, what must be selected first (a document, a media item, a data type…).
+- **Inputs the user provides** — the fields, their types, which are required, sensible defaults the UI pre-fills, and any pickers/validation the UI enforces. These become the tool's Zod input schema — mirror the UI's required/optional split and defaults.
+- **Confirmations & warnings** — modals the UI shows before destructive or wide-reaching actions (delete, unpublish, move). These map to `confirmAction(...)` prompts, with the same wording/intent the user sees.
+- **Sequencing** — if the UI makes the user do A then B (e.g. save before publish), the editor tool should either compose those steps or enforce the same order.
+- **End state & feedback** — what success looks like in the UI (the toast/notification text, the resulting state). The tool's output should convey the same outcome in LLM-friendly terms.
+
+Capture the trace notes (and a screenshot or two of the key screens) under the upgrade worktree — e.g. `docs/upgrades/<version>/<capability>.md` — so the tool design and the PR can point back to the observed flow. Compare the flow against the CMS tool's `input`/`output` (from `CmsTools[...]`) to confirm the chained tool actually supports every step the UI performs; if the UI does something no single CMS tool covers, the editor tool composes several `chainCms` calls (this is expected and normal).
+
+### 10. Wrap the new capability as an editor tool that mirrors the flow
+
+Model the tool on the flow you observed in step 9, following this repo's conventions (see `CLAUDE.md` → *Tool Conventions*):
 
 - One file per tool under `src/umbraco-api/tools/<collection>/{get,post,put,delete}/`, registered in the collection's `index.ts`.
-- Delegate via `chainCms("<cms-tool-name>", args)` from `src/umbraco-api/cms-chain.ts` — typed end-to-end. Prefer this over raw `mcpClientManager.callTool`.
-- Export `withStandardDecorators(tool)`; hand-write Zod input/output schemas. Use `z.string().uuid()` for LLM input IDs and `z.guid()` for GUIDs Umbraco returns (version IDs especially — see `versioning/post/rollback-page.ts`).
-- Use `confirmAction(...)` for writes; set `slices`, `annotations`, and register the collection in a mode (`config/mode-registry.ts`) / slices in `config/slice-registry.ts` as needed.
-- Add an integration test under the collection's `__tests__/` that creates its own data, uses `setupTestEnvironment()` + `setupEditorElicitation` for writes, and calls tools via `callTool(...)` (runs the outputSchema, matching the wire). Snapshot only self-created data.
-- **Add the new tool name to the `allTools` array in every eval file** under `tests/evals/` (each eval file maintains its own list).
+- Delegate via `chainCms("<cms-tool-name>", args)` from `src/umbraco-api/cms-chain.ts` — typed end-to-end. Prefer this over raw `mcpClientManager.callTool`. Compose multiple `chainCms` calls when the UI flow spans several operations.
+- Shape the Zod **input schema to the UI's fields** (required/optional and defaults matching what the back office pre-fills), not to the raw CMS tool's parameter list. Use `z.string().uuid()` for LLM input IDs and `z.guid()` for GUIDs Umbraco returns (version IDs especially — see `versioning/post/rollback-page.ts`).
+- Export `withStandardDecorators(tool)`. Use `confirmAction(...)` wherever the back office shows a confirmation, echoing the same intent. Set `slices`, `annotations`, and register the collection in a mode (`config/mode-registry.ts`) / slices in `config/slice-registry.ts` as needed.
+- Shape the **output to mirror the UI's end state / feedback** so the LLM gets the same signal a user would.
+- Add an integration test under the collection's `__tests__/` that creates its own data, uses `setupTestEnvironment()` + `setupEditorElicitation` for writes, and calls tools via `callTool(...)` (runs the outputSchema, matching the wire). Snapshot only self-created data. Where practical, assert the tool reaches the same end state the UI flow produced.
+- **Add the new tool name to the `allTools` array in every eval file** under `tests/evals/` (each eval file maintains its own list). Consider an eval whose prompt frames the task the way a back office user would phrase it.
 
-Then live-validate each new tool through the running `.mcp.json` with the **`audit-tool` skill** — this closes the gap between "integration tests pass" and "the live chained MCP works" (`-32602` schema mismatches only show on the wire).
+Then live-validate each new tool through the running `.mcp.json` with the **`audit-tool` skill** — this closes the gap between "integration tests pass" and "the live chained MCP works" (`-32602` schema mismatches only show on the wire), and lets you confirm the tool's behaviour matches the back office flow end-to-end.
 
-### 10. Report and hand off
+### 11. Report and hand off
 
 Summarise:
 
 - Old → new `@umbraco-cms/mcp-dev` (and sdk/hosted) versions, and old → new demo-site Umbraco version.
-- **New CMS tools** (with the editor tool names you added to wrap them, or a note on why one was skipped).
+- **New CMS tools** (with the editor tool names you added to wrap them, the back office flow each mirrors, or a note on why one was skipped — e.g. no user-facing counterpart).
 - **Removed/renamed CMS tools** (must always be addressed — every `chainCms` caller depending on them fails).
 - Modified response shapes worth flagging (deprecated/additive fields) and the tests whose snapshots drifted for the user to review.
+- Links to the flow-trace notes/screenshots captured in step 9 (`docs/upgrades/<version>/`).
 
 Only open a PR when the user asks. If they do, push the branch and follow the repo's PR/CI workflow (`CLAUDE.md`): poll checks, read failing logs, fix, and loop until green before reporting the PR ready.
 
-### 11. Refresh your primary checkout (after merge)
+### 12. Refresh your primary checkout (after merge)
 
 The upgrade happened in the worktree; your main checkout's `demo-site/` still runs the old version (`start:umbraco` skips re-bootstrapping when `demo-site/` exists). After the PR merges and you pull:
 
@@ -237,6 +261,7 @@ Confirm the running version: `grep 'Umbraco.Cms"' demo-site/demo-site.csproj` an
 
 ## Common pitfalls
 
+- **Design to the back office flow, not the CMS tool signature.** The editor MCP replicates what a user does in the UI. A new editor tool's inputs, confirmations, sequencing, and output should mirror the observed flow (step 9); a one-to-one passthrough of a raw CMS tool is usually the wrong shape. If a capability has no back office counterpart, it probably shouldn't become an editor tool.
 - **No management-API regeneration here.** There is no `npm run generate`/Orval step — the CMS contract arrives entirely through `@umbraco-cms/mcp-dev`. If you catch yourself editing an OpenAPI client, you're in the wrong repo (that's the Dev MCP).
 - **Keep the three `@umbraco-cms/*` packages in lockstep.** `mcp-dev`, `mcp-server-sdk`, and `mcp-hosted` must be mutually compatible; a mismatch breaks in-process chaining (worker + tests) even when stdio still works. Match ranges to what the target `mcp-dev` declares.
 - **The chained binary follows `node_modules`.** Don't look for a version pin in `.mcp.json` or config — `mcp-servers.ts` resolves the installed package. `npm install` is the switch.
@@ -249,5 +274,5 @@ Confirm the running version: `grep 'Umbraco.Cms"' demo-site/demo-site.csproj` an
 
 ## Reference
 
-- At time of writing this repo pins `@umbraco-cms/mcp-dev@^17.5.1` with `demo-site` on `Umbraco.Cms 17.3.3`; the Dev MCP's own latest release line had moved to the `18.x` major (Umbraco 18) with the SDK/hosted packages on the `1.0.0-beta.x` track. Expect the major bump to bring both renamed CMS tools and a batch of new ones — budget time for step 9.
+- At time of writing this repo pins `@umbraco-cms/mcp-dev@^17.5.1` with `demo-site` on `Umbraco.Cms 17.3.3`; the Dev MCP's own latest release line had moved to the `18.x` major (Umbraco 18) with the SDK/hosted packages on the `1.0.0-beta.x` track. Expect the major bump to bring both renamed CMS tools and a batch of new ones — budget time for the flow-discovery + wrapping steps (9–10).
 - Deferred audit note (`CLAUDE.md`): the 11 tree-walking report tools are opt-in and were not part of the first live-audit campaign. If an upgrade changes tree/search CMS tools, remember these depend on them.
