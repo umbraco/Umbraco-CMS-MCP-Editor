@@ -22,7 +22,7 @@ ARGUMENTS: $ARGUMENTS
 
 ## Prerequisites
 
-- SQL Server reachable from `demo-site/appsettings.local.json` (or a worktree DB — see below).
+- A database for the demo-site. Simplest is **SQLite** (`bootstrap-demo-site.sh --sqlite`) — no server, ships inside `Umbraco.Cms`, ideal for a plain dotnet box. SQL Server is the CI/worktree default (reachable from `demo-site/appsettings.local.json`, or a worktree DB — see below).
 - A working `.env` with `UMBRACO_CLIENT_ID`, `UMBRACO_CLIENT_SECRET`, `UMBRACO_BASE_URL`.
 - `dotnet`, `npm`, `node`, `curl`, `python3` on PATH.
 - **A way to drive the back office** for the flow-discovery step (step 9), either:
@@ -168,12 +168,18 @@ For a renamed tool, update the `chainCms("<old>")` name and adjust the args/resp
 ### 7. Boot the upgraded demo-site
 
 ```bash
-npm run stop:umbraco                          # stop anything still running
-bash scripts/bootstrap-demo-site.sh --force   # rm -rf demo-site/ and recopy the upgraded template
-# Ensure demo-site/appsettings.local.json points at a NEW, empty DB
-# (the worktree hook already provisions one; otherwise create + point at a fresh DB name).
-npm run start:umbraco                          # NuGet restore, build, unattended install on the fresh DB
+npm run stop:umbraco                                   # stop anything still running
+# Rebuild demo-site/ from the upgraded template. Pick a DB:
+#   --sqlite : server-less SQLite (no SQL Server / Docker) — ideal for a plain
+#              dotnet box; writes a SQLite appsettings.local.json for you.
+bash scripts/bootstrap-demo-site.sh --force --sqlite
+#   (SQL Server path instead: omit --sqlite and point
+#    demo-site/appsettings.local.json at a NEW, empty DB — the worktree hook
+#    provisions one automatically.)
+npm run start:umbraco                                  # NuGet restore, build, unattended install
 ```
+
+Either way, use a **fresh** database for the upgraded site — with `--sqlite` that means starting from no `Umbraco.sqlite.db` (a `--force` bootstrap into a clean worktree gives you that, since `umbraco/Data/` is excluded from the copy).
 
 `start:umbraco` writes the bound port to `.demo-site-port` and updates `UMBRACO_BASE_URL` in `.env`. In a worktree, `start:umbraco` (and the worktree hook) already run `scripts/create-api-user.mjs` for you against the fresh DB, so the API user + `umbraco-back-office-mcp` OAuth client normally exist by the time boot finishes. If you recycled the DB by hand, run it explicitly against the running instance's URL (idempotent — logs "API user already exists — skipping creation" if present):
 
@@ -249,10 +255,10 @@ The upgrade happened in the worktree; your main checkout's `demo-site/` still ru
 
 ```bash
 npm run stop:umbraco
-bash scripts/bootstrap-demo-site.sh --force   # rm -rf demo-site/ and recopy the upgraded template
-# Point demo-site/appsettings.local.json at a NEW, empty DB, then:
+bash scripts/bootstrap-demo-site.sh --force --sqlite   # recopy upgraded template + server-less SQLite DB
+# (SQL Server instead: omit --sqlite and point appsettings.local.json at a NEW, empty DB.)
 npm run start:umbraco
-node scripts/create-api-user.mjs               # recreate API user + umbraco-back-office-mcp client
+node scripts/create-api-user.mjs                        # recreate API user + umbraco-back-office-mcp client
 ```
 
 Confirm the running version: `grep 'Umbraco.Cms"' demo-site/demo-site.csproj` and watch the boot log for the port coming up.
