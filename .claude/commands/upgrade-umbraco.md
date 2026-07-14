@@ -1,5 +1,5 @@
 ---
-description: Upgrade the chained @umbraco-cms/mcp-dev server (and the demo-site Umbraco it drives) to the latest release, surface newly-available CMS tools, learn each new capability's back office user flow with Playwright, and wrap it as an editor tool that mirrors that flow.
+description: Upgrade the chained @umbraco-cms/mcp-dev server (and the demo-site Umbraco it drives) to the latest release, surface newly-available CMS tools, learn each new capability's back office user flow (via Claude for Chrome or Playwright), and wrap it as an editor tool that mirrors that flow.
 argument-hint: "[mcp-dev version, e.g. 18.0.1 — omit for latest]"
 ---
 
@@ -7,7 +7,7 @@ argument-hint: "[mcp-dev version, e.g. 18.0.1 — omit for latest]"
 
 Upgrade the **chained Umbraco CMS Developer MCP** (`@umbraco-cms/mcp-dev`) — and the demo-site Umbraco packages it talks to — to the latest release, diff the CMS tool surface to find newly-available tools, fix any typed-chaining breakages, run the tests, and wrap meaningful new capabilities as editor tools.
 
-**The aim of the editor MCP is to replicate, as tools, how the Umbraco back office UI behaves for a human editor.** A raw CMS tool exposes an API operation; an editor tool should reproduce the *user flow* — the same steps, defaults, validation, confirmations, and end state a user experiences in the back office. So the design of each new editor tool comes from observing the back office, **not** from the CMS tool's signature. This command builds that in: after finding new/changed CMS tools, drive the running demo site with Playwright to learn the real UI flow, then model the editor tool on it.
+**The aim of the editor MCP is to replicate, as tools, how the Umbraco back office UI behaves for a human editor.** A raw CMS tool exposes an API operation; an editor tool should reproduce the *user flow* — the same steps, defaults, validation, confirmations, and end state a user experiences in the back office. So the design of each new editor tool comes from observing the back office, **not** from the CMS tool's signature. This command builds that in: after finding new/changed CMS tools, drive the running demo site (with Claude for Chrome or Playwright) to learn the real UI flow, then model the editor tool on it.
 
 Unlike the Developer MCP, **this server never connects to the Umbraco Management API directly**. Every tool delegates to `@umbraco-cms/mcp-dev` via MCP chaining (`AI Client → Editor MCP → CMS Dev MCP → Umbraco API`). So there is **no Orval / OpenAPI regeneration step here**. The "API surface" that matters to us is the *typed CMS tool registry* (`CmsTools` / `CmsToolsName` from `@umbraco-cms/mcp-dev/tool-types`) plus the runtime `collections` export. An upgrade means: bump the chained package, align the demo-site CMS version, adapt to the tools that appear/disappear/change shape, and — for genuinely new capabilities — replicate the back office flow they correspond to.
 
@@ -25,7 +25,9 @@ ARGUMENTS: $ARGUMENTS
 - SQL Server reachable from `demo-site/appsettings.local.json` (or a worktree DB — see below).
 - A working `.env` with `UMBRACO_CLIENT_ID`, `UMBRACO_CLIENT_SECRET`, `UMBRACO_BASE_URL`.
 - `dotnet`, `npm`, `node`, `curl`, `python3` on PATH.
-- **Playwright + a browser** for the back office flow-discovery step. Chromium is pre-installed in the web/CI sandbox (`PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`; don't run `playwright install`). This repo already uses `@playwright/test` (see `playwright.config.ts` / `tests/hosted-e2e`). The back office runs at `<UMBRACO_BASE_URL>/umbraco` over HTTPS with a self-signed cert, so launch with `ignoreHTTPSErrors: true`; log in as `admin@admin.com` / `1234567890`.
+- **A way to drive the back office** for the flow-discovery step (step 9), either:
+  - **Claude for Chrome** — preferred when running interactively. Let Claude drive a real Chrome against the running demo site to explore the flow conversationally; better for the open-ended "how does a user do this?" investigation, no script to write. Point it at `<UMBRACO_BASE_URL>/umbraco` and log in as `admin@admin.com` / `1234567890`.
+  - **Playwright** — for a headless/CI sandbox or when you want a repeatable, committable trace. Chromium is pre-installed (`PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`; don't run `playwright install`) and this repo already uses `@playwright/test` (see `playwright.config.ts` / `tests/hosted-e2e`). The back office is HTTPS with a self-signed cert, so launch with `ignoreHTTPSErrors: true`.
 - Use a **new, empty database** for the upgraded demo-site — don't reuse the previous version's DB. Development config has `InstallUnattended: true` (admin `admin@admin.com` / `1234567890`), so a fresh DB auto-installs on first boot, and `scripts/create-api-user.mjs` then recreates the API user + `umbraco-back-office-mcp` OAuth client. Nothing needs to be carried over.
 
 ## Key architecture facts (why this differs from the Dev MCP's `/upgrade-umbraco`)
@@ -195,7 +197,7 @@ Triage failures into three buckets (same as the Dev MCP command, but the "contra
 
 Always run tests locally and get them green before pushing — CI runs against a fresh Umbraco install, so tests must build their own data (never snapshot pre-existing content).
 
-### 9. Triage the new/changed tools, then learn each keeper's back office flow with Playwright
+### 9. Triage the new/changed tools, then learn each keeper's back office flow
 
 First, decide which of the "NEW" tools from step 5 are worth an editor tool:
 
@@ -205,11 +207,7 @@ First, decide which of the "NEW" tools from step 5 are worth an editor tool:
 
 For each capability you're keeping, **drive the back office on the running demo site to learn the real user flow before designing the tool.** Reproducing the flow — not the API — is the whole point.
 
-```bash
-BASE_URL="$UMBRACO_BASE_URL"   # e.g. https://localhost:<.demo-site-port>; back office is at $BASE_URL/umbraco
-```
-
-Explore with Playwright (Chromium is pre-installed; launch headless with `ignoreHTTPSErrors: true`, log in as `admin@admin.com` / `1234567890`). Trace and write down, for each capability:
+The back office is at `<UMBRACO_BASE_URL>/umbraco` (the port is in `.demo-site-port`); log in as `admin@admin.com` / `1234567890`. Explore it with **Claude for Chrome** (drive a real browser conversationally — best for open-ended investigation) or **Playwright** (scripted, headless, for a repeatable trace you can commit) — see Prerequisites. Trace and write down, for each capability:
 
 - **Entry point & context** — where in the tree/section the action starts, what must be selected first (a document, a media item, a data type…).
 - **Inputs the user provides** — the fields, their types, which are required, sensible defaults the UI pre-fills, and any pickers/validation the UI enforces. These become the tool's Zod input schema — mirror the UI's required/optional split and defaults.
