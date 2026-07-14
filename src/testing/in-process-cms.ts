@@ -8,22 +8,15 @@
  * so it persists across Jest VM contexts without re-importing per suite.
  */
 
-import { type McpClientManager } from "@umbraco-cms/mcp-server-sdk";
+import { createPermissiveCodegenUser, type McpClientManager } from "@umbraco-cms/mcp-server-sdk";
 import { createMockRequestHandlerExtra } from "@umbraco-cms/mcp-server-sdk/testing";
 
-const permissiveUser = {
-  fallbackPermissions: [
-    "Umb.Document.Create", "Umb.Document.Read", "Umb.Document.Update",
-    "Umb.Document.Delete", "Umb.Document.Publish", "Umb.Document.Unpublish",
-    "Umb.Document.Move", "Umb.Document.Sort", "Umb.Document.Duplicate",
-  ],
-  allowedSections: [
-    "Umb.Section.Content", "Umb.Section.Media", "Umb.Section.Settings",
-    "Umb.Section.Users", "Umb.Section.Members", "Umb.Section.Packages",
-    "Umb.Section.Translation",
-  ],
-  userGroupIds: [{ id: "E5E7F6C8-7F9C-4B5B-8D5D-9E1E5A4F7E4D" }],
-};
+// The in-process CMS map must expose EVERY chainable CMS tool — a hardcoded
+// section/permission list silently drops any tool behind a section a new
+// Umbraco major adds (e.g. Umbraco 18's `Umb.Section.Library` / Elements
+// domain, which a fixed list omitted). Use the SDK's permission-complete
+// codegen user so the map stays exhaustive as the CMS surface grows.
+const permissiveUser = createPermissiveCodegenUser();
 
 /** Build the CMS tool map lazily. Cached on `process` across VM contexts. */
 async function getCmsToolMap(): Promise<Map<string, any>> {

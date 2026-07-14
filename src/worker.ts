@@ -31,7 +31,7 @@ import { umbracoCloudSiteRouting } from "@umbraco-cms/mcp-hosted/cloud";
 // Import tool collections and registries (shared with stdio mode via collections.ts)
 import { collections, allModes, allModeNames, allSliceNames } from "./collections.js";
 import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
-import { setServerRef } from "@umbraco-cms/mcp-server-sdk";
+import { createPermissiveCodegenUser, setServerRef } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "./umbraco-api/mcp-client.js";
 
 // Import CMS collections for in-process chaining
@@ -114,24 +114,11 @@ export class UmbracoMcpAgent extends McpAgent<HostedMcpEnv, unknown, AuthProps> 
       allSliceNames: cmsSliceNames,
       proxyTools: false,
       clientFactory: () => CmsClient.getClient(),
-      // Pass a permissive user so CMS tool enabled() checks pass.
-      // The real user auth is handled by the OAuth/token layer.
-      // Permissive mock user so all CMS tool enabled() checks pass.
-      // Real user auth is handled by the OAuth/token layer.
-      user: {
-        fallbackPermissions: [
-          "Umb.Document.Create", "Umb.Document.Read", "Umb.Document.Update",
-          "Umb.Document.Delete", "Umb.Document.Publish", "Umb.Document.Unpublish",
-          "Umb.Document.Move", "Umb.Document.Sort", "Umb.Document.Duplicate",
-          "Umb.Document.PublicAccess",
-        ],
-        allowedSections: [
-          "Umb.Section.Content", "Umb.Section.Media", "Umb.Section.Settings",
-          "Umb.Section.Users", "Umb.Section.Members", "Umb.Section.Packages",
-          "Umb.Section.Translation",
-        ],
-        userGroupIds: [{ id: "E5E7F6C8-7F9C-4B5B-8D5D-9E1E5A4F7E4D" }],
-      },
+      // Permission-complete mock user so every CMS tool's enabled() check passes
+      // and no tool is dropped when a new Umbraco major adds a section/permission
+      // family (e.g. Umbraco 18's Library / Elements domain). Real user auth is
+      // handled by the OAuth/token layer, not here.
+      user: createPermissiveCodegenUser(),
     });
   }
 }
