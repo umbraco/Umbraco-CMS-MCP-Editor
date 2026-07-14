@@ -43,6 +43,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         detail: `No member group named "${groupName}". Use list-member-groups to see existing group names.`,
       });
     }
+    // Use the group's canonical name for the filter (the existence check above is
+    // case-insensitive, but the server-side `memberGroupName` filter may not be —
+    // passing the resolved name avoids a valid-but-differently-cased query
+    // silently returning no members).
+    const canonicalGroupName: string = groupMatch.name ?? groupName;
 
     // Step 2: Fetch members filtered by group. `memberGroupName` filters
     // server-side (verified against Umbraco 18). We must NOT re-filter on the
@@ -51,7 +56,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // populated on the per-member detail GET), so a client-side `groups` filter
     // would drop every result.
     const result = await chainCms("find-member", {
-      memberGroupName: groupName,
+      memberGroupName: canonicalGroupName,
       cursor: buildChainedCursor(skip, take),
       orderBy: "username",
     });
