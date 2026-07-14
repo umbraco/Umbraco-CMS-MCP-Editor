@@ -40,7 +40,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     if (!schemaResult.ok) return schemaResult.errorResult;
 
     return createToolResult({
-      message: JSON.stringify(schemaResult.data, null, 2),
+      message: `Value-shape template for ${editorAlias}:\n${JSON.stringify(schemaResult.data, null, 2)}`,
       editorAlias,
     });
   },

@@ -61,38 +61,65 @@ rendered form, never "fetches a JSON schema"). Optional future *internal* use: `
 `content/get/get-property-value-template.ts`; `get-media-type-schema`/`get-member-type-schema` to harden
 `create-media`/`create-member` payload construction.
 
-## Real breakage found & fixed: Umbraco 18 removed the bundled Swagger UI
+## Real breakage found & fixed: the `umbraco-swagger` client's redirect path moved
 
-`scripts/create-api-user.mjs` bootstrapped an admin bearer token via a PKCE flow against the **`umbraco-swagger`**
-OAuth client with redirect `…/umbraco/swagger/oauth2-redirect.html`. In Umbraco 18 the bundled Swagger UI is gone —
-`/umbraco/swagger/*` all return 404 and that client's redirect URI is no longer registered, so authorize returned
-`invalid_request` / `ID2043` ("redirect_uri is not valid for this client application").
+`scripts/create-api-user.mjs` bootstraps an admin bearer token via a PKCE flow against the **`umbraco-swagger`**
+OAuth client (a public client that returns real tokens in the response body). Umbraco 18 moved the bundled API docs
+from `/umbraco/swagger/` to `/umbraco/openapi/`, so that client's registered redirect changed and the old value
+returned `invalid_request` / `ID2043` ("redirect_uri is not valid for this client application"):
 
-**Fix:** repoint the bootstrap at the real back-office SPA client — a public PKCE client:
-- `client_id`: `umbraco-swagger` → `umbraco-back-office`
-- `redirect_uri`: `…/umbraco/swagger/oauth2-redirect.html` → `…/umbraco/oauth_complete`
+- `redirect_uri`: `…/umbraco/swagger/oauth2-redirect.html` → `…/umbraco/openapi/oauth2-redirect.html`
 
-Verified correct against the running v18 site: the back office login page itself uses exactly
-`client_id=umbraco-back-office` + `redirect_uri=…/umbraco/oauth_complete` + `code_challenge_method=S256`, and an
-interactive browser login succeeds and reaches `/umbraco`. So on CI (which runs unredacted) the script completes the
-token exchange and creates the `umbraco-back-office-mcp` API user with the deterministic secret the tests expect.
+Confirmed against `umbracoOpenIddictApplications` in the running v18 DB:
 
-## Environment blocker for LOCAL testing (not an upgrade defect)
+| ClientId | RedirectUris |
+|---|---|
+| `umbraco-swagger` | `…/umbraco/openapi/oauth2-redirect.html` |
+| `umbraco-back-office` | `…/umbraco/oauth_complete` |
+| `umbraco-postman` | `https://oauth.pstmn.io/v1/callback`, … |
+| `umbraco-editor-mcp-hosted` | `http://localhost:8787/callback`, … |
 
-This sandbox blocks programmatic authentication, so the API user could not be created here and the integration/eval
-suites could not be run locally in this session:
+**Do NOT switch to the `umbraco-back-office` SPA client** (an easy wrong turn): its `HideBackOfficeTokensHandler`
+replaces the authorization code / tokens with the literal string `"[redacted]"` and moves the real values into
+httpOnly cookies, so a server-side PKCE exchange gets `invalid_request` / "code missing" (ID2029). The `umbraco-swagger`
+client has no such handler. With the redirect-path fix, `create-api-user.mjs` completes end-to-end and creates the
+`umbraco-back-office-mcp` API user (verified locally against v18: "API user created and verified successfully").
 
-- **Node / curl:** OAuth authorization codes are scrubbed on the wire — the `code` query param arrives as the literal
-  `[redacted]` (confirmed via base64 round-trip; reproduced with the bash sandbox disabled and with no proxy env), so
-  the PKCE token exchange can never complete from a tool-spawned process.
-- **Chrome automation:** the Claude-for-Chrome automation layer **503s any request carrying an
-  `Authorization: Bearer …` header** (verified: `Bearer` → 503, `Basic` → 401, no-header → 401). The whole Management
-  API is Bearer-authed, so every authenticated fetch fails; the back-office `umbHttpClient` retries the 503 and appears
-  to hang, and tree/collection panels render empty. So the API user can't be created through the UI / in-page fetch
-  either, and the Library (Elements) tree can't be explored through the automated tab. Navigation-based login works
-  (not a Bearer fetch). **Playwright** (its own Chromium, no Bearer interception) is the correct tool for tracing the
-  Elements/Library flow in a follow-up.
+> Note: the `code=[redacted]` seen while experimenting with the `umbraco-back-office` client was **Umbraco's own
+> token-hiding handler**, not a sandbox/network scrub — the `umbraco-swagger` client returns a real, usable `code`.
 
-The back office **interactive login works** (navigation-based OAuth is not scrubbed), which is what let us confirm the
-`create-api-user.mjs` fix. Tests should be validated on **CI**, or by creating the API user from a plain terminal
-outside the Claude sandbox and re-running `npm run test:all`.
+## Tooling limitation worth recording: Claude for Chrome can't drive the authenticated back office
+
+Separate from the fix above: the Claude-for-Chrome automation layer **503s any request carrying an
+`Authorization: Bearer …` header** (verified: `Bearer` → 503, `Basic` → 401, no-header → 401). The whole Management
+API is Bearer-authed, so authenticated fetches fail; the back-office `umbHttpClient` retries the 503 and appears to
+hang, and tree/collection panels render empty. Navigation-based login still works (not a Bearer fetch). So Claude for
+Chrome is fine for static/visual inspection and login, but **the Elements/Library flow must be traced with Playwright**
+(its own Chromium, no Bearer interception) in the follow-up. This does not affect the Node test runner or the MCP
+chain (client-credentials), so the integration suite runs normally.
+
+## Testing
+
+With the `create-api-user.mjs` fix, the API user is created normally and the integration suite (`npm test`) runs
+locally against the upgraded v18 demo-site. First run: **482 passed, 5 failed**; all 5 triaged and fixed, then green.
+Eval tests (`npm run test:evals`) are LLM-driven and validated on CI.
+
+### The 5 failures and their fixes
+
+1. **`member-reporting/report-member-count` + `report-members-by-group`** — *real v18 response-shape change.* The member
+   **search/collection** endpoint (`find-member` → `/filter/member`) now returns `groups: []` on every item; group
+   membership is only populated on the per-member **detail** GET. Both reports filtered members client-side with
+   `m.groups.includes(groupId)`, which now drops everything. Fix: rely on the server-side `memberGroupName` filter
+   (verified to filter server-side) instead of the empty `groups` field — `report-members-by-group` returns the
+   filtered results directly; `report-member-count` derives each group's count from a per-group filtered query total.
+2. **`blueprint/create-blueprint` + `get-blueprint`** — *snapshot drift.* Both snapshot a blueprint built from the first
+   root page, whose document type is provided by the **Clean starter kit**; Clean 8.0.1 changed that type (added
+   `isIndexable` / `isFollowable`, reordered). Regenerated the 2 snapshots (local and CI both run Clean 8.0.1, so they
+   stay deterministic).
+3. **`content/get-property-value-template`** — *minor output drift.* v18's `get-data-type-schema` no longer echoes the
+   editor alias string in its payload, so the tool's `message` (raw schema JSON) lost the `"Umbraco.MediaPicker3"`
+   substring a test asserted. Fix: the tool now prefixes the message with `Value-shape template for <editorAlias>:`
+   (clearer for the LLM regardless).
+
+> Note the pre-existing fragility surfaced by (1)/(2): both suites read pre-existing/Clean-provided data rather than
+> building fully self-owned fixtures (contra `CLAUDE.md`). Left as-is for this upgrade; worth hardening later.

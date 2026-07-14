@@ -50,32 +50,29 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       typeCounts.set(memberType, (typeCounts.get(memberType) ?? 0) + 1);
     }
 
-    // Fetch all member groups to build id→name lookup
+    // Fetch all member groups.
     const groupResult = await chainCms("get-all-member-groups", {});
     if (!groupResult.ok) return groupResult.errorResult;
     const groupData = groupResult.data;
     const allGroups: any[] = groupData.items ?? [];
 
-    // Build id→name map and seed zero-counts keyed by name
-    const idToName = new Map<string, string>();
-    for (const group of allGroups) {
-      if (group.id && group.name) {
-        idToName.set(group.id, group.name);
-      }
-    }
-
-    // Count members per group: member.groups contains UUIDs — resolve each to name
+    // Count members per group. Since Umbraco 18 the member search/collection
+    // response returns `groups: []` on every item (membership is only on the
+    // per-member detail GET), so we can't tally `member.groups` from allMembers.
+    // Instead ask the server for each group's own count via the `memberGroupName`
+    // filter (verified to filter server-side) and read the reported total — this
+    // is both accurate and independent of the MEMBER_CAP sample above.
     const groupCounts = new Map<string, number>();
-    for (const name of idToName.values()) {
-      groupCounts.set(name, 0);
-    }
-    for (const member of allMembers) {
-      const memberGroupIds: string[] = member.groups ?? [];
-      for (const groupId of memberGroupIds) {
-        const name = idToName.get(groupId);
-        if (!name) continue; // unknown UUID — skip rather than emitting a UUID row
-        groupCounts.set(name, (groupCounts.get(name) ?? 0) + 1);
-      }
+    for (const group of allGroups) {
+      const name: string | undefined = group.name;
+      if (!name) continue;
+      const perGroup = await chainCms("find-member", {
+        memberGroupName: name,
+        cursor: encodeCursor({ s: 0, t: 1 }),
+        orderBy: "username",
+      });
+      if (!perGroup.ok) return perGroup.errorResult;
+      groupCounts.set(name, (perGroup.data as any).total ?? ((perGroup.data as any).items?.length ?? 0));
     }
 
     return createToolResult({

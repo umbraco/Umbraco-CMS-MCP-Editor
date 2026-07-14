@@ -29,12 +29,17 @@ const ADMIN_PASSWORD = process.argv[4] || "1234567890";
 const CLIENT_ID = "umbraco-back-office-mcp";
 const CLIENT_SECRET = "1234567890";
 const ADMIN_GROUP_KEY = "e5e7f6c8-7f9c-4b5b-8d5d-9e1e5a4f7e4d";
-// Umbraco 18 removed the bundled Swagger UI, so the old `umbraco-swagger`
-// OAuth client (redirect `/umbraco/swagger/oauth2-redirect.html`) no longer
-// exists. Bootstrap the admin token through the real back-office SPA client
-// instead — a public PKCE client whose registered redirect is
-// `<baseUrl>/umbraco/oauth_complete`.
-const BACKOFFICE_CLIENT_ID = "umbraco-back-office";
+// Bootstrap the admin token through the `umbraco-swagger` OAuth client (a public
+// PKCE client that returns real tokens in the response body). Umbraco 18 moved
+// the bundled API docs from `/umbraco/swagger/` to `/umbraco/openapi/`, so the
+// client's registered redirect changed from `/umbraco/swagger/oauth2-redirect.html`
+// to `/umbraco/openapi/oauth2-redirect.html` (confirmed in umbracoOpenIddictApplications).
+//
+// Do NOT use the `umbraco-back-office` SPA client here: its `HideBackOfficeTokensHandler`
+// swaps the authorization code / tokens for the literal string "[redacted]" and moves the
+// real values into httpOnly cookies, so a server-side PKCE exchange gets "code missing".
+const SWAGGER_CLIENT_ID = "umbraco-swagger";
+const SWAGGER_REDIRECT_PATH = "/umbraco/openapi/oauth2-redirect.html";
 
 const TOKEN_PATH = "/umbraco/management/api/v1/security/back-office/token";
 const LOGIN_PATH = "/umbraco/management/api/v1/security/back-office/login";
@@ -99,10 +104,10 @@ async function getBearerToken(cookies) {
     .update(codeVerifier)
     .digest("base64url");
 
-  const redirectUri = `${BASE_URL}/umbraco/oauth_complete`;
+  const redirectUri = `${BASE_URL}${SWAGGER_REDIRECT_PATH}`;
 
   const authorizeUrl = new URL(`${BASE_URL}${AUTHORIZE_PATH}`);
-  authorizeUrl.searchParams.set("client_id", BACKOFFICE_CLIENT_ID);
+  authorizeUrl.searchParams.set("client_id", SWAGGER_CLIENT_ID);
   authorizeUrl.searchParams.set("redirect_uri", redirectUri);
   authorizeUrl.searchParams.set("response_type", "code");
   authorizeUrl.searchParams.set("code_challenge", codeChallenge);
@@ -129,7 +134,7 @@ async function getBearerToken(cookies) {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "authorization_code",
-      client_id: BACKOFFICE_CLIENT_ID,
+      client_id: SWAGGER_CLIENT_ID,
       code: authCode,
       redirect_uri: redirectUri,
       code_verifier: codeVerifier,

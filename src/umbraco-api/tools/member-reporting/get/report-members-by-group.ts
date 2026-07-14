@@ -29,8 +29,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["read"],
   annotations: { readOnlyHint: true },
   handler: async ({ groupName, take, skip }) => {
-    // Step 1: Resolve the group name to an id.
-    // m.groups stores group ids (UUIDs), not names — filtering by name never matches.
+    // Step 1: Validate the group name exists (so a typo returns a clear 404
+    // rather than an empty member list that looks like "group has no members").
     const groupsResult = await chainCms("get-all-member-groups", { cursor: undefined });
     if (!groupsResult.ok) return groupsResult.errorResult;
     const groupMatch = (groupsResult.data.items ?? []).find(
@@ -43,9 +43,13 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         detail: `No member group named "${groupName}". Use list-member-groups to see existing group names.`,
       });
     }
-    const groupId: string = groupMatch.id;
 
-    // Step 2: Fetch members, using memberGroupName hint if the API supports it.
+    // Step 2: Fetch members filtered by group. `memberGroupName` filters
+    // server-side (verified against Umbraco 18). We must NOT re-filter on the
+    // member's `groups` field here: since Umbraco 18 the member *search/collection*
+    // response returns `groups: []` for every item (group membership is only
+    // populated on the per-member detail GET), so a client-side `groups` filter
+    // would drop every result.
     const result = await chainCms("find-member", {
       memberGroupName: groupName,
       cursor: buildChainedCursor(skip, take),
@@ -54,22 +58,16 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     if (!result.ok) return result.errorResult;
     const items: any[] = result.data.items ?? [];
 
-    // Step 3: Client-side filter by group id (m.groups is an array of UUIDs).
-    const filtered = items.filter((m: any) => {
-      const groups: string[] = m.groups ?? [];
-      return groups.includes(groupId);
-    });
-
     return createToolResult({
       groupName,
-      items: filtered.map((m: any) => ({
+      items: items.map((m: any) => ({
         id: m.id ?? "",
         name: m.variants?.[0]?.name ?? "Unknown",
         email: m.email ?? "",
         isApproved: m.isApproved ?? false,
         lastLoginDate: m.lastLoginDate ?? null,
       })),
-      total: filtered.length,
+      total: result.data.total ?? items.length,
     });
   },
 };
