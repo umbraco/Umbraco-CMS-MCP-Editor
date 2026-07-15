@@ -1,0 +1,30 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`get-element should return element by ID 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "elementType": {
+      "id": "00000000-0000-0000-0000-000000000000",
+    },
+    "id": "00000000-0000-0000-0000-000000000000",
+    "name": "_Test Get Element",
+    "values": [],
+    "variants": [
+      {
+        "createDate": "NORMALIZED_DATE",
+        "culture": null,
+        "flags": [],
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "_Test Get Element",
+        "publishDate": null,
+        "scheduledPublishDate": null,
+        "scheduledUnpublishDate": null,
+        "segment": null,
+        "state": "Draft",
+        "updateDate": "NORMALIZED_DATE",
+      },
+    ],
+  },
+}
+`;

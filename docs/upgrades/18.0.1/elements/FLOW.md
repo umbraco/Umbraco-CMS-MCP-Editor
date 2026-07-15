@@ -61,16 +61,25 @@ the `content` collection. Each design decision is grounded in the observed Libra
 | `get-element` | `get-element-by-id` | ✅ (smoke) | output `{ id, name, elementType.id, values, variants }` (CMS returns type as `documentType`) |
 | `list-element-children` | `get-element-root` / `get-element-children` | ✅ (smoke) | tree browse; distinguishes `isFolder` |
 | `search-elements` | `search-element` | ✅ (smoke) | |
-| `create-element-folder` | `create-element-folder` | ✅ (smoke) | 201 is bodyless → id resolved by name lookup |
-| `publish-element` | `publish-element` | ✅ (data shape, seeded element) | `data.publishSchedules:[{culture}]`; workflow-approval bypassed (documented) |
-| `unpublish-element` | `unpublish-element` | ✅ (data shape, seeded element) | `data.cultures` (null for invariant); `requestApproval` confirm |
-| `edit-element` | `update-element-properties` | ✅ (CRUD) | sets a Textstring property on the fixture element |
-| `delete-element` | `move-element-to-recycle-bin` | ✅ (CRUD) | `requestApproval` confirm |
-| `create-element` | `create-element` | ✅ (CRUD) | at the Library root with an `allowedInLibrary` element type |
+| `create-element-folder` | `create-element-folder` | ✅ | 201 is bodyless → id resolved by name lookup; passes `parent: { id }` (see folder-parent fix below) |
+| `publish-element` | `publish-element` | ✅ | `data.publishSchedules:[{culture}]`; workflow-approval bypassed (documented) |
+| `unpublish-element` | `unpublish-element` | ✅ | `data.cultures` (null for invariant); `requestApproval` confirm |
+| `edit-element` | `update-element-properties` | ✅ | sets a Textstring property on the fixture element |
+| `delete-element` | `move-element-to-recycle-bin` | ✅ | `requestApproval` confirm |
+| `create-element` | `create-element` | ✅ | at the Library root with an `allowedInLibrary` element type |
 
-All 9 tool names added to `allTools` in every eval file. Every tool is live-validated against Umbraco 18 — the read +
-folder tools via `element-tools.smoke.test.ts`, and the full create → get → edit → publish → unpublish → delete
-lifecycle via `elements-crud.test.ts`.
+All 9 tool names added to `allTools` in every eval file. Every tool is live-validated against Umbraco 18 by a proper
+per-collection test suite following the repo's gold-standard pattern (`setup.ts` + fluent `ElementBuilder` + static
+`ElementTestHelper`, each helper with its own test; **one integration test file per tool** with snapshot success cases
+and assertion error cases; every test builds its own state via the builder — no dependency on seeded content, so it's
+CI-fresh-DB safe). 11 suites / 32 tests.
+
+### `create-element-folder` parent fix (found by the tests)
+
+The per-tool tests surfaced a real bug: the tool passed `parentId` flat to the chained `create-element-folder`, but
+its input schema is `parent?: { id }`. So a `parentId` was silently ignored and nested folders always landed at the
+Library root. Fixed to `parent: parentId ? { id: parentId } : null`; a nested-folder test now asserts the child
+appears under its parent.
 
 ### The `create-element` fixture gotcha (earlier false alarm)
 

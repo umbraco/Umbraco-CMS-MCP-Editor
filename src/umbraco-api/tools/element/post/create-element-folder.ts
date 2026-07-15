@@ -21,7 +21,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["create"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   handler: async ({ name, parentId }) => {
-    const createResult = await chainCms("create-element-folder", { name, ...(parentId ? { parentId } : {}) });
+    const createResult = await chainCms("create-element-folder", { name, parent: parentId ? { id: parentId } : null });
     if (!createResult.ok) return createResult.errorResult;
 
     // create-element-folder returns a bodyless 201 (id in the Location header,
