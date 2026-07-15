@@ -64,35 +64,28 @@ the `content` collection. Each design decision is grounded in the observed Libra
 | `create-element-folder` | `create-element-folder` | ✅ (smoke) | 201 is bodyless → id resolved by name lookup |
 | `publish-element` | `publish-element` | ✅ (data shape, seeded element) | `data.publishSchedules:[{culture}]`; workflow-approval bypassed (documented) |
 | `unpublish-element` | `unpublish-element` | ✅ (data shape, seeded element) | `data.cultures` (null for invariant); `requestApproval` confirm |
-| `edit-element` | `update-element-properties` | ⚠️ shape mirrors proven `update-document-properties`; not exercised (seeded Category type has no properties) |
-| `delete-element` | `move-element-to-recycle-bin` | ⚠️ chained op exists; `requestApproval` confirm | |
-| `create-element` | `create-element` | ❌ blocked upstream | see below |
+| `edit-element` | `update-element-properties` | ✅ (CRUD) | sets a Textstring property on the fixture element |
+| `delete-element` | `move-element-to-recycle-bin` | ✅ (CRUD) | `requestApproval` confirm |
+| `create-element` | `create-element` | ✅ (CRUD) | at the Library root with an `allowedInLibrary` element type |
 
-All 9 tool names added to `allTools` in every eval file.
+All 9 tool names added to `allTools` in every eval file. Every tool is live-validated against Umbraco 18 — the read +
+folder tools via `element-tools.smoke.test.ts`, and the full create → get → edit → publish → unpublish → delete
+lifecycle via `elements-crud.test.ts`.
 
-### The `create-element` blocker (chained-tool level, not just config)
+### The `create-element` fixture gotcha (earlier false alarm)
 
-`create-element` is built correctly (mirrors `create-page`), but it can't be exercised in this environment — and the
-cause is deeper than the seeded data:
+`create-element` initially looked "blocked" (`NotAllowed`), but that was a **test-fixture mistake, not an upstream bug**:
 
-- The seeded **Category** element type is `allowedAsRoot: false` + `allowedInLibrary: false`, so it isn't creatable.
-- I created a **self-owned element type** with `allowedInLibrary: true` + `allowedAsRoot: true` (via the chained
-  `create-document-type`). A **raw** `POST /umbraco/management/api/v1/element` with that type at the root **succeeds
-  (201)**.
-- But the **chained `@umbraco-cms/mcp-dev` `create-element` tool`** — which the editor tool must delegate to (editor
-  tools never call the Management API directly) — returns **`Operation not permitted` / `NotAllowed` (400)** for that
-  same permissive type, **both at the root and inside a folder**. It POSTs to the same `/element` endpoint the raw call
-  used, so the chained tool constructs a payload the endpoint rejects for a config/permission reason the raw payload
-  didn't hit.
+- The seeded **Category** element type is `allowedInLibrary: false`, so it isn't creatable.
+- My first fixture built its element type with the chained **`create-document-type`** tool — which **silently drops the
+  `isElement` flag** (creates `isElement: false`). `create-element` then correctly rejects a non-element type with
+  `NotAllowed`.
+- **Fix:** create the fixture type with **`create-element-type`** (→ `isElement: true`, `allowedInLibrary: true`). With a
+  real element type, `create-element` succeeds at the Library root, and the whole lifecycle works.
 
-So the block is in the **chained CMS tool's behavior**, which the editor layer can't work around. This looks like an
-mcp-dev v18 limitation worth reporting/investigating upstream. Until it's resolved, `create-element` ships built but
-unexercised; `edit-element` / `delete-element` on element *items* are likewise not covered by a self-owned fixture
-(the read + folder tools, and the publish/unpublish data shapes, are validated).
+So: use `create-element-type` (not `create-document-type`) for element types. `create-element` is fully functional.
 
 ### Remaining follow-up
 
-1. **Resolve the chained `create-element` `NotAllowed`** (upstream mcp-dev investigation) — unblocks live-validating
-   `create-element` / `edit-element` / `delete-element` and a full CRUD integration test with a self-owned fixture.
-2. A Library-phrased eval scenario.
-3. Live-validate each tool with the `audit-tool` skill through `.mcp.json`.
+1. A Library-phrased eval scenario (functional eval; the tools are integration-tested).
+2. Optional: `audit-tool` live-validation through `.mcp.json`.
