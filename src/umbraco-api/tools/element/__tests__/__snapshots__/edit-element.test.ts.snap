@@ -1,0 +1,15 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`edit-element should update a property value and have it round-trip via get-element 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "message": "Updated 1 field(s) on element "_Test Edit Element" (saved, not published)",
+    "name": "_Test Edit Element",
+    "updatedFields": [
+      "title",
+    ],
+  },
+}
+`;

@@ -1,0 +1,12 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`create-element should create a draft element (allowedInLibrary type, no parent needed) 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "message": "Created draft element "_Test Create Element"",
+    "name": "_Test Create Element",
+  },
+}
+`;

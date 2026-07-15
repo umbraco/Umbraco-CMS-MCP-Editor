@@ -13,6 +13,16 @@ import {
 } from "@umbraco-cms/mcp-server-sdk/evals";
 
 const allTools = [
+  // Library Elements
+  "get-element",
+  "list-element-children",
+  "search-elements",
+  "create-element",
+  "create-element-folder",
+  "edit-element",
+  "publish-element",
+  "unpublish-element",
+  "delete-element",
   // Content
   "search-content",
   "get-page",

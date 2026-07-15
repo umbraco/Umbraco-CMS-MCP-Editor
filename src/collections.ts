@@ -24,6 +24,7 @@ import publishingCollection from "./umbraco-api/tools/publishing/index.js";
 import versioningCollection from "./umbraco-api/tools/versioning/index.js";
 import mediaCollection from "./umbraco-api/tools/media/index.js";
 import mediaManagementCollection from "./umbraco-api/tools/media-management/index.js";
+import elementCollection from "./umbraco-api/tools/element/index.js";
 import blueprintCollection from "./umbraco-api/tools/blueprint/index.js";
 import languageCollection from "./umbraco-api/tools/language/index.js";
 import translationCollection from "./umbraco-api/tools/translation/index.js";
@@ -49,6 +50,7 @@ export const collections = [
   versioningCollection,
   mediaCollection,
   mediaManagementCollection,
+  elementCollection,
   blueprintCollection,
   languageCollection,
   translationCollection,
