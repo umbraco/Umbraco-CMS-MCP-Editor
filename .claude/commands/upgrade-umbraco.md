@@ -1,5 +1,5 @@
 ---
-description: Upgrade the chained @umbraco-cms/mcp-dev server (and the demo-site Umbraco it drives) to the latest release, surface newly-available CMS tools, learn each new capability's back office user flow (via Claude for Chrome or Playwright), and wrap it as an editor tool that mirrors that flow.
+description: Upgrade the chained @umbraco-cms/mcp-dev server (and the demo-site Umbraco it drives) to the latest release, surface newly-available CMS tools, learn each new capability's back office user flow (via Playwright), and wrap it as an editor tool that mirrors that flow.
 argument-hint: "[mcp-dev version, e.g. 18.0.1 — omit for latest]"
 ---
 
@@ -7,7 +7,7 @@ argument-hint: "[mcp-dev version, e.g. 18.0.1 — omit for latest]"
 
 Upgrade the **chained Umbraco CMS Developer MCP** (`@umbraco-cms/mcp-dev`) — and the demo-site Umbraco packages it talks to — to the latest release, diff the CMS tool surface to find newly-available tools, fix any typed-chaining breakages, run the tests, and wrap meaningful new capabilities as editor tools.
 
-**The aim of the editor MCP is to replicate, as tools, how the Umbraco back office UI behaves for a human editor.** A raw CMS tool exposes an API operation; an editor tool should reproduce the *user flow* — the same steps, defaults, validation, confirmations, and end state a user experiences in the back office. So the design of each new editor tool comes from observing the back office, **not** from the CMS tool's signature. This command builds that in: after finding new/changed CMS tools, drive the running demo site (with Claude for Chrome or Playwright) to learn the real UI flow, then model the editor tool on it.
+**The aim of the editor MCP is to replicate, as tools, how the Umbraco back office UI behaves for a human editor.** A raw CMS tool exposes an API operation; an editor tool should reproduce the *user flow* — the same steps, defaults, validation, confirmations, and end state a user experiences in the back office. So the design of each new editor tool comes from observing the back office, **not** from the CMS tool's signature. This command builds that in: after finding new/changed CMS tools, drive the running demo site (with Playwright) to learn the real UI flow, then model the editor tool on it.
 
 Unlike the Developer MCP, **this server never connects to the Umbraco Management API directly**. Every tool delegates to `@umbraco-cms/mcp-dev` via MCP chaining (`AI Client → Editor MCP → CMS Dev MCP → Umbraco API`). So there is **no Orval / OpenAPI regeneration step here**. The "API surface" that matters to us is the *typed CMS tool registry* (`CmsTools` / `CmsToolsName` from `@umbraco-cms/mcp-dev/tool-types`) plus the runtime `collections` export. An upgrade means: bump the chained package, align the demo-site CMS version, adapt to the tools that appear/disappear/change shape, and — for genuinely new capabilities — replicate the back office flow they correspond to.
 
@@ -25,9 +25,9 @@ ARGUMENTS: $ARGUMENTS
 - A database for the demo-site. Simplest is **SQLite** (`bootstrap-demo-site.sh --sqlite`) — no server, ships inside `Umbraco.Cms`, ideal for a plain dotnet box. SQL Server is the CI/worktree default (reachable from `demo-site/appsettings.local.json`, or a worktree DB — see below).
 - A working `.env` with `UMBRACO_CLIENT_ID`, `UMBRACO_CLIENT_SECRET`, `UMBRACO_BASE_URL`.
 - `dotnet`, `npm`, `node`, `curl`, `python3` on PATH.
-- **A way to drive the back office** for the flow-discovery step (step 9), either:
-  - **Claude for Chrome** — preferred when running interactively. Let Claude drive a real Chrome against the running demo site to explore the flow conversationally; better for the open-ended "how does a user do this?" investigation, no script to write. Point it at `<UMBRACO_BASE_URL>/umbraco` and log in as `admin@admin.com` / `1234567890`.
-  - **Playwright** — for a headless/CI sandbox or when you want a repeatable, committable trace. Chromium is pre-installed (`PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`; don't run `playwright install`) and this repo already uses `@playwright/test` (see `playwright.config.ts` / `tests/hosted-e2e`). The back office is HTTPS with a self-signed cert, so launch with `ignoreHTTPSErrors: true`.
+- **Playwright to drive the back office** for the flow-discovery step (step 9). Prefer the official **`@umbraco-cms/acceptance-test-helpers`** package — it ships Playwright fixtures/helpers for the Umbraco back office (programmatic login, section/tree navigation, workspace helpers) so you don't hand-roll shadow-DOM traversal or fight the login form. Add it as a devDependency for the trace. This repo already uses `@playwright/test` (see `playwright.config.ts` / `tests/hosted-e2e`); a browser channel is available (`channel: "chrome"` uses the system Chrome; a pre-installed Chromium may also exist under `PLAYWRIGHT_BROWSERS_PATH`). The back office is HTTPS with a self-signed cert, so launch with `ignoreHTTPSErrors: true`; log in as `admin@admin.com` / `1234567890`.
+  - **Don't use Claude for Chrome for this.** Its automation layer refuses to forward requests carrying an `Authorization: Bearer …` header (returns 503), and the whole Management API is Bearer-authenticated — so the authenticated back office never loads data in the automated tab (trees/panels stay empty; the client retries and appears to hang), even though the *same site works fine in a normal browser*. Playwright drives its own browser without that interception, so it works.
+  - If you can't drive the flow live for any reason, read it from the CMS tool `input`/`output` shapes plus the Umbraco back-office source, and say in the report that the flow wasn't driven live.
 - Use a **new, empty database** for the upgraded demo-site — don't reuse the previous version's DB. Development config has `InstallUnattended: true` (admin `admin@admin.com` / `1234567890`), so a fresh DB auto-installs on first boot, and `scripts/create-api-user.mjs` then recreates the API user + `umbraco-back-office-mcp` OAuth client. Nothing needs to be carried over.
 
 ## Key architecture facts (why this differs from the Dev MCP's `/upgrade-umbraco`)
@@ -78,34 +78,17 @@ Also note the matching `Umbraco.Cms.DevelopmentMode.Backoffice` (same version as
 
 ### 3. Capture the CMS tool surface *before* upgrading
 
-The whole point of this command is to see what tools the upgrade adds/removes. Snapshot the current, permission-scoped tool surface the editor can chain to. This uses the same permissive user that `src/testing/in-process-cms.ts` uses to build the full tool map, so it reflects exactly what our chaining layer can reach:
+The whole point of this command is to see what tools the upgrade adds/removes — so this capture **must not miss any tool**. Tool visibility is permission-gated (a caller only sees tools their `allowedSections` + `fallbackPermissions` allow), which means **a hardcoded permission list silently hides every tool behind a section or permission family that a new Umbraco major introduces.** That is exactly how the Umbraco 18 **Elements** domain — a new `Umb.Section.Library` section + `Umb.Element.*` permissions, **46 tools** — got missed on a first pass and nearly shipped unnoticed. **Never hardcode the permission scope.**
+
+Use `scripts/capture-cms-tool-surface.mjs`, which derives a permission-COMPLETE user from the installed package's own dist (every `Umb.Section.*` and every `Umb.<Entity>.<Permission>` it references), so nothing is filtered regardless of what a new major adds. It also records the section + permission-family lists so step 5 can flag new ones.
 
 ```bash
 npm run build   # ensure @umbraco-cms/mcp-dev is installed & importable
-node --input-type=module -e '
-  const { collections } = await import("@umbraco-cms/mcp-dev/collections");
-  const permissiveUser = {
-    fallbackPermissions: [
-      "Umb.Document.Create","Umb.Document.Read","Umb.Document.Update",
-      "Umb.Document.Delete","Umb.Document.Publish","Umb.Document.Unpublish",
-      "Umb.Document.Move","Umb.Document.Sort","Umb.Document.Duplicate",
-    ],
-    allowedSections: [
-      "Umb.Section.Content","Umb.Section.Media","Umb.Section.Settings",
-      "Umb.Section.Users","Umb.Section.Members","Umb.Section.Packages",
-      "Umb.Section.Translation",
-    ],
-    userGroupIds: [{ id: "E5E7F6C8-7F9C-4B5B-8D5D-9E1E5A4F7E4D" }],
-  };
-  const names = new Set();
-  for (const c of collections) {
-    const tools = typeof c.tools === "function" ? c.tools(permissiveUser) : c.tools;
-    for (const t of tools) names.add(t.name);
-  }
-  console.log([...names].sort().join("\n"));
-' | sort -u > /tmp/cms-tools-old.txt
-echo "Captured $(wc -l < /tmp/cms-tools-old.txt) CMS tools (before)"
+node scripts/capture-cms-tool-surface.mjs /tmp/cms-surface-old
+# -> /tmp/cms-surface-old.tools.txt / .sections.txt / .permfamilies.txt (stderr prints the counts)
 ```
+
+Eyeball the stderr counts and the section list — if the tool count looks suspiciously close to a previous run's *scoped* count, or a section you expected is absent, stop and investigate before bumping. A silent under-count here poisons the entire diff.
 
 ### 4. Bump the package versions
 
@@ -134,15 +117,23 @@ npm run build
 
 ### 5. Diff the CMS tool surface
 
-Capture the new surface with the exact same script from step 3, then diff:
+Capture the new surface with the **same script** (now resolving the upgraded package), then diff tools, sections, and permission families:
 
 ```bash
-# (re-run the step-3 node snippet) > /tmp/cms-tools-new.txt
-echo "--- NEW CMS tools (candidates to wrap) ---"
-comm -13 /tmp/cms-tools-old.txt /tmp/cms-tools-new.txt
-echo "--- REMOVED CMS tools (must fix any chainCms callers) ---"
-comm -23 /tmp/cms-tools-old.txt /tmp/cms-tools-new.txt
+node scripts/capture-cms-tool-surface.mjs /tmp/cms-surface-new
+
+echo "=== NEW sections (a new section usually means a whole new domain — investigate first) ==="
+comm -13 /tmp/cms-surface-old.sections.txt /tmp/cms-surface-new.sections.txt
+echo "=== NEW permission families (e.g. Umb.Element = the Elements domain) ==="
+comm -13 /tmp/cms-surface-old.permfamilies.txt /tmp/cms-surface-new.permfamilies.txt
+
+echo "=== NEW CMS tools (candidates to wrap) ==="
+comm -13 /tmp/cms-surface-old.tools.txt /tmp/cms-surface-new.tools.txt
+echo "=== REMOVED CMS tools (must fix any chainCms callers) ==="
+comm -23 /tmp/cms-surface-old.tools.txt /tmp/cms-surface-new.tools.txt
 ```
+
+**Read the section/permission-family diff first.** A new `Umb.Section.*` or `Umb.<Entity>.*` family is the loudest possible signal that the major added a whole new editor-facing domain (a batch of related tools that share a tree/CRUD/publish shape), not just a scattering of endpoints. Group the new tool list by that signal — e.g. all `*-element*` tools belong to the new Elements domain — so step 9's flow-discovery and step 10's wrapping treat the domain as one coherent piece (usually a new collection mirroring an existing one like `content`), rather than triaging 40+ tools individually and losing the forest for the trees. A large new domain is often its own follow-up effort — size it explicitly and say so in the report rather than half-wrapping it.
 
 Cross-check removals/renames against our own call sites:
 
@@ -189,6 +180,16 @@ node scripts/create-api-user.mjs "$UMBRACO_BASE_URL" admin@admin.com 1234567890
 
 Because the DB is new, expect a clean unattended install in the boot log (not forward migrations).
 
+**`create-api-user.mjs` bootstraps an admin token via a PKCE flow — a major bump can break it.** The script logs in as admin, then runs `authorize` → `token` against an OAuth client to get a bearer token it uses to create the API user. Two things to watch:
+
+- **The OAuth client's registered redirect can move between majors.** The script uses the **`umbraco-swagger`** client (a public PKCE client that returns real tokens in the response body). Umbraco 18 moved the bundled API docs from `/umbraco/swagger/` to `/umbraco/openapi/`, so the client's registered redirect changed from `/umbraco/swagger/oauth2-redirect.html` to `/umbraco/openapi/oauth2-redirect.html`; the old value gives `authorize` → `invalid_request` / `ID2043` ("redirect_uri is not valid for this client application"). If a future major moves it again, get the current value straight from the DB and update `SWAGGER_REDIRECT_PATH` in `scripts/create-api-user.mjs`:
+  ```bash
+  docker exec sql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '<sa-pw>' -C \
+    -d "<db-name>" -h -1 -W -Q \
+    "SET NOCOUNT ON; SELECT ClientId + ' => ' + CAST(RedirectUris AS NVARCHAR(MAX)) FROM umbracoOpenIddictApplications;"
+  ```
+- **Do NOT switch the bootstrap to the `umbraco-back-office` SPA client.** It's tempting (it's the client the login page uses, and its `authorize` returns a code with `redirect_uri=<baseUrl>/umbraco/oauth_complete`), but its server-side `HideBackOfficeTokensHandler` swaps the code/tokens for the literal string `"[redacted]"` and moves the real values into httpOnly cookies — so a server-side PKCE exchange gets `invalid_request` / "code missing" (ID2029) and **fails on CI too, not just locally.** The `[redacted]` you see there is Umbraco's handler, not a sandbox/network scrub. Use `umbraco-swagger`. Quick differential if `token` 400s: POST the token endpoint with a bogus `code` — `umbraco-swagger` → `invalid_grant` (client/grant OK, just a bad code, ID2004); `umbraco-back-office` → `invalid_request`/"code missing" (ID2029, wrong client).
+
 ### 8. Run the tests
 
 ```bash
@@ -213,7 +214,7 @@ First, decide which of the "NEW" tools from step 5 are worth an editor tool:
 
 For each capability you're keeping, **drive the back office on the running demo site to learn the real user flow before designing the tool.** Reproducing the flow — not the API — is the whole point.
 
-The back office is at `<UMBRACO_BASE_URL>/umbraco` (the port is in `.demo-site-port`); log in as `admin@admin.com` / `1234567890`. Explore it with **Claude for Chrome** (drive a real browser conversationally — best for open-ended investigation) or **Playwright** (scripted, headless, for a repeatable trace you can commit) — see Prerequisites. Trace and write down, for each capability:
+The back office is at `<UMBRACO_BASE_URL>/umbraco` (the port is in `.demo-site-port`); log in as `admin@admin.com` / `1234567890`. Explore it with **Playwright** — ideally via `@umbraco-cms/acceptance-test-helpers` for login + navigation (see Prerequisites for why not Claude for Chrome). Trace and write down, for each capability:
 
 - **Entry point & context** — where in the tree/section the action starts, what must be selected first (a document, a media item, a data type…).
 - **Inputs the user provides** — the fields, their types, which are required, sensible defaults the UI pre-fills, and any pickers/validation the UI enforces. These become the tool's Zod input schema — mirror the UI's required/optional split and defaults.
@@ -265,6 +266,7 @@ Confirm the running version: `grep 'Umbraco.Cms"' demo-site/demo-site.csproj` an
 
 ## Common pitfalls
 
+- **Never hardcode the permission scope when snapshotting the tool surface** (step 3) — a fixed `allowedSections`/`fallbackPermissions` list silently drops every tool behind a section or permission family a new major adds (this is how the Umbraco 18 Elements domain, 46 tools, was missed). Use `scripts/capture-cms-tool-surface.mjs` and read the new-sections diff first.
 - **Design to the back office flow, not the CMS tool signature.** The editor MCP replicates what a user does in the UI. A new editor tool's inputs, confirmations, sequencing, and output should mirror the observed flow (step 9); a one-to-one passthrough of a raw CMS tool is usually the wrong shape. If a capability has no back office counterpart, it probably shouldn't become an editor tool.
 - **No management-API regeneration here.** There is no `npm run generate`/Orval step — the CMS contract arrives entirely through `@umbraco-cms/mcp-dev`. If you catch yourself editing an OpenAPI client, you're in the wrong repo (that's the Dev MCP).
 - **Keep the three `@umbraco-cms/*` packages in lockstep.** `mcp-dev`, `mcp-server-sdk`, and `mcp-hosted` must be mutually compatible; a mismatch breaks in-process chaining (worker + tests) even when stdio still works. Match ranges to what the target `mcp-dev` declares.
