@@ -1,0 +1,12 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`publish-element should publish a draft element 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "message": "Published element "_Test Publish Element"",
+    "name": "_Test Publish Element",
+  },
+}
+`;

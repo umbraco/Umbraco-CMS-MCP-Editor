@@ -13,7 +13,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/glo
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
-  getStructuredContent,
+  createSnapshotResult,
   extractChainedResult,
   createElicitation,
   expectElicitationCancel,
@@ -60,10 +60,7 @@ describe("unpublish-element", () => {
     const result = await callTool(unpublishElementTool, { id: element.getId() }, extra);
 
     expect(result.isError).toBeFalsy();
-    const data = getStructuredContent(result) as any;
-    expect(data.id).toBe(element.getId());
-    expect(data.name).toBe(TEST_ELEMENT_NAME);
-    expect(data.message).toContain("Unpublished");
+    expect(createSnapshotResult(result, element.getId())).toMatchSnapshot();
 
     expect(await getVariantState(element.getId())).toBe("Draft");
   }, 30000);

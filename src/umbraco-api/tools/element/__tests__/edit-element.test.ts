@@ -14,6 +14,7 @@ import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
+  createSnapshotResult,
   ElementBuilder,
   ElementTestHelper,
 } from "./setup.js";
@@ -50,11 +51,7 @@ describe("edit-element", () => {
     );
 
     expect(result.isError).toBeFalsy();
-    const data = getStructuredContent(result) as any;
-    expect(data.id).toBe(element.getId());
-    expect(data.name).toBe(TEST_ELEMENT_NAME);
-    expect(data.updatedFields).toEqual([propertyAlias]);
-    expect(data.message).toContain("Updated");
+    expect(createSnapshotResult(result, element.getId())).toMatchSnapshot();
 
     const verify = await callTool(getElementTool, { id: element.getId() }, extra);
     const verifyData = getStructuredContent(verify) as any;

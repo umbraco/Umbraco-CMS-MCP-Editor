@@ -13,7 +13,7 @@ import { describe, it, expect, beforeAll, afterAll } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
-  getStructuredContent,
+  createSnapshotResult,
   extractChainedResult,
   ElementBuilder,
   ElementTestHelper,
@@ -50,10 +50,7 @@ describe("publish-element", () => {
     const result = await callTool(publishElementTool, { id: element.getId() }, extra);
 
     expect(result.isError).toBeFalsy();
-    const data = getStructuredContent(result) as any;
-    expect(data.id).toBe(element.getId());
-    expect(data.name).toBe(TEST_ELEMENT_NAME);
-    expect(data.message).toContain("Published");
+    expect(createSnapshotResult(result, element.getId())).toMatchSnapshot();
 
     expect(await getVariantState(element.getId())).toBe("Published");
   }, 30000);

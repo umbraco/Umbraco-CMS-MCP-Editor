@@ -13,7 +13,7 @@ import { describe, it, expect, afterAll, afterEach, beforeEach } from "@jest/glo
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
-  getStructuredContent,
+  createSnapshotResult,
   extractChainedResult,
   createElicitation,
   expectElicitationCancel,
@@ -63,10 +63,7 @@ describe("delete-element", () => {
     const result = await callTool(deleteElementTool, { id: element.getId() }, extra);
 
     expect(result.isError).toBeFalsy();
-    const data = getStructuredContent(result) as any;
-    expect(data.id).toBe(element.getId());
-    expect(data.name).toBe(TEST_ELEMENT_NAME);
-    expect(data.message).toContain("recycle bin");
+    expect(createSnapshotResult(result, element.getId())).toMatchSnapshot();
 
     expect(await getVariantState(element.getId())).toBe("Trashed");
   }, 30000);
