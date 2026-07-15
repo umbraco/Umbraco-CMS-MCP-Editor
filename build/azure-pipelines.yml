@@ -2,7 +2,8 @@ trigger:
   branches:
     include:
     - main
-    - dev
+    - v17/main
+    - v17/dev
     - feature/*
 
 pool:
@@ -61,7 +62,7 @@ stages:
 # is kept commented below for when the package is promoted.
 - stage: Deploy_Prerelease
   displayName: Prerelease (MyGet)
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  condition: and(succeeded(), in(variables['Build.SourceBranch'], 'refs/heads/main', 'refs/heads/v17/main'))
   dependsOn:
     - BuildAndTest
   jobs:
@@ -91,8 +92,31 @@ stages:
             tar -tf "${files[0]}" | grep package/package.json | head -1 | xargs tar -xf "${files[0]}" --strip-components=1
             version=$(node -p "require('./package.json').version")
 
-            echo "Publishing version ${version} to MyGet ($(myGetRegistry))"
-            if ! npm publish "${files[0]}" --registry $(myGetRegistry); then
+            # Determine release channel from the version suffix.
+            if [[ "${version}" == *"alpha"* ]]; then
+              channel="alpha"
+            elif [[ "${version}" == *"beta"* ]]; then
+              channel="beta"
+            elif [[ "${version}" == *"rc"* ]]; then
+              channel="rc"
+            else
+              channel="latest"
+            fi
+
+            # Scope the v17 (LTS) line to lts-17* dist-tags so it never claims the
+            # mainline `latest`/prerelease tags (which belong to the current major).
+            if [[ "${BUILD_SOURCEBRANCH}" == "refs/heads/v17/main" ]]; then
+              if [ "$channel" = "latest" ]; then
+                tag="lts-17"
+              else
+                tag="lts-17-${channel}"
+              fi
+            else
+              tag="$channel"
+            fi
+
+            echo "Publishing version ${version} to MyGet ($(myGetRegistry)) with tag ${tag}"
+            if ! npm publish "${files[0]}" --registry $(myGetRegistry) --tag "${tag}"; then
               echo "##vso[task.logissue type=error]MyGet publish failed for version ${version}"
               exit 1
             fi
