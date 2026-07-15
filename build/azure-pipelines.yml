@@ -3,6 +3,8 @@ trigger:
     include:
     - main
     - dev
+    - v*/main
+    - v*/dev
     - feature/*
 
 pool:
@@ -91,8 +93,20 @@ stages:
             tar -tf "${files[0]}" | grep package/package.json | head -1 | xargs tar -xf "${files[0]}" --strip-components=1
             version=$(node -p "require('./package.json').version")
 
-            echo "Publishing version ${version} to MyGet ($(myGetRegistry))"
-            if ! npm publish "${files[0]}" --registry $(myGetRegistry); then
+            # Determine release channel from the version suffix, and publish under
+            # the matching dist-tag so prereleases don't claim `latest`.
+            if [[ "${version}" == *"alpha"* ]]; then
+              tag="alpha"
+            elif [[ "${version}" == *"beta"* ]]; then
+              tag="beta"
+            elif [[ "${version}" == *"rc"* ]]; then
+              tag="rc"
+            else
+              tag="latest"
+            fi
+
+            echo "Publishing version ${version} to MyGet ($(myGetRegistry)) with tag ${tag}"
+            if ! npm publish "${files[0]}" --registry $(myGetRegistry) --tag "${tag}"; then
               echo "##vso[task.logissue type=error]MyGet publish failed for version ${version}"
               exit 1
             fi
