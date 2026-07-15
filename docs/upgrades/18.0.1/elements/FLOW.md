@@ -66,14 +66,33 @@ the `content` collection. Each design decision is grounded in the observed Libra
 | `unpublish-element` | `unpublish-element` | ✅ (data shape, seeded element) | `data.cultures` (null for invariant); `requestApproval` confirm |
 | `edit-element` | `update-element-properties` | ⚠️ shape mirrors proven `update-document-properties`; not exercised (seeded Category type has no properties) |
 | `delete-element` | `move-element-to-recycle-bin` | ⚠️ chained op exists; `requestApproval` confirm | |
-| `create-element` | `create-element` | ❌ blocked | payload reaches CMS, but the seeded Category type is `allowedAsRoot: false` with no allowed-child config → `NotAllowed`. Element **folder** create works (201), so it's allowed-type **configuration**, not permission. |
+| `create-element` | `create-element` | ❌ blocked upstream | see below |
 
 All 9 tool names added to `allTools` in every eval file.
 
+### The `create-element` blocker (chained-tool level, not just config)
+
+`create-element` is built correctly (mirrors `create-page`), but it can't be exercised in this environment — and the
+cause is deeper than the seeded data:
+
+- The seeded **Category** element type is `allowedAsRoot: false` + `allowedInLibrary: false`, so it isn't creatable.
+- I created a **self-owned element type** with `allowedInLibrary: true` + `allowedAsRoot: true` (via the chained
+  `create-document-type`). A **raw** `POST /umbraco/management/api/v1/element` with that type at the root **succeeds
+  (201)**.
+- But the **chained `@umbraco-cms/mcp-dev` `create-element` tool`** — which the editor tool must delegate to (editor
+  tools never call the Management API directly) — returns **`Operation not permitted` / `NotAllowed` (400)** for that
+  same permissive type, **both at the root and inside a folder**. It POSTs to the same `/element` endpoint the raw call
+  used, so the chained tool constructs a payload the endpoint rejects for a config/permission reason the raw payload
+  didn't hit.
+
+So the block is in the **chained CMS tool's behavior**, which the editor layer can't work around. This looks like an
+mcp-dev v18 limitation worth reporting/investigating upstream. Until it's resolved, `create-element` ships built but
+unexercised; `edit-element` / `delete-element` on element *items* are likewise not covered by a self-owned fixture
+(the read + folder tools, and the publish/unpublish data shapes, are validated).
+
 ### Remaining follow-up
 
-1. **Self-owned element-type + folder fixture** (via `create-element-type`, configured to be creatable) to unblock
-   live-validating `create-element` / `edit-element` / `delete-element` and to snapshot-test against test-owned data
-   (per `CLAUDE.md`, don't depend on seeded Clean content).
-2. Fuller integration tests + builders/helpers once the fixture exists; a Library-phrased eval scenario.
+1. **Resolve the chained `create-element` `NotAllowed`** (upstream mcp-dev investigation) — unblocks live-validating
+   `create-element` / `edit-element` / `delete-element` and a full CRUD integration test with a self-owned fixture.
+2. A Library-phrased eval scenario.
 3. Live-validate each tool with the `audit-tool` skill through `.mcp.json`.
