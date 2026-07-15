@@ -2,7 +2,7 @@ name: Test
 
 on:
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev, v17/main, v17/dev]
 
 jobs:
   test:
@@ -139,7 +139,7 @@ jobs:
 
   evals:
     name: LLM Eval Tests
-    if: github.base_ref == 'main'
+    if: github.base_ref == 'main' || github.base_ref == 'v17/main'
     runs-on: ubuntu-latest
 
     services:
