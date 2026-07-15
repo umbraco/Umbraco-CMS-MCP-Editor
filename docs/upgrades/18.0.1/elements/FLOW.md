@@ -53,24 +53,27 @@ Confirmations (`confirmAction`) mirror the back office: publish/unpublish/delete
 
 ## Implementation status (feature/element-tools, stacked on the v18 upgrade)
 
-Scaffolded so far — a new `element` collection (mode `library`), registered in `collections.ts` +
-`mode-registry.ts`:
+A new `element` collection (mode `library`), registered in `collections.ts` + `mode-registry.ts`, with 9 tools mirroring
+the `content` collection. Each design decision is grounded in the observed Library flow above.
 
-- **`get-element`** — ✅ built and **live-validated** against v18 (reads a seeded Category element; smoke test
-  `element-tools.smoke.test.ts` passes). Chains `get-element-by-id`; output = `{ id, name, elementType.id, values,
-  variants }` (the CMS returns the type as `documentType`).
-- **`create-element`** — built (mirrors `create-page`, chains `create-element` with per-property editorAlias
-  resolution). Its payload reaches the CMS correctly, but it is **not yet live-validated**: creating an element of
-  the seeded **Category** type returns `NotAllowed` (400). That element type is `isElement: true`,
-  `allowedAsRoot: false`, with **no allowed-child configuration**, so there is nowhere it can legally be created via
-  the API without extra setup. Creating an element **folder** succeeds (201), confirming the API user's element write
-  permission is fine — the block is allowed-type **configuration**, not permission.
+| Tool | Chains | Live-validated | Notes |
+|---|---|---|---|
+| `get-element` | `get-element-by-id` | ✅ (smoke) | output `{ id, name, elementType.id, values, variants }` (CMS returns type as `documentType`) |
+| `list-element-children` | `get-element-root` / `get-element-children` | ✅ (smoke) | tree browse; distinguishes `isFolder` |
+| `search-elements` | `search-element` | ✅ (smoke) | |
+| `create-element-folder` | `create-element-folder` | ✅ (smoke) | 201 is bodyless → id resolved by name lookup |
+| `publish-element` | `publish-element` | ✅ (data shape, seeded element) | `data.publishSchedules:[{culture}]`; workflow-approval bypassed (documented) |
+| `unpublish-element` | `unpublish-element` | ✅ (data shape, seeded element) | `data.cultures` (null for invariant); `requestApproval` confirm |
+| `edit-element` | `update-element-properties` | ⚠️ shape mirrors proven `update-document-properties`; not exercised (seeded Category type has no properties) |
+| `delete-element` | `move-element-to-recycle-bin` | ⚠️ chained op exists; `requestApproval` confirm | |
+| `create-element` | `create-element` | ❌ blocked | payload reaches CMS, but the seeded Category type is `allowedAsRoot: false` with no allowed-child config → `NotAllowed`. Element **folder** create works (201), so it's allowed-type **configuration**, not permission. |
 
-### Follow-up to finish the collection
+All 9 tool names added to `allTools` in every eval file.
 
-1. **Build a self-owned element-type + folder fixture** (via `create-element-type`, configuring `allowedAsRoot` or a
-   folder's allowed element types) so `create-element` / `edit-element` / `publish-element` can be exercised and
-   snapshot-tested against data the test owns (per `CLAUDE.md`, don't depend on seeded Clean content).
-2. Add the remaining editor tools from the mapping table above (list/search/edit/publish/unpublish/delete/folder).
-3. Add the new tool names to `allTools` in every eval file; add a Library-phrased eval.
-4. Live-validate each tool with the `audit-tool` skill through `.mcp.json`.
+### Remaining follow-up
+
+1. **Self-owned element-type + folder fixture** (via `create-element-type`, configured to be creatable) to unblock
+   live-validating `create-element` / `edit-element` / `delete-element` and to snapshot-test against test-owned data
+   (per `CLAUDE.md`, don't depend on seeded Clean content).
+2. Fuller integration tests + builders/helpers once the fixture exists; a Library-phrased eval scenario.
+3. Live-validate each tool with the `audit-tool` skill through `.mcp.json`.
