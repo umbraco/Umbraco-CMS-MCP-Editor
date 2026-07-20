@@ -1,20 +1,4 @@
 {
-  "extraKnownMarketplaces": {
-    "umbraco-mcp-ops": {
-      "source": {
-        "source": "github",
-        "repo": "hifi-phil/umbraco-mcp-ops"
-      }
-    }
-  },
-  "enabledPlugins": {
-    "umbraco-mcp-skills@umbraco-mcp-server-sdk-plugins": true,
-    "github-ops@umbraco-mcp-ops": true
-  },
-  "enabledMcpjsonServers": [
-    "umbraco-editor",
-    "umbraco-editor-hosted"
-  ],
   "permissions": {
     "allow": [
       "Bash(npm run compile*)",
