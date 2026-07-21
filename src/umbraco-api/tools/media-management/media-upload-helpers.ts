@@ -23,8 +23,11 @@ export function normalizeFileUrl(rawUrl: string): string {
   if (url.hostname !== GOOGLE_DRIVE_HOSTNAME) return rawUrl;
 
   // https://drive.google.com/file/d/<id>/view?usp=sharing
+  // pathname segments come back percent-encoded (unlike searchParams.get,
+  // which decodes automatically) — decode here so both branches feed
+  // buildDriveDownloadUrl a raw id and it can encode it exactly once.
   const fileMatch = url.pathname.match(/^\/file\/d\/([^/]+)/);
-  if (fileMatch) return buildDriveDownloadUrl(fileMatch[1]);
+  if (fileMatch) return buildDriveDownloadUrl(decodeURIComponent(fileMatch[1]));
 
   // https://drive.google.com/open?id=<id>
   // https://drive.google.com/uc?id=<id>

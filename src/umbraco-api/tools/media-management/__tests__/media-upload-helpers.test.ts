@@ -51,6 +51,20 @@ describe("normalizeFileUrl", () => {
     );
   });
 
+  it("does not double-encode a percent-encoded id in the /file/d/ path (matches the uc?id= encoding)", () => {
+    const input = "https://drive.google.com/file/d/abc%20def/view";
+    expect(normalizeFileUrl(input)).toBe(
+      "https://drive.usercontent.google.com/download?id=abc%20def&export=download",
+    );
+  });
+
+  it("matches drive.google.com regardless of hostname casing", () => {
+    const input = "https://DRIVE.GOOGLE.COM/uc?id=1AbCdEfGhIjKlMnOpQrSt";
+    expect(normalizeFileUrl(input)).toBe(
+      "https://drive.usercontent.google.com/download?id=1AbCdEfGhIjKlMnOpQrSt&export=download",
+    );
+  });
+
   it("leaves an already-normalized direct-download URL unchanged", () => {
     const input = "https://drive.usercontent.google.com/download?id=1AbCdEfGhIjKlMnOpQrSt&export=download";
     expect(normalizeFileUrl(input)).toBe(input);
