@@ -4,7 +4,7 @@ MCP server template for Umbraco add-ons using the @umbraco-cms/mcp-server-sdk.
 
 ## Getting Started
 
-### Node Prerequisites
+### Prerequisites
 
 - **Node.js 22+** is required. Check your version with `node --version`.
 
