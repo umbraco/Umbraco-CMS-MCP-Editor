@@ -57,6 +57,7 @@
     "zod": "4.3.6"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260702.1",
     "@jest/types": "^29.6.3",
     "@playwright/test": "^1.52.0",
     "@types/jest": "^29.5.14",
@@ -70,7 +71,10 @@
     "ts-node": "^10.9.2",
     "tsup": "^8.4.0",
     "typescript": "^5.8.3",
-    "undici": "^7.0.0",
-    "wrangler": "^4.69.0"
+    "undici": "^7.28.0",
+    "wrangler": "^4.108.0"
+  },
+  "overrides": {
+    "@cloudflare/workers-types": "^4.20260702.1"
   }
 }
