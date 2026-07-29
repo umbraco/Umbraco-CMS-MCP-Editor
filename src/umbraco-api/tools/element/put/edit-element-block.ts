@@ -22,6 +22,7 @@ const outputSchema = z.object({
   name: z.string(),
   contentKey: z.string(),
   updatedFields: z.array(z.string()),
+  warnings: z.array(z.string()).optional(),
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
@@ -45,7 +46,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // inspect-element-blocks reports.
     let targetKey = contentKey;
     if (resolvedBlockType === "settings") {
-      const rawValue = (elResult.data.values ?? []).find((v) => v.alias === propertyAlias)?.value;
+      const rawValue = (elResult.data.values ?? []).find(
+        (v) => v.alias === propertyAlias && (v.culture ?? null) === (culture ?? null) && (v.segment ?? null) === (segment ?? null),
+      )?.value;
       const container = isRteWithBlocks(rawValue) ? (rawValue as { blocks: unknown }).blocks : rawValue;
       const settingsKey = findSettingsKey(container, contentKey);
       if (!settingsKey) {
@@ -76,13 +79,14 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     });
     if (!updateResult.ok) return updateResult.errorResult;
 
-    // `update-element-block-property` reports per-block outcomes in its body and
-    // still answers 200 when a block could not be updated (unknown contentKey,
-    // property alias not on the block's element type, …). Surface that as an
-    // error rather than claiming a save that did not happen.
-    if (updateResult.data.success === false) {
-      const detail = (updateResult.data.results ?? [])
-        .filter((r) => r.success === false)
+    // `update-element-block-property`'s top-level `success` is always true once
+    // the call itself completes — per-block outcomes live only in `results[]`
+    // (unknown contentKey, property alias not on the block's element type, …
+    // each produce a `results` entry with its own `success: false`). Check that
+    // instead of the top-level flag, or a failed write is reported as saved.
+    const failed = (updateResult.data.results ?? []).filter((r) => r.success === false);
+    if (failed.length > 0) {
+      const detail = failed
         .flatMap((r) => (r.errors?.length ? r.errors : [r.message]))
         .join("; ");
       return createToolResultError(
@@ -91,12 +95,14 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     }
 
     const target = resolvedBlockType === "settings" ? "settings" : "content";
+    const warnings = (updateResult.data.results ?? []).flatMap((r) => r.warnings ?? []);
     return createToolResult({
       message: `Updated ${fieldNames.length} field(s) in block ${target} on element "${elementName}" (saved, not published)`,
       id,
       name: elementName,
       contentKey,
       updatedFields: fieldNames,
+      ...(warnings.length ? { warnings } : {}),
     });
   },
 };

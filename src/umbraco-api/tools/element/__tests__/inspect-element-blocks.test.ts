@@ -51,10 +51,10 @@ describe("inspect-element-blocks", () => {
     const [property] = data.blockProperties;
     expect(property.propertyAlias).toBe(fixture.propertyAlias);
     expect(property.editorAlias).toBe("Umbraco.BlockList");
-    expect(property.blocks).toHaveLength(1);
+    // The fixture seeds two blocks: one with settings, one without.
+    expect(property.blocks).toHaveLength(2);
 
-    const [block] = property.blocks;
-    expect(block.contentKey).toBe(fixture.seededBlockKey);
+    const block = property.blocks.find((b: any) => b.contentKey === fixture.seededBlockKey);
     expect(block.contentTypeKey).toBe(fixture.blockElementTypeId);
     // The seeded block has settings, so the paired key must be surfaced.
     expect(block.settingsKey).toBe(fixture.seededSettingsKey);
@@ -63,6 +63,10 @@ describe("inspect-element-blocks", () => {
         { alias: fixture.blockPropertyAlias, value: SEEDED_CONTENT_VALUE },
       ]),
     );
+
+    // The second block has no paired settings entry, so settingsKey must be omitted.
+    const noSettingsBlock = property.blocks.find((b: any) => b.contentKey === fixture.seededBlockNoSettingsKey);
+    expect(noSettingsBlock).not.toHaveProperty("settingsKey");
   }, 60000);
 
   it("should return no preview URL field (elements are not routable)", async () => {

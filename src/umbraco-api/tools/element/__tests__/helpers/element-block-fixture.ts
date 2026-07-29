@@ -29,6 +29,9 @@ export const SEEDED_BLOCK_KEY = "33333333-3333-4333-8333-333333333333";
 export const SEEDED_SETTINGS_KEY = "44444444-4444-4444-8444-444444444444";
 export const SEEDED_CONTENT_VALUE = "_seeded element block value";
 export const SEEDED_SETTINGS_VALUE = "_seeded element block settings";
+/** A second block with no paired settings entry, for the settings-guard error path. */
+export const SEEDED_BLOCK_NO_SETTINGS_KEY = "55555555-5555-4555-8555-555555555555";
+export const SEEDED_NO_SETTINGS_CONTENT_VALUE = "_seeded element block value (no settings)";
 
 /** The BlockList property alias on the provisioned Library element type. */
 export const BLOCK_PROPERTY_ALIAS = "mainContent";
@@ -46,6 +49,8 @@ export interface ElementBlockFixture {
   seededBlockKey: string;
   /** The seeded block's settingsKey */
   seededSettingsKey: string;
+  /** A second seeded block's contentKey — this one has no paired settings entry */
+  seededBlockNoSettingsKey: string;
   /** The element type used for the block's content (and settings) */
   blockElementTypeId: string;
   cleanup(): Promise<void>;
@@ -84,6 +89,19 @@ function seededBlockListValue(blockElementTypeId: string) {
           },
         ],
       },
+      {
+        key: SEEDED_BLOCK_NO_SETTINGS_KEY,
+        contentTypeKey: blockElementTypeId,
+        values: [
+          {
+            editorAlias: "Umbraco.TextBox",
+            culture: null,
+            segment: null,
+            alias: BLOCK_INNER_PROPERTY_ALIAS,
+            value: SEEDED_NO_SETTINGS_CONTENT_VALUE,
+          },
+        ],
+      },
     ],
     settingsData: [
       {
@@ -103,9 +121,14 @@ function seededBlockListValue(blockElementTypeId: string) {
     layout: {
       "Umbraco.BlockList": [
         { contentKey: SEEDED_BLOCK_KEY, settingsKey: SEEDED_SETTINGS_KEY },
+        // No settingsKey — this block has no paired settings entry.
+        { contentKey: SEEDED_BLOCK_NO_SETTINGS_KEY },
       ],
     },
-    expose: [{ contentKey: SEEDED_BLOCK_KEY, culture: null, segment: null }],
+    expose: [
+      { contentKey: SEEDED_BLOCK_KEY, culture: null, segment: null },
+      { contentKey: SEEDED_BLOCK_NO_SETTINGS_KEY, culture: null, segment: null },
+    ],
   };
 }
 
@@ -212,6 +235,7 @@ export async function createElementBlockFixture(name: string): Promise<ElementBl
     blockPropertyAlias: BLOCK_INNER_PROPERTY_ALIAS,
     seededBlockKey: SEEDED_BLOCK_KEY,
     seededSettingsKey: SEEDED_SETTINGS_KEY,
+    seededBlockNoSettingsKey: SEEDED_BLOCK_NO_SETTINGS_KEY,
     blockElementTypeId,
     cleanup,
   };

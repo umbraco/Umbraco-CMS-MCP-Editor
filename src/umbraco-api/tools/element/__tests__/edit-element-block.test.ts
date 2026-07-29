@@ -152,6 +152,41 @@ describe("edit-element-block", () => {
     expect(result.isError).toBe(true);
   }, 60000);
 
+  it("should return an error when a value's alias is not a property on the block's element type", async () => {
+    // The chained tool answers 200 with a per-block success: false in `results[]`
+    // for this case (the top-level `success` stays true regardless) — this
+    // exercises that path, distinct from the unknown-contentKey case above.
+    const result = await callTool(
+      editElementBlockTool,
+      {
+        id: fixture.elementId,
+        propertyAlias: fixture.propertyAlias,
+        contentKey: fixture.seededBlockKey,
+        values: [{ alias: "notAPropertyOnThisBlockType", value: "unreachable" }],
+      },
+      extra,
+    );
+
+    expect(result.isError).toBe(true);
+  }, 60000);
+
+  it("should return an error when blockType is 'settings' for a block with no settings entry", async () => {
+    const result = await callTool(
+      editElementBlockTool,
+      {
+        id: fixture.elementId,
+        propertyAlias: fixture.propertyAlias,
+        contentKey: fixture.seededBlockNoSettingsKey,
+        blockType: "settings",
+        values: [{ alias: fixture.blockPropertyAlias, value: "unreachable" }],
+      },
+      extra,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(getStructuredContent(result)).toContain("no settings entry");
+  }, 60000);
+
   it("should return an error for a non-existent element", async () => {
     const result = await callTool(
       editElementBlockTool,
