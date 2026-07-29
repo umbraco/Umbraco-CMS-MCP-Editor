@@ -1,0 +1,16 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`edit-element-block should update a property inside the block and have it round-trip 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "contentKey": "33333333-3333-4333-8333-333333333333",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "message": "Updated 1 field(s) in block content on element "_Test Edit Element Block" (saved, not published)",
+    "name": "_Test Edit Element Block",
+    "updatedFields": [
+      "title",
+    ],
+  },
+}
+`;
