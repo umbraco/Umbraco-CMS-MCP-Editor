@@ -1,0 +1,40 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`inspect-element-blocks should match the snapshot for the fixture element 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "blockProperties": [
+      {
+        "blocks": [
+          {
+            "contentKey": "33333333-3333-4333-8333-333333333333",
+            "contentTypeKey": "00000000-0000-0000-0000-000000000000",
+            "properties": [
+              {
+                "alias": "title",
+                "value": "_seeded element block value",
+              },
+            ],
+            "settingsKey": "44444444-4444-4444-8444-444444444444",
+          },
+          {
+            "contentKey": "55555555-5555-4555-8555-555555555555",
+            "contentTypeKey": "00000000-0000-0000-0000-000000000000",
+            "properties": [
+              {
+                "alias": "title",
+                "value": "_seeded element block value (no settings)",
+              },
+            ],
+          },
+        ],
+        "editorAlias": "Umbraco.BlockList",
+        "propertyAlias": "mainContent",
+      },
+    ],
+    "id": "00000000-0000-0000-0000-000000000000",
+    "name": "_Test Inspect Element Blocks",
+  },
+}
+`;

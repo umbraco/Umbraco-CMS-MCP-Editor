@@ -217,6 +217,12 @@ Getting this wrong causes tools to pass integration tests but fail on the wire w
 - `isRteWithBlocks(value)` — detects Rich Text with embedded blocks
 - `findMatchingBlocks(doc, propertyAlias, contentTypeKey)` — finds blocks by element type
 
+**`helpers/block-inspector.ts`** — the block walk shared by `inspect-blocks` (documents) and `inspect-element-blocks` (Library elements), so the two stay in lockstep:
+- `collectBlockProperties(values, propertyAlias?)` — walks an entity's property values and returns only the block-bearing ones, flattened
+- `blockPropertiesSchema(editTool)` — the shared output schema; `editTool` names the tool that consumes `contentKey`
+- `findSettingsKey(container, contentKey)` — a block's settings live in a separate `settingsData` entry under their own key, paired only via the layout. Recurses through BlockGrid `areas[].items[]`. `edit-element-block` uses this to translate a caller's `contentKey` into the settings key the chained CMS tool expects for `blockType: "settings"`
+- `extractBlocks`, `isBlockListOrGridValue`, `isRteWithBlocks` (re-exported from `block-builder.ts`)
+
 ## Testing
 
 **Integration tests (`__tests__/`):**
