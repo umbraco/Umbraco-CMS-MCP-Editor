@@ -20,6 +20,12 @@ export { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 
 export { ElementBuilder } from "./helpers/element-builder.js";
 export { ElementTestHelper } from "./helpers/element-test-helper.js";
+export {
+  createElementBlockFixture,
+  SEEDED_CONTENT_VALUE,
+  SEEDED_SETTINGS_VALUE,
+} from "./helpers/element-block-fixture.js";
+export type { ElementBlockFixture } from "./helpers/element-block-fixture.js";
 
 export { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 export { expectElicitationCancel } from "../../../../testing/elicitation-helpers.js";
