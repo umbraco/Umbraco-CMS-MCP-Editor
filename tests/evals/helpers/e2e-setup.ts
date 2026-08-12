@@ -8,6 +8,7 @@
 import path from "path";
 import { jest } from "@jest/globals";
 import { configureEvals, ClaudeModels } from "@umbraco-cms/mcp-server-sdk/evals";
+import { allModeNames } from "../../../src/config/mode-registry.js";
 
 // jest.setup.ts (loaded via setupFiles, before this file) sets
 // USE_IN_PROCESS_CMS=true so integration tests swap the CMS chain for an
@@ -50,7 +51,15 @@ configureEvals({
     // Enable every mode so tree-walker tools (report-stale-content,
     // report-large-media, list-scheduled-content, etc.) register too.
     // The demo site is small enough that the scanLimit=100 cap covers it.
-    UMBRACO_TOOL_MODES: "content,media,blueprints,translation,tags,content-health,site-structure,media-health,bulk-operations,members,scheduling,redirects,relationships,public-access,notifications,recycle-bin",
+    //
+    // Derived from the mode registry rather than hard-coded: this list used to
+    // be a literal string and had silently drifted from the registry — it was
+    // missing `library`, so the whole element collection never registered in
+    // the eval subprocess and every Library element scenario failed with
+    // "Missing required tools" regardless of how the tools behaved. It also
+    // still named `media-health`, which is not a mode. Deriving it means a new
+    // mode is covered by evals the moment it is registered.
+    UMBRACO_TOOL_MODES: allModeNames.join(","),
   },
 
   // Test defaults

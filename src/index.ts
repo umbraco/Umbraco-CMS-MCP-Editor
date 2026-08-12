@@ -23,30 +23,13 @@ import {
 import { CHAINED_DEPS } from "./auth/chained-deps.generated.js";
 
 // Import the Orval-generated API client
-// Import tool collections
-import contentCollection from "./umbraco-api/tools/content/index.js";
-import publishingCollection from "./umbraco-api/tools/publishing/index.js";
-import versioningCollection from "./umbraco-api/tools/versioning/index.js";
-import mediaCollection from "./umbraco-api/tools/media/index.js";
-import mediaManagementCollection from "./umbraco-api/tools/media-management/index.js";
-import blueprintCollection from "./umbraco-api/tools/blueprint/index.js";
-import translationCollection from "./umbraco-api/tools/translation/index.js";
-import languageCollection from "./umbraco-api/tools/language/index.js";
-import dictionaryCollection from "./umbraco-api/tools/dictionary/index.js";
-import tagCollection from "./umbraco-api/tools/tag/index.js";
-import contentHealthCollection from "./umbraco-api/tools/content-health/index.js";
-import siteStructureCollection from "./umbraco-api/tools/site-structure/index.js";
-import bulkOperationsCollection from "./umbraco-api/tools/bulk-operations/index.js";
-import memberCollection from "./umbraco-api/tools/member/index.js";
-import memberGroupCollection from "./umbraco-api/tools/member-group/index.js";
-import memberReportingCollection from "./umbraco-api/tools/member-reporting/index.js";
-import schedulingCollection from "./umbraco-api/tools/scheduling/index.js";
-import redirectCollection from "./umbraco-api/tools/redirect/index.js";
-import relationshipsCollection from "./umbraco-api/tools/relationships/index.js";
-import publicAccessCollection from "./umbraco-api/tools/public-access/index.js";
-import notificationsCollection from "./umbraco-api/tools/notifications/index.js";
-import recycleBinCollection from "./umbraco-api/tools/recycle-bin/index.js";
-import accountCollection from "./umbraco-api/tools/account/index.js";
+// Tool collections come from the shared registry in collections.ts, which the
+// hosted worker also consumes. Stdio mode used to re-declare the list by hand,
+// and it drifted: the element collection was added to collections.ts but never
+// to the copy here, so every Library element tool was invisible over stdio
+// while its integration tests (which import the modules directly) stayed
+// green. One list, both entry points — do not reintroduce a local copy.
+import { collections } from "./collections.js";
 
 // Import MCP client manager (servers registered at import time via mcp-client.ts)
 import { mcpClientManager } from "./umbraco-api/mcp-client.js";
@@ -112,31 +95,9 @@ const filterConfig: CollectionConfiguration = configLoader.loadFromConfig(server
 // Register Tools with Filtering
 // ============================================================================
 
-const collections: ToolCollectionExport[] = [
-  contentCollection,
-  publishingCollection,
-  versioningCollection,
-  mediaCollection,
-  mediaManagementCollection,
-  blueprintCollection,
-  translationCollection,
-  languageCollection,
-  dictionaryCollection,
-  tagCollection,
-  contentHealthCollection,
-  siteStructureCollection,
-  bulkOperationsCollection,
-  memberCollection,
-  memberGroupCollection,
-  memberReportingCollection,
-  schedulingCollection,
-  redirectCollection,
-  relationshipsCollection,
-  publicAccessCollection,
-  notificationsCollection,
-  recycleBinCollection,
-  accountCollection,
-];
+// Annotated so the shared registry is type-checked against the SDK contract here.
+const registeredCollections: ToolCollectionExport[] = collections;
+
 // Start the server
 async function main() {
   // Connect to chained MCP servers. The dev MCP filters its own tool list by
@@ -167,7 +128,7 @@ async function main() {
 
   let registeredToolCount = 0;
   let skippedByDeps = 0;
-  for (const collection of collections) {
+  for (const collection of registeredCollections) {
     const collectionName = collection.metadata.name;
     const tools = collection.tools({});
 
@@ -204,7 +165,7 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error(
-    `MCP Server started with ${registeredToolCount} tool(s) from ${collections.length} collection(s)` +
+    `MCP Server started with ${registeredToolCount} tool(s) from ${registeredCollections.length} collection(s)` +
       (skippedByDeps > 0 ? ` (${skippedByDeps} tool(s) hidden — chained deps not available for this user)` : ""),
   );
 }
