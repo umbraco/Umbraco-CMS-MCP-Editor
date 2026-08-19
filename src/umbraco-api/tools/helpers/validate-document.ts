@@ -97,7 +97,7 @@ export async function validateDocumentState(
     id,
     documentType: { id: target.documentType.id },
     template: target.template ? { id: target.template.id } : null,
-    parent: null,
+    parent: await resolveParent(id),
     values,
     variants,
   });
@@ -107,6 +107,30 @@ export async function validateDocumentState(
   }
 
   return { valid: false, errors: parseValidationErrors(result.errorResult, values) };
+}
+
+/**
+ * Resolve a document's parent so the validation payload describes where the
+ * document actually lives.
+ *
+ * `validate-document` validates a *create* model, and Umbraco checks the
+ * document type against the target location: a type that is not allowed at the
+ * content root fails with 400 `NotAllowed` when `parent` is null. Sending null
+ * unconditionally therefore reported every child page as invalid — with a
+ * "permission/configuration mismatch" message that has nothing to do with the
+ * page's actual property values. (Umbraco 18.1 enforces this; earlier versions
+ * let it pass, which is why it went unnoticed.)
+ *
+ * `get-document-ancestors` returns the chain root → document, each entry
+ * carrying its own `parent`, so the entry for `id` gives the answer. Falls back
+ * to null (a genuine root document) if the lookup fails — validation should
+ * degrade, never throw.
+ */
+async function resolveParent(id: string): Promise<{ id: string } | null> {
+  const ancestors = await chainCms("get-document-ancestors", { descendantId: id });
+  if (!ancestors.ok) return null;
+  const self = (ancestors.data.items ?? []).find((item) => item.id === id);
+  return self?.parent ? { id: self.parent.id } : null;
 }
 
 /**

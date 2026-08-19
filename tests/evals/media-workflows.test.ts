@@ -45,6 +45,7 @@ const allTools = [
   "get-property-value-template",
   "list-page-templates",
   "set-page-template",
+  "sort-children-by-field",
   "delete-page",
   "delete-block",
   "restore-page",
@@ -66,6 +67,7 @@ const allTools = [
   "delete-media",
   "restore-media",
   "bulk-move-media",
+  "sort-media-children-by-field",
   "get-media-change-history",
   // Recycle Bin
   "list-recycle-bin",

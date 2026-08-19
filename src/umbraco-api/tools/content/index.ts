@@ -19,6 +19,7 @@ import editBlockTool from "./put/edit-block.js";
 import renamePageTool from "./put/rename-page.js";
 import restorePageTool from "./put/restore-page.js";
 import sortChildrenTool from "./put/sort-children.js";
+import sortChildrenByFieldTool from "./put/sort-children-by-field.js";
 import setPageTemplateTool from "./put/set-page-template.js";
 import deletePageTool from "./delete/delete-page.js";
 import deleteBlockTool from "./delete/delete-block.js";
@@ -29,7 +30,7 @@ const collection: ToolCollectionExport = {
     displayName: "Content",
     description: "Search, browse, and manage content pages",
   },
-  tools: () => [searchContentTool, getPageTool, listChildrenTool, listDocumentTypesTool, getDocumentTypeTool, inspectBlocksTool, reportPageReferencesTool, compareDraftToPublishedTool, listPageTemplatesTool, getPropertyValueTemplateTool, createPageTool, duplicatePageTool, addBlocklistBlockTool, addBlockgridBlockTool, addRteBlockTool, editPageTool, editBlockTool, renamePageTool, sortChildrenTool, setPageTemplateTool, restorePageTool, deletePageTool, deleteBlockTool],
+  tools: () => [searchContentTool, getPageTool, listChildrenTool, listDocumentTypesTool, getDocumentTypeTool, inspectBlocksTool, reportPageReferencesTool, compareDraftToPublishedTool, listPageTemplatesTool, getPropertyValueTemplateTool, createPageTool, duplicatePageTool, addBlocklistBlockTool, addBlockgridBlockTool, addRteBlockTool, editPageTool, editBlockTool, renamePageTool, sortChildrenTool, sortChildrenByFieldTool, setPageTemplateTool, restorePageTool, deletePageTool, deleteBlockTool],
 };
 
 export default collection;

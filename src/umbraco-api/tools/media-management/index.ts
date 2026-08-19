@@ -7,6 +7,7 @@ import restoreMediaTool from "./put/restore-media.js";
 import bulkMoveMediaTool from "./post/bulk-move-media.js";
 import editMediaTool from "./put/edit-media.js";
 import sortMediaChildrenTool from "./put/sort-media-children.js";
+import sortMediaChildrenByFieldTool from "./put/sort-media-children-by-field.js";
 
 const collection: ToolCollectionExport = {
   metadata: {
@@ -14,7 +15,7 @@ const collection: ToolCollectionExport = {
     displayName: "Media Management",
     description: "Upload, organise, delete, and restore media items",
   },
-  tools: () => [uploadMediaTool, createMediaFolderTool, moveMediaTool, deleteMediaTool, restoreMediaTool, bulkMoveMediaTool, editMediaTool, sortMediaChildrenTool],
+  tools: () => [uploadMediaTool, createMediaFolderTool, moveMediaTool, deleteMediaTool, restoreMediaTool, bulkMoveMediaTool, editMediaTool, sortMediaChildrenTool, sortMediaChildrenByFieldTool],
 };
 
 export default collection;

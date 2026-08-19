@@ -41,6 +41,25 @@ const FAKE_DOC = {
   isTrashed: false,
 };
 
+const PARENT_ID = "00000000-0000-0000-0000-000000000009";
+
+/**
+ * `validate-document` validates a *create* model, so the helper resolves the
+ * document's real parent first (a type not allowed at the content root is
+ * rejected with 400 NotAllowed when parent is null). The ancestors chain runs
+ * root → document, and the entry for the document carries its parent.
+ */
+const ancestorsResult = {
+  isError: false,
+  structuredContent: {
+    items: [
+      { id: PARENT_ID, parent: null },
+      { id: FAKE_DOC.id, parent: { id: PARENT_ID } },
+    ],
+  },
+  content: [],
+};
+
 describe("validateDocumentState", () => {
   let spy: ReturnType<typeof jest.spyOn>;
 
@@ -54,6 +73,7 @@ describe("validateDocumentState", () => {
 
   it("returns valid:true when validate-document succeeds", async () => {
     spy.mockImplementation(async (_server: string, toolName: string) => {
+      if (toolName === "get-document-ancestors") return ancestorsResult;
       if (toolName === "validate-document") {
         return { isError: false, structuredContent: {}, content: [] };
       }
@@ -80,6 +100,7 @@ describe("validateDocumentState", () => {
     };
     // Post-chainCms-unwrap: ProblemDetails sits directly under structuredContent.
     spy.mockImplementation(async (_server: string, toolName: string) => {
+      if (toolName === "get-document-ancestors") return ancestorsResult;
       if (toolName === "validate-document") {
         return {
           isError: true,
@@ -119,6 +140,7 @@ describe("validateDocumentState", () => {
       detail: "The document could not be found",
     };
     spy.mockImplementation(async (_server: string, toolName: string) => {
+      if (toolName === "get-document-ancestors") return ancestorsResult;
       if (toolName === "validate-document") {
         return {
           isError: true,
@@ -135,5 +157,47 @@ describe("validateDocumentState", () => {
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0].propertyAlias).toBe("__document__");
     expect(result.errors[0].message).toBe("The document could not be found");
+  });
+
+  // Regression: the helper used to hard-code `parent: null`. Because
+  // validate-document validates a *create* model, Umbraco 18.1 rejects that for
+  // any document type not allowed at the content root — so every child page came
+  // back invalid with a "permission/configuration mismatch" message.
+  it("sends the document's real parent, resolved from the ancestors chain", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let validateArgs: any;
+    spy.mockImplementation(async (_server: string, toolName: string, args: unknown) => {
+      if (toolName === "get-document-ancestors") return ancestorsResult;
+      if (toolName === "validate-document") {
+        validateArgs = args;
+        return { isError: false, structuredContent: {}, content: [] };
+      }
+      throw new Error(`unexpected tool call: ${toolName}`);
+    });
+
+    const result = await validateDocumentState(FAKE_DOC.id, FAKE_DOC as any);
+
+    expect(result.valid).toBe(true);
+    expect(validateArgs.parent).toEqual({ id: PARENT_ID });
+  });
+
+  it("falls back to a null parent when the ancestors lookup fails", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let validateArgs: any;
+    spy.mockImplementation(async (_server: string, toolName: string, args: unknown) => {
+      if (toolName === "get-document-ancestors") {
+        return { isError: true, structuredContent: { status: 500 }, content: [] };
+      }
+      if (toolName === "validate-document") {
+        validateArgs = args;
+        return { isError: false, structuredContent: {}, content: [] };
+      }
+      throw new Error(`unexpected tool call: ${toolName}`);
+    });
+
+    const result = await validateDocumentState(FAKE_DOC.id, FAKE_DOC as any);
+
+    expect(result.valid).toBe(true);
+    expect(validateArgs.parent).toBeNull();
   });
 });
