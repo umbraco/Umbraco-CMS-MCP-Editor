@@ -18,11 +18,11 @@ const outputSchema = z.object({
   message: z.string(),
   field: sortFieldSchema,
   direction: sortDirectionSchema,
-  sorted: z.number().describe("Number of child pages now in the sorted order."),
+  sorted: z.number().describe("Total number of child pages now in the sorted order. The sort applies to every child, not just the ones listed in `items`."),
   items: z.array(z.object({
     id: z.string(),
     name: z.string(),
-  })).describe("The children in their new order, mirroring the reordered list the Sort dialog shows after sorting."),
+  })).describe("The FIRST PAGE of the children in their new order (capped at 100), mirroring the reordered list the Sort dialog shows after sorting. When `sorted` exceeds this list's length the remaining children were still reordered — use list-children to page through them."),
   parentPreviewUrl: previewUrlSchema.describe("Backoffice preview link for the parent page so the editor can confirm the new order. Null when sorting at the content root or when the base URL is not resolvable."),
 });
 
@@ -52,6 +52,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     if (!sortResult.ok) return sortResult.errorResult;
 
     // Mirror the dialog's end state: read the children back in their new order.
+    // Only the first page is read back, but the sort above reordered EVERY child
+    // server-side — so report the response's `total`, not this page's length.
     const cursor = buildChainedCursor(0, 100);
     const childrenResult = parentId
       ? await chainCms("get-document-children", { parentId, cursor })
@@ -62,12 +64,13 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       id: item.id,
       name: item.variants[0]?.name ?? "Unknown",
     }));
+    const total = childrenResult.data.total ?? items.length;
 
     return createToolResult({
-      message: `Sorted ${items.length} child page(s) by ${field} (${resolvedDirection})`,
+      message: `Sorted ${total} child page(s) by ${field} (${resolvedDirection})`,
       field,
       direction: resolvedDirection,
-      sorted: items.length,
+      sorted: total,
       items,
       parentPreviewUrl: parentId ? await fetchPreviewUrl(parentId) : null,
     });

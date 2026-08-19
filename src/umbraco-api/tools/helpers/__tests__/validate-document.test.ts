@@ -181,6 +181,36 @@ describe("validateDocumentState", () => {
     expect(validateArgs.parent).toEqual({ id: PARENT_ID });
   });
 
+  // Distinct from the lookup-failure case below: here `get-document-ancestors`
+  // SUCCEEDS and the entry matching the document carries `parent: null`, because
+  // the document genuinely sits at the content root. Both paths must send
+  // `parent: null`, but only one of them is an error path.
+  it("resolves parent as null for a genuine root document", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let validateArgs: any;
+    // A root document's ancestors chain is just itself, with a null parent.
+    const rootAncestorsResult = {
+      isError: false,
+      structuredContent: {
+        items: [{ id: FAKE_DOC.id, parent: null }],
+      },
+      content: [],
+    };
+    spy.mockImplementation(async (_server: string, toolName: string, args: unknown) => {
+      if (toolName === "get-document-ancestors") return rootAncestorsResult;
+      if (toolName === "validate-document") {
+        validateArgs = args;
+        return { isError: false, structuredContent: {}, content: [] };
+      }
+      throw new Error(`unexpected tool call: ${toolName}`);
+    });
+
+    const result = await validateDocumentState(FAKE_DOC.id, FAKE_DOC as any);
+
+    expect(result.valid).toBe(true);
+    expect(validateArgs.parent).toBeNull();
+  });
+
   it("falls back to a null parent when the ancestors lookup fails", async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let validateArgs: any;
