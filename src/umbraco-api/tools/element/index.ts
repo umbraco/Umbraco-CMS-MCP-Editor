@@ -4,6 +4,7 @@ import listElementChildrenTool from "./get/list-element-children.js";
 import searchElementsTool from "./get/search-elements.js";
 import inspectElementBlocksTool from "./get/inspect-element-blocks.js";
 import createElementTool from "./post/create-element.js";
+import createAndPublishElementTool from "./post/create-and-publish-element.js";
 import createElementFolderTool from "./post/create-element-folder.js";
 import publishElementTool from "./post/publish-element.js";
 import unpublishElementTool from "./post/unpublish-element.js";
@@ -23,6 +24,7 @@ const collection: ToolCollectionExport = {
     searchElementsTool,
     inspectElementBlocksTool,
     createElementTool,
+    createAndPublishElementTool,
     createElementFolderTool,
     editElementTool,
     editElementBlockTool,

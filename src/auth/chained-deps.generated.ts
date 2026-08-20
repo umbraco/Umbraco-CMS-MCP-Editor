@@ -17,6 +17,7 @@ export const CHAINED_DEPS: Record<string, readonly string[]> = {
   "bulk-unpublish": ["get-document-by-id", "unpublish-document"],
   "cancel-schedule": ["get-document-by-id", "publish-document"],
   "copy-variant": ["get-document-by-id", "update-document"],
+  "create-and-publish-page": ["create-and-publish-document", "get-data-types-by-id-array", "get-document-type-by-id"],
   "create-blueprint": ["create-document-blueprint-from-document", "get-document-blueprint-root", "get-document-by-id"],
   "create-dictionary": ["create-dictionary"],
   "create-language": ["create-language"],
