@@ -54,6 +54,9 @@ describe("validateDocumentState", () => {
 
   it("returns valid:true when validate-document succeeds", async () => {
     spy.mockImplementation(async (_server: string, toolName: string) => {
+      if (toolName === "get-item-document") {
+        return { isError: false, structuredContent: { items: [{ parent: null }] }, content: [] };
+      }
       if (toolName === "validate-document") {
         return { isError: false, structuredContent: {}, content: [] };
       }
@@ -80,6 +83,9 @@ describe("validateDocumentState", () => {
     };
     // Post-chainCms-unwrap: ProblemDetails sits directly under structuredContent.
     spy.mockImplementation(async (_server: string, toolName: string) => {
+      if (toolName === "get-item-document") {
+        return { isError: false, structuredContent: { items: [{ parent: null }] }, content: [] };
+      }
       if (toolName === "validate-document") {
         return {
           isError: true,
@@ -119,6 +125,9 @@ describe("validateDocumentState", () => {
       detail: "The document could not be found",
     };
     spy.mockImplementation(async (_server: string, toolName: string) => {
+      if (toolName === "get-item-document") {
+        return { isError: false, structuredContent: { items: [{ parent: null }] }, content: [] };
+      }
       if (toolName === "validate-document") {
         return {
           isError: true,
@@ -135,5 +144,25 @@ describe("validateDocumentState", () => {
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0].propertyAlias).toBe("__document__");
     expect(result.errors[0].message).toBe("The document could not be found");
+  });
+
+  it("forwards the document's real parent (from get-item-document) into validate-document", async () => {
+    const parentId = "00000000-0000-0000-0000-0000000000ff";
+    let capturedParent: unknown;
+    spy.mockImplementation(async (_server: string, toolName: string, args?: unknown) => {
+      if (toolName === "get-item-document") {
+        return { isError: false, structuredContent: { items: [{ parent: { id: parentId } }] }, content: [] };
+      }
+      if (toolName === "validate-document") {
+        capturedParent = (args as { parent?: unknown }).parent;
+        return { isError: false, structuredContent: {}, content: [] };
+      }
+      throw new Error(`unexpected tool call: ${toolName}`);
+    });
+
+    const result = await validateDocumentState(FAKE_DOC.id, FAKE_DOC as any);
+
+    expect(result.valid).toBe(true);
+    expect(capturedParent).toEqual({ id: parentId });
   });
 });

@@ -1,0 +1,12 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`create-and-publish-element should create and publish an element with a simple value 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "message": "Created and published element "_Test Create And Publish Element"",
+    "name": "_Test Create And Publish Element",
+  },
+}
+`;
