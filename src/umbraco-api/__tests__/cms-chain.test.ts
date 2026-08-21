@@ -96,6 +96,22 @@ describe("chainCms", () => {
     });
   });
 
+  it("normalizes a thrown protocol-level error (e.g. the chained tool's own output failing its output schema) to { ok: false }", async () => {
+    // A malformed response from the chained CMS tool surfaces as a thrown
+    // McpError from the underlying stdio client, not a resolved isError
+    // result — chainCms must not let that escape as an uncaught rejection.
+    spy.mockRejectedValueOnce(new Error("MCP error -32602: Structured content does not match the tool's output schema"));
+
+    const result = await chainCms("get-document-public-access" as any, { id: "00000000-0000-0000-0000-000000000000" } as any);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected error result");
+    expect(result.errorResult.isError).toBe(true);
+    const sc = result.errorResult.structuredContent as any;
+    expect(sc.detail).toContain("get-document-public-access");
+    expect(sc.detail).toContain("-32602");
+  });
+
   it("returns ok with extracted data on the success path", async () => {
     const successData = { id: "abc", name: "Test" };
     const chainedSuccess = {
