@@ -29,8 +29,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["read"],
   annotations: { readOnlyHint: true },
   handler: async ({ groupName, take, skip }) => {
-    // Step 1: Resolve the group name to an id.
-    // m.groups stores group ids (UUIDs), not names — filtering by name never matches.
+    // Step 1: Confirm the group exists (case-insensitive) and get its canonical name.
     const groupsResult = await chainCms("get-all-member-groups", { cursor: undefined });
     if (!groupsResult.ok) return groupsResult.errorResult;
     const groupMatch = (groupsResult.data.items ?? []).find(
@@ -43,33 +42,29 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         detail: `No member group named "${groupName}". Use list-member-groups to see existing group names.`,
       });
     }
-    const groupId: string = groupMatch.id;
 
-    // Step 2: Fetch members, using memberGroupName hint if the API supports it.
+    // Step 2: Fetch members via the server-side memberGroupName filter.
+    // find-member's per-item `groups` field isn't reliably populated by the
+    // search index, so it can't be used for a client-side re-filter — but
+    // the memberGroupName filter itself is applied server-side and is reliable.
     const result = await chainCms("find-member", {
-      memberGroupName: groupName,
+      memberGroupName: groupMatch.name,
       cursor: buildChainedCursor(skip, take),
       orderBy: "username",
     });
     if (!result.ok) return result.errorResult;
     const items: any[] = result.data.items ?? [];
 
-    // Step 3: Client-side filter by group id (m.groups is an array of UUIDs).
-    const filtered = items.filter((m: any) => {
-      const groups: string[] = m.groups ?? [];
-      return groups.includes(groupId);
-    });
-
     return createToolResult({
       groupName,
-      items: filtered.map((m: any) => ({
+      items: items.map((m: any) => ({
         id: m.id ?? "",
         name: m.variants?.[0]?.name ?? "Unknown",
         email: m.email ?? "",
         isApproved: m.isApproved ?? false,
         lastLoginDate: m.lastLoginDate ?? null,
       })),
-      total: filtered.length,
+      total: result.data.total ?? items.length,
     });
   },
 };
