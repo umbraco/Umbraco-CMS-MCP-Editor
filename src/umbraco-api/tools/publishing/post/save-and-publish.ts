@@ -189,7 +189,20 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
       // The call is atomic — a failure means nothing was saved and nothing was
       // published, so there is no "saved but publish failed" state to report.
-      if (!updateAndPublishResult.ok) return updateAndPublishResult.errorResult;
+      // Say that explicitly rather than passing the raw publish error back: the
+      // `includeDescendants` branch above *does* report a saved-but-unpublished
+      // state, so an unqualified failure here would read as "your edits landed,
+      // only the publish didn't" — the opposite of what happened.
+      if (!updateAndPublishResult.ok) {
+        const rolledBack = `No changes were saved to "${pageName}" — save-and-publish is a single atomic operation, so the field updates were rolled back along with the publish.`;
+        const problem = updateAndPublishResult.errorResult.structuredContent;
+        return createToolResultError({
+          status: 500,
+          title: "Save and publish failed",
+          ...problem,
+          detail: problem?.detail ? `${String(problem.detail)} ${rolledBack}` : rolledBack,
+        });
+      }
     } else {
       // publish-document requires one publishSchedules entry per culture to
       // actually publish — an empty array is a no-op in Umbraco.
