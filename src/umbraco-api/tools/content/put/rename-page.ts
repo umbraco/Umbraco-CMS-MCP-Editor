@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, extractChainedResult, confirmAction } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "../../../mcp-client.js";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms } from "../../../cms-chain.js";
 import { buildPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
@@ -18,26 +18,7 @@ const outputSchema = z.object({
   previewUrl: previewUrlSchema,
 });
 
-interface DocumentVariant {
-  culture?: string | null;
-  segment?: string | null;
-  name: string;
-}
-
-interface DocumentValue {
-  culture?: string | null;
-  segment?: string | null;
-  alias: string;
-  value?: unknown;
-}
-
-interface Document {
-  values?: DocumentValue[];
-  variants?: DocumentVariant[];
-  template?: { id: string } | null;
-}
-
-function matchesCulture(variant: DocumentVariant, culture: string | null): boolean {
+function matchesCulture(variant: { culture?: string | null }, culture: string | null): boolean {
   const variantCulture = variant.culture ?? null;
   return variantCulture === culture;
 }
@@ -52,11 +33,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   handler: async ({ id, name, culture }, extra) => {
     const targetCulture = culture ?? null;
 
-    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id });
-    if (docResult.isError) return createToolResultError(docResult);
-    const doc = extractChainedResult(docResult) as Document;
-
-    const variants = doc.variants ?? [];
+    const docResult = await chainCms("get-document-by-id", { id });
+    if (!docResult.ok) return docResult.errorResult;
+    const variants = docResult.data.variants ?? [];
     const targetVariant = variants.find((v) => matchesCulture(v, targetCulture));
     if (!targetVariant) {
       if (targetCulture) {
@@ -94,28 +73,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
-    const updatedVariants = variants.map((v) => (
-      matchesCulture(v, targetCulture) ? { ...v, name } : v
-    ));
-
-    const updateResult = await mcpClientManager.callTool("cms", "update-document", {
-      id,
-      data: {
-        template: doc.template ?? null,
-        values: (doc.values ?? []).map((v) => ({
-          alias: v.alias,
-          value: v.value,
-          culture: v.culture ?? null,
-          segment: v.segment ?? null,
-        })),
-        variants: updatedVariants.map((v) => ({
-          culture: v.culture ?? null,
-          segment: v.segment ?? null,
-          name: v.name,
-        })),
-      },
-    });
-    if (updateResult.isError) return createToolResultError(updateResult);
+    const renameResult = await chainCms("update-document-name", { id, name, culture: targetCulture });
+    if (!renameResult.ok) return renameResult.errorResult;
 
     return createToolResult({
       message: `Renamed page${cultureLabel} from "${previousName}" to "${name}" (saved, not published)`,

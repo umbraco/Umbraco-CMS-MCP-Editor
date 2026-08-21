@@ -93,11 +93,19 @@ export async function validateDocumentState(
     segment: v.segment ?? null,
   }));
 
+  // The validate endpoint enforces "allowed at root" placement rules using
+  // whatever `parent` we send — a hardcoded null (meaning root) makes a
+  // non-root document fail with a generic NotAllowed, so fetch its real parent.
+  const ancestorsResult = await chainCms("get-document-ancestors", { descendantId: id });
+  const parent = ancestorsResult.ok
+    ? (ancestorsResult.data.items ?? []).find((item) => item.id === id)?.parent ?? null
+    : null;
+
   const result = await chainCms("validate-document", {
     id,
     documentType: { id: target.documentType.id },
     template: target.template ? { id: target.template.id } : null,
-    parent: null,
+    parent,
     values,
     variants,
   });
