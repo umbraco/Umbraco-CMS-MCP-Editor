@@ -144,19 +144,38 @@ AI Client → Editor MCP (this server) → CMS Dev MCP (@umbraco-cms/mcp-dev) �
 - In stdio mode, the CMS server runs as a subprocess
 - In hosted mode (worker.ts), the CMS server runs in-process via a client factory
 
-## Tool Collections (21)
+## Tool Collections (24 registered)
+
+`src/collections.ts` is the **single registry** — both entry points consume it
+(`src/index.ts` for stdio, `src/worker.ts` for the hosted worker). A new
+collection is only reachable once it is (a) exported from `collections.ts` and
+(b) named by a mode in `config/mode-registry.ts`, because `UMBRACO_TOOL_MODES`
+gates registration by collection. Integration tests import tool modules
+directly, so they pass either way — `src/__tests__/collection-registry.test.ts`
+is what actually enforces both halves. Never re-add a hand-written collection
+list to an entry point: that drift once hid the whole `element` collection from
+the stdio server.
 
 | Domain | Collections |
 |--------|------------|
 | Content | `content`, `publishing`, `versioning` |
-| Media | `media`, `media-management`, `media-health` |
-| Structure | `blueprint`, `site-structure`, `tag`, `dictionary`, `redirect` |
+| Media | `media`, `media-management` |
+| Elements | `element` (Umbraco 18 Library section) |
+| Structure | `blueprint`, `site-structure`, `tag`, `dictionary`, `redirect`, `relationships` |
 | Translation | `language`, `translation` |
 | Bulk | `bulk-operations` |
-| Members | `member`, `member-group`, `member-reporting` |
-| Health & Reporting | `content-health`, `content-reporting` |
+| Members | `member`, `member-group`, `member-reporting`, `public-access` |
+| Health | `content-health` |
 | Scheduling | `scheduling` |
-| Utilities | `helpers` (not exposed — shared code for bulk-handler, tree-walker) |
+| Other | `notifications`, `recycle-bin`, `account` |
+| Utilities | `helpers` (not exposed — shared code for bulk-handler, tree-walker, block-inspector) |
+
+**Built but NOT registered:** `content-reporting` and `media-health` exist under
+`tools/` with working tools, but appear in neither `collections.ts` nor any mode,
+so none of their tools reach clients. This is why the tree-walking report tools
+in "Deferred audits" above were never live-validated. They are allowlisted in
+`collection-registry.test.ts`; registering them needs a mode, eval `allTools`
+entries, and the tree-walk audit — its own change.
 
 ## Configuration
 
@@ -178,7 +197,12 @@ Custom fields defined in `config/server-config.ts`.
 ## Modes and Slices
 
 **Modes** (`config/mode-registry.ts`) — named groups of collections users enable via `UMBRACO_TOOL_MODES`:
-- `content`, `media`, `blueprints`, `translation`, `tags`, `content-health`, `site-structure`, `media-health`, `bulk-operations`, `members`, `scheduling`, `redirects`
+- `content`, `media`, `library`, `blueprints`, `translation`, `tags`, `content-health`, `site-structure`, `bulk-operations`, `members`, `scheduling`, `redirects`, `relationships`, `public-access`, `notifications`, `recycle-bin`, `account`
+
+Element tools live behind the `library` mode. An unknown mode name is silently
+ignored, so a typo'd or stale mode reads as "no tools" rather than an error —
+which is how the eval setup lost the whole element collection. The eval env
+derives its mode list from `allModeNames` for that reason; don't hard-code it.
 
 **Slices** (`config/slice-registry.ts`) — operation-type categories for fine-grained filtering:
 - Base: `create`, `read`, `update`, `delete`, `list`
@@ -216,6 +240,12 @@ Getting this wrong causes tools to pass integration tests but fail on the wire w
 - `isBlockListOrGridValue(value)` — detects BlockList/BlockGrid content
 - `isRteWithBlocks(value)` — detects Rich Text with embedded blocks
 - `findMatchingBlocks(doc, propertyAlias, contentTypeKey)` — finds blocks by element type
+
+**`helpers/block-inspector.ts`** — the block walk shared by `inspect-blocks` (documents) and `inspect-element-blocks` (Library elements), so the two stay in lockstep:
+- `collectBlockProperties(values, propertyAlias?)` — walks an entity's property values and returns only the block-bearing ones, flattened
+- `blockPropertiesSchema(editTool)` — the shared output schema; `editTool` names the tool that consumes `contentKey`
+- `findSettingsKey(container, contentKey)` — a block's settings live in a separate `settingsData` entry under their own key, paired only via the layout. Recurses through BlockGrid `areas[].items[]`. `edit-element-block` uses this to translate a caller's `contentKey` into the settings key the chained CMS tool expects for `blockType: "settings"`
+- `extractBlocks`, `isBlockListOrGridValue`, `isRteWithBlocks` (re-exported from `block-builder.ts`)
 
 ## Testing
 

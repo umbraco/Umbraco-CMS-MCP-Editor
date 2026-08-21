@@ -1,0 +1,28 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: monthly
+    target-branch: dev
+    open-pull-requests-limit: 10
+    ignore:
+      # v2 is a rewrite with a different UI; the Playwright E2E helpers in
+      # @umbraco-cms/mcp-hosted drive the v1 UI. Port those before upgrading.
+      - dependency-name: "@modelcontextprotocol/inspector"
+        update-types: ["version-update:semver-major"]
+    groups:
+      npm-dependencies:
+        applies-to: version-updates
+        patterns:
+          - "*"
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    target-branch: dev
+    groups:
+      github-actions:
+        applies-to: version-updates
+        patterns:
+          - "*"

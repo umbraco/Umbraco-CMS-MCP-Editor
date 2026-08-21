@@ -93,11 +93,18 @@ export async function validateDocumentState(
     segment: v.segment ?? null,
   }));
 
+  // get-document-by-id doesn't expose the parent, but validate-document needs it —
+  // Umbraco checks "is this document type allowed under this parent" during
+  // validation, and omitting it is only correct for a root-level document.
+  // get-item-document (the lightweight item lookup) carries `parent` for this.
+  const itemResult = await chainCms("get-item-document", { id: [id] });
+  const parent = itemResult.ok ? itemResult.data.items[0]?.parent ?? null : null;
+
   const result = await chainCms("validate-document", {
     id,
     documentType: { id: target.documentType.id },
     template: target.template ? { id: target.template.id } : null,
-    parent: null,
+    parent: parent ? { id: parent.id } : null,
     values,
     variants,
   });

@@ -1,6 +1,6 @@
 {
   "name": "umbraco-mcp-editor-cms",
-  "version": "18.0.0-beta.3",
+  "version": "18.0.0-beta.4",
   "type": "module",
   "description": "MCP server for umbraco-mcp-editor-cms",
   "main": "dist/index.js",
@@ -20,9 +20,10 @@
     "start:umbraco": "bash scripts/start-umbraco.sh",
     "stop:umbraco": "bash scripts/stop-umbraco.sh",
     "umbraco:bootstrap": "bash scripts/bootstrap-demo-site.sh",
-    "inspect": "npx @modelcontextprotocol/inspector node dist/index.js",
+    "inspect": "npx @modelcontextprotocol/inspector@1 node dist/index.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPattern=__tests__ --runInBand --forceExit",
     "test:one": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --forceExit",
+    "test:changed": "node scripts/test-changed.mjs",
     "test:evals": "npm run build && node --experimental-vm-modules node_modules/jest/bin/jest.js --config tests/evals/jest.config.ts --forceExit",
     "test:all": "npm run build && node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPattern=__tests__ --runInBand --forceExit && node --experimental-vm-modules node_modules/jest/bin/jest.js --config tests/evals/jest.config.ts --forceExit",
     "test:e2e": "npx playwright test --config tests/hosted-e2e/playwright.config.ts",
@@ -47,22 +48,25 @@
     "@cfworker/json-schema": "^4.1.1",
     "@cloudflare/workers-oauth-provider": "^0.2.3",
     "@modelcontextprotocol/sdk": "^1.25.1",
-    "@umbraco-cms/mcp-dev": "^18.0.1",
-    "@umbraco-cms/mcp-hosted": "^1.0.0-beta.31",
-    "@umbraco-cms/mcp-server-sdk": "^1.0.0-beta.31",
+    "@umbraco-cms/mcp-dev": "^18.1.2",
+    "@umbraco-cms/mcp-hosted": "^1.0.0-beta.36",
+    "@umbraco-cms/mcp-server-sdk": "^1.0.0-beta.36",
     "agents": "^0.6.0",
     "dotenv": "^16.5.0",
     "uuid": "^11.1.0",
     "yargs": "^18.0.0",
-    "zod": "4.3.6"
+    "zod": "4.4.3"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260702.1",
     "@jest/types": "^29.6.3",
+    "@modelcontextprotocol/inspector": "^1.0.1",
     "@playwright/test": "^1.52.0",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.14.1",
     "@types/uuid": "^10.0.0",
     "@types/yargs": "^17.0.33",
+    "commander": "^13.1.0",
     "jest": "^29.7.0",
     "msw": "^2.12.7",
     "rimraf": "^6.0.1",
@@ -70,7 +74,11 @@
     "ts-node": "^10.9.2",
     "tsup": "^8.4.0",
     "typescript": "^5.8.3",
-    "undici": "^7.0.0",
-    "wrangler": "^4.69.0"
+    "undici": "^7.29.0",
+    "wrangler": "^4.108.0"
+  },
+  "overrides": {
+    "@cloudflare/workers-types": "^4.20260702.1",
+    "commander": "^13.1.0"
   }
 }

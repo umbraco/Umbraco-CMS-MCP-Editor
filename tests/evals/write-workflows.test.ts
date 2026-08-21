@@ -7,21 +7,25 @@
  * Write operations use elicitation which is auto-accepted by the eval runner.
  */
 
-import { describe, it } from "@jest/globals";
+import { describe, it, beforeAll, afterAll } from "@jest/globals";
 import {
   runScenarioTest,
   setupConsoleMock,
   getDefaultTimeoutMs,
 } from "@umbraco-cms/mcp-server-sdk/evals";
+import type { ElementBlockFixture } from "../../src/umbraco-api/tools/element/__tests__/helpers/element-block-fixture.js";
 
 const allTools = [
   // Library Elements
   "get-element",
   "list-element-children",
   "search-elements",
+  "inspect-element-blocks",
   "create-element",
+  "create-and-publish-element",
   "create-element-folder",
   "edit-element",
+  "edit-element-block",
   "publish-element",
   "unpublish-element",
   "delete-element",
@@ -33,6 +37,7 @@ const allTools = [
   "inspect-blocks",
   "compare-draft-to-published",
   "create-page",
+  "create-and-publish-page",
   "edit-page",
   "rename-page",
   "edit-block",
@@ -146,10 +151,49 @@ const allTools = [
   "set-content-notifications",
 ];
 
+/** Name the element-block scenario prompt refers to, so the LLM can find it. */
+const ELEMENT_BLOCK_NAME = "_Eval Element With Blocks";
+
 describe("Write Workflows", () => {
   setupConsoleMock();
 
   const timeout = getDefaultTimeoutMs();
+
+  let elementBlockFixture: ElementBlockFixture | null = null;
+
+  /**
+   * The demo site ships no Library element type with a block-bearing property,
+   * so the element-block scenario needs one provisioned first. Provisioning
+   * needs the CMS chain in-process: `e2e-setup.ts` deletes USE_IN_PROCESS_CMS so
+   * the eval *subprocess* uses real stdio chaining, so we re-enable it here just
+   * for these in-band fixture calls and clear it again straight after. The eval
+   * runner already snapshotted `serverEnv` by this point, so the flag cannot
+   * leak into a spawned server.
+   */
+  beforeAll(async () => {
+    process.env.USE_IN_PROCESS_CMS = "true";
+    try {
+      const { connectInProcess } = await import("../../src/testing/in-process-cms.js");
+      const { mcpClientManager } = await import("../../src/umbraco-api/mcp-client.js");
+      connectInProcess(mcpClientManager);
+      const { createElementBlockFixture } = await import(
+        "../../src/umbraco-api/tools/element/__tests__/helpers/element-block-fixture.js"
+      );
+      elementBlockFixture = await createElementBlockFixture(ELEMENT_BLOCK_NAME);
+    } finally {
+      delete process.env.USE_IN_PROCESS_CMS;
+    }
+  }, 180000);
+
+  afterAll(async () => {
+    if (!elementBlockFixture) return;
+    process.env.USE_IN_PROCESS_CMS = "true";
+    try {
+      await elementBlockFixture.cleanup();
+    } finally {
+      delete process.env.USE_IN_PROCESS_CMS;
+    }
+  }, 120000);
 
   it(
     "editor asks to publish a page",
@@ -239,6 +283,26 @@ describe("Write Workflows", () => {
       ],
       requiredTools: ["inspect-blocks", "edit-block"],
       successPattern: /update|edit|block|saved|changed|pageSize/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "editor asks to change a value inside a block on a Library element",
+    runScenarioTest({
+      prompt:
+        `Find the Library element named "${ELEMENT_BLOCK_NAME}". Use inspect-element-blocks to discover its block property alias and the block's contentKey, then use edit-element-block to set that block's "title" property to "Updated by eval". Always make the edit even if the value appears unchanged.`,
+      tools: [
+        "search-elements",
+        "list-element-children",
+        "get-element",
+        "inspect-element-blocks",
+        "edit-element",
+        "edit-element-block",
+      ],
+      requiredTools: ["inspect-element-blocks", "edit-element-block"],
+      successPattern: /update|edit|block|saved|changed|title/i,
       verbose: true,
     }),
     timeout

@@ -21,7 +21,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "edit-element",
-  description: "Update property values on a Library element. Changes are saved but NOT published — publish separately with publish-element. Call get-element first to discover valid property aliases. For structured non-block property values (media pickers, pickers, etc.) call get-property-value-template with the editor alias first to see the expected JSON shape. Elements are the document-like reusable content items in the Library section (Umbraco 18).",
+  description: "Update property values on a Library element. Changes are saved but NOT published — publish separately with publish-element. Call get-element first to discover valid property aliases. For structured non-block property values (media pickers, pickers, etc.) call get-property-value-template with the editor alias first to see the expected JSON shape. To change a property INSIDE a block on the element (BlockList, BlockGrid, or Rich Text block) use inspect-element-blocks then edit-element-block instead — passing a whole block value here would overwrite the property's entire block structure. Elements are the document-like reusable content items in the Library section (Umbraco 18).",
   inputSchema,
   outputSchema,
   slices: ["update"],
