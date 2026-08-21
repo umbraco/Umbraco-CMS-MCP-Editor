@@ -25,6 +25,7 @@ const allTools = [
   "inspect-blocks",
   "compare-draft-to-published",
   "create-page",
+  "create-and-publish-page",
   "edit-page",
   "rename-page",
   "edit-block",

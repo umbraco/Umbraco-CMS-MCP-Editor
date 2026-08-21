@@ -25,6 +25,23 @@ const outputSchema = z.object({
   publishedUrls: publishedUrlsSchema,
 });
 
+interface DocumentValue {
+  alias: string;
+  value?: unknown;
+  culture?: string | null;
+  segment?: string | null;
+}
+
+/** Merge partial value updates into a document's full existing value set (keyed by alias+culture+segment), so callers only need to specify the fields they're changing. */
+function mergeValues(existing: DocumentValue[], updates: DocumentValue[]): DocumentValue[] {
+  const key = (v: DocumentValue) => `${v.alias}::${v.culture ?? ""}::${v.segment ?? ""}`;
+  const merged = new Map(existing.map(v => [key(v), { alias: v.alias, value: v.value, culture: v.culture ?? null, segment: v.segment ?? null }]));
+  for (const u of updates) {
+    merged.set(key(u), { alias: u.alias, value: u.value, culture: u.culture ?? null, segment: u.segment ?? null });
+  }
+  return [...merged.values()];
+}
+
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "save-and-publish",
   description: "Save property changes and publish a content page in one atomic operation — mirrors the 'Save and publish' button in the Umbraco backoffice. If `values` is provided the changes are saved first; then the page is published. Optionally publish descendants. Call get-page or get-document-type first to discover valid property aliases.",
@@ -54,50 +71,66 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       }
     }
 
-    let saved = false;
-    if (values && values.length > 0) {
-      const properties = values.map(v => ({
-        alias: v.alias,
-        value: v.value,
-        culture: v.culture ?? null,
-        segment: v.segment ?? null,
-      })) as [(typeof values)[number], ...(typeof values)[number][]];
-      const updateResult = await chainCms("update-document-properties", { id, properties });
-      if (!updateResult.ok) return updateResult.errorResult;
-      saved = true;
-    }
-
     // publish-document requires one publishSchedules entry per culture to
     // actually publish — an empty array is a no-op in Umbraco. Derive from the
     // doc's variants (invariant content yields a single `culture: null` entry).
     const variantCultures: Array<string | null> = (doc.variants ?? []).length
       ? doc.variants.map(v => v.culture ?? null)
       : [null];
-    const publishResult = includeDescendants
-      ? await chainCms("publish-document-with-descendants", {
-          id,
-          data: {
-            includeUnpublishedDescendants: false,
-            cultures: variantCultures.filter((c): c is string => c !== null),
-          },
-        })
-      : await chainCms("publish-document", {
-          id,
-          data: { publishSchedules: variantCultures.map(c => ({ culture: c })) },
-        });
-    if (!publishResult.ok) {
+    const saved = !!(values && values.length > 0);
+
+    if (includeDescendants) {
       if (saved) {
-        return createToolResult({
-          message: `Saved ${fieldNames.length} field(s) on "${pageName}" but publish failed: ${publishResult.errorResult.content?.[0]?.text ?? "unknown error"}`,
-          id,
-          name: pageName,
-          saved: true,
-          published: false,
-          updatedFields: fieldNames,
-          publishedUrls: [],
-        });
+        const properties = values.map(v => ({
+          alias: v.alias,
+          value: v.value,
+          culture: v.culture ?? null,
+          segment: v.segment ?? null,
+        })) as [(typeof values)[number], ...(typeof values)[number][]];
+        const updateResult = await chainCms("update-document-properties", { id, properties });
+        if (!updateResult.ok) return updateResult.errorResult;
       }
-      return publishResult.errorResult;
+      const publishResult = await chainCms("publish-document-with-descendants", {
+        id,
+        data: {
+          includeUnpublishedDescendants: false,
+          cultures: variantCultures.filter((c): c is string => c !== null),
+        },
+      });
+      if (!publishResult.ok) {
+        if (saved) {
+          return createToolResult({
+            message: `Saved ${fieldNames.length} field(s) on "${pageName}" but publish failed: ${publishResult.errorResult.content?.[0]?.text ?? "unknown error"}`,
+            id,
+            name: pageName,
+            saved: true,
+            published: false,
+            updatedFields: fieldNames,
+            publishedUrls: [],
+          });
+        }
+        return publishResult.errorResult;
+      }
+    } else {
+      // update-and-publish-document is a single atomic PUT, but its `data.values`
+      // fully REPLACES the document's property values (an incomplete array wipes
+      // everything else) — merge the caller's partial values into the document's
+      // current full value set rather than sending only what they passed.
+      const mergedValues = mergeValues(doc.values ?? [], values ?? []);
+      const updateAndPublishResult = await chainCms("update-and-publish-document", {
+        id,
+        data: {
+          values: mergedValues,
+          variants: (doc.variants ?? []).map(v => ({
+            culture: v.culture ?? null,
+            segment: v.segment ?? null,
+            name: v.name,
+          })),
+          template: doc.template ?? null,
+          culturesToPublish: variantCultures.filter((c): c is string => c !== null),
+        },
+      });
+      if (!updateAndPublishResult.ok) return updateAndPublishResult.errorResult;
     }
 
     // Verify the publish actually took effect — the chained call can return ok
