@@ -247,6 +247,7 @@ describe("save-and-publish", () => {
     // The caller must be told the save was rolled back too — a bare publish
     // error would read as "the edits landed, only the publish didn't".
     expect(result.structuredContent).toMatchObject({
+      title: "Save and publish failed",
       detail: expect.stringContaining("No changes were saved"),
     });
     expect(String((result.structuredContent as { detail?: unknown }).detail)).toContain("atomic");

@@ -197,9 +197,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         const rolledBack = `No changes were saved to "${pageName}" — save-and-publish is a single atomic operation, so the field updates were rolled back along with the publish.`;
         const problem = updateAndPublishResult.errorResult.structuredContent;
         return createToolResultError({
-          status: 500,
-          title: "Save and publish failed",
           ...problem,
+          status: typeof problem?.status === "number" ? problem.status : 500,
+          title: "Save and publish failed",
           detail: problem?.detail ? `${String(problem.detail)} ${rolledBack}` : rolledBack,
         });
       }
