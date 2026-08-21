@@ -10,6 +10,58 @@
 
 import { type McpClientManager } from "@umbraco-cms/mcp-server-sdk";
 import { createMockRequestHandlerExtra } from "@umbraco-cms/mcp-server-sdk/testing";
+import { readFile } from "node:fs/promises";
+import { pathToFileURL } from "node:url";
+import { findPackageJSON } from "node:module";
+import path from "node:path";
+
+/**
+ * Some CMS tools are gated behind `isUmbracoAtLeast(major, minor)` — a runtime
+ * check backed by a module-private variable that mcp-dev's own `main()` sets
+ * via `setUmbracoVersion(serverInfo.version)` during a real server bootstrap.
+ * That setter isn't re-exported from the package's public entry points, so
+ * without this, every version-gated tool reads as "unknown" in-process
+ * regardless of the connected instance's actual version (see
+ * scripts/capture-cms-tool-surface.mjs's isUmbracoAtLeast warning for the
+ * same gap affecting the audit-diff script).
+ *
+ * `collections.js` itself imports from an internal, content-hashed chunk file
+ * that happens to export `setUmbracoVersion` without re-exporting it further —
+ * so resolve collections.js's own source to find whichever chunk it imports
+ * (never hardcode the hash; it changes every mcp-dev build) and reach in
+ * directly. Best-effort: if this internal shape ever changes, we just fall
+ * back to leaving version-gated tools unavailable in-process, never a broken
+ * build — remove this shim once mcp-dev exports a public version setter.
+ */
+async function resolveSetUmbracoVersion(): Promise<((version: string) => void) | null> {
+  try {
+    // `import.meta.resolve` isn't implemented under Jest's --experimental-vm-modules
+    // loader, so locate the package root the same way src/config/mcp-servers.ts
+    // does for its bin entry, then read the "./collections" export path by hand.
+    const pkgPath = findPackageJSON("@umbraco-cms/mcp-dev", import.meta.url);
+    if (!pkgPath) return null;
+    const pkgDir = path.dirname(pkgPath);
+    const pkg = JSON.parse(await readFile(pkgPath, "utf8")) as {
+      exports?: Record<string, { import?: string } | string>;
+    };
+    const collectionsExport = pkg.exports?.["./collections"];
+    const collectionsRelPath = typeof collectionsExport === "string" ? collectionsExport : collectionsExport?.import;
+    if (!collectionsRelPath) return null;
+    const collectionsPath = path.resolve(pkgDir, collectionsRelPath);
+    const collectionsUrl = pathToFileURL(collectionsPath).href;
+
+    const src = await readFile(collectionsPath, "utf8");
+    const match = src.match(/from\s+["'](\.\/chunk-[^"']+\.js)["']/);
+    if (!match) return null;
+    const chunkUrl = new URL(match[1], collectionsUrl).href;
+    const chunkModule = (await import(chunkUrl)) as Record<string, unknown>;
+    return typeof chunkModule.setUmbracoVersion === "function"
+      ? (chunkModule.setUmbracoVersion as (version: string) => void)
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 const permissiveUser = {
   fallbackPermissions: [
@@ -52,6 +104,19 @@ async function getCmsToolMap(): Promise<Map<string, any>> {
     baseUrl: process.env.UMBRACO_BASE_URL ?? "https://localhost:44391",
   });
   configureApiClient(() => UmbracoManagementClient.getClient());
+
+  // Mirror mcp-dev's own main(): fetch the connected instance's real version
+  // and set it, so isUmbracoAtLeast(...)-gated tools register in-process too.
+  const setUmbracoVersion = await resolveSetUmbracoVersion();
+  if (setUmbracoVersion) {
+    try {
+      const info = await UmbracoManagementClient.getClient().getServerInformation();
+      setUmbracoVersion(info.version);
+    } catch {
+      // Best-effort — if the live instance can't be reached yet, version-gated
+      // tools just stay unavailable in-process rather than failing the build.
+    }
+  }
 
   const toolMap = new Map<string, any>();
   for (const collection of collections) {

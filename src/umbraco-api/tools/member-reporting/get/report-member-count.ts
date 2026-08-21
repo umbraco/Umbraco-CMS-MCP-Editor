@@ -50,32 +50,26 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       typeCounts.set(memberType, (typeCounts.get(memberType) ?? 0) + 1);
     }
 
-    // Fetch all member groups to build id→name lookup
+    // Fetch all member groups.
     const groupResult = await chainCms("get-all-member-groups", {});
     if (!groupResult.ok) return groupResult.errorResult;
-    const groupData = groupResult.data;
-    const allGroups: any[] = groupData.items ?? [];
+    const allGroups: any[] = groupResult.data.items ?? [];
 
-    // Build id→name map and seed zero-counts keyed by name
-    const idToName = new Map<string, string>();
+    // Count members per group via a server-side filtered query per group.
+    // find-member's per-item `groups` field isn't reliably populated by the
+    // search index, so aggregating client-side from allMembers[].groups
+    // undercounts (frequently to zero) — ask the server for each group's
+    // total instead, which filters correctly even though the field doesn't.
+    const byGroup: { group: string; count: number }[] = [];
     for (const group of allGroups) {
-      if (group.id && group.name) {
-        idToName.set(group.id, group.name);
-      }
-    }
-
-    // Count members per group: member.groups contains UUIDs — resolve each to name
-    const groupCounts = new Map<string, number>();
-    for (const name of idToName.values()) {
-      groupCounts.set(name, 0);
-    }
-    for (const member of allMembers) {
-      const memberGroupIds: string[] = member.groups ?? [];
-      for (const groupId of memberGroupIds) {
-        const name = idToName.get(groupId);
-        if (!name) continue; // unknown UUID — skip rather than emitting a UUID row
-        groupCounts.set(name, (groupCounts.get(name) ?? 0) + 1);
-      }
+      if (!group.name) continue;
+      const countResult = await chainCms("find-member", {
+        memberGroupName: group.name,
+        cursor: encodeCursor({ s: 0, t: 1 }),
+        orderBy: "username",
+      });
+      if (!countResult.ok) return countResult.errorResult;
+      byGroup.push({ group: group.name, count: countResult.data.total ?? 0 });
     }
 
     return createToolResult({
@@ -83,9 +77,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       byType: Array.from(typeCounts.entries())
         .map(([memberType, count]) => ({ memberType, count }))
         .sort((a, b) => b.count - a.count),
-      byGroup: Array.from(groupCounts.entries())
-        .map(([group, count]) => ({ group, count }))
-        .sort((a, b) => b.count - a.count),
+      byGroup: byGroup.sort((a, b) => b.count - a.count),
     });
   },
 };

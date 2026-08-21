@@ -46,9 +46,27 @@ export async function chainCms<TName extends CmsToolsName>(
   toolName: TName,
   args: CmsTools[TName]["input"],
 ): Promise<CmsChainResult<TName>> {
-  const result = await mcpClientManager.callTool("cms", toolName, args as Record<string, unknown>);
+  let result: Record<string, unknown>;
+  try {
+    result = await mcpClientManager.callTool("cms", toolName, args as Record<string, unknown>);
+  } catch (error) {
+    // A malformed response from the chained CMS tool (e.g. its own output failing
+    // its own schema check) surfaces as a thrown protocol-level McpError from the
+    // underlying client, not a resolved isError result — normalize it to the same
+    // { ok: false, errorResult } contract so callers never need a try/catch here.
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      ok: false,
+      errorResult: createToolResultError({
+        type: "Error",
+        title: "Chained tool call failed",
+        status: 500,
+        detail: `Chained CMS tool "${toolName}" failed: ${message}`,
+      }),
+    };
+  }
   if (result.isError) {
-    const inner = extractInnerProblemDetails(result as Record<string, unknown>);
+    const inner = extractInnerProblemDetails(result);
     return { ok: false, errorResult: createToolResultError(inner) };
   }
   return { ok: true, data: extractChainedResult(result) as CmsTools[TName]["output"] };

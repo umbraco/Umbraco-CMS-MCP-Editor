@@ -13,9 +13,17 @@
 import type { McpServerConfig } from "@umbraco-cms/mcp-server-sdk";
 
 async function buildServers(): Promise<McpServerConfig[]> {
-  // Guard: Workers runtime doesn't have process.env in the same way. We bail
-  // out before any node:* dynamic imports so they're never evaluated there.
-  if (typeof process === "undefined" || !process.env) return [];
+  // Guard: bail out before any node:* dynamic imports (findPackageJSON isn't
+  // implemented in workerd) so they're never evaluated in the Workers runtime.
+  // `navigator.userAgent === "Cloudflare-Workers"` is Cloudflare's documented
+  // detection — reliable across the real edge, `wrangler dev`, and Miniflare.
+  // The old `!process.env` check assumed Workers never has a process.env, but
+  // workerd's node:process compat shim now provides one, so that check alone
+  // stopped catching this — findPackageJSON would throw and get caught by the
+  // outer .catch() below anyway, but only after an error-level console.error
+  // that trips a sourcemap bug in wrangler's unstable_dev() log handling.
+  const isWorkersRuntime = typeof navigator !== "undefined" && navigator.userAgent === "Cloudflare-Workers";
+  if (isWorkersRuntime || typeof process === "undefined" || !process.env) return [];
 
   const useMockChain = process.env.USE_MOCK_MCP_CHAIN === "true";
 

@@ -12,10 +12,10 @@
 import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
-  setupElicitationMock,
   createMockRequestHandlerExtra,
   getStructuredContent,
 } from "@umbraco-cms/mcp-server-sdk/testing";
+import { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";
 
 import removePublicAccessTool from "../delete/remove-public-access.js";
 import setPublicAccessTool from "../post/set-public-access.js";
@@ -27,7 +27,7 @@ import deleteMemberGroupTool from "../../member-group/delete/delete-member-group
 
 const TEST_GROUP_NAME = "Public Access Remove Test Group";
 
-const elicitation = setupElicitationMock(jest.fn as any);
+const elicitation = setupEditorElicitation(jest.fn);
 
 describe("remove-public-access", () => {
   setupTestEnvironment();
