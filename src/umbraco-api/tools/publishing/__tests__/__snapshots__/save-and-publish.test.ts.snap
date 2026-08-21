@@ -17,6 +17,25 @@ exports[`save-and-publish publishes without values when none provided 1`] = `
 }
 `;
 
+exports[`save-and-publish saves values and publishes descendants when includeDescendants is set 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "message": "Saved 1 field(s) and published "_Test Save Publish Desc Parent" and all descendants",
+    "name": "_Test Save Publish Desc Parent",
+    "published": true,
+    "publishedUrls": [
+      "<published-url>",
+    ],
+    "saved": true,
+    "updatedFields": [
+      "title",
+    ],
+  },
+}
+`;
+
 exports[`save-and-publish saves values and publishes in one call 1`] = `
 {
   "content": [],
