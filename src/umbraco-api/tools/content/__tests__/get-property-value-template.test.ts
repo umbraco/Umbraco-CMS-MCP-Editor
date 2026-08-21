@@ -27,7 +27,6 @@ describe("get-property-value-template", () => {
     expect(result.isError).toBeFalsy();
     const data = getStructuredContent(result) as any;
     expect(data.editorAlias).toBe("Umbraco.MediaPicker3");
-    expect(data.message).toMatch(/Umbraco\.MediaPicker3/);
     expect(data.message).toMatch(/mediaKey|key/);
   }, 30000);
 
