@@ -91,7 +91,7 @@ export const CHAINED_DEPS: Record<string, readonly string[]> = {
   "restore-media": ["get-media-by-id", "restore-media-from-recycle-bin"],
   "restore-page": ["get-document-by-id"],
   "rollback-page": ["create-document-version-rollback", "get-document-by-id", "get-document-version", "get-user-by-id"],
-  "save-and-publish": ["get-document-by-id", "publish-document", "publish-document-with-descendants", "update-document-properties"],
+  "save-and-publish": ["get-document-by-id", "publish-document", "publish-document-with-descendants", "update-and-publish-document", "update-document-properties"],
   "schedule-publish": ["get-document-by-id", "publish-document"],
   "search-content": ["search-document"],
   "search-dictionary": ["find-dictionary"],
