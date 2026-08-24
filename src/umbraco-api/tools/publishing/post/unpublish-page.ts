@@ -7,6 +7,7 @@ import {
 } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { fetchPublishedUrls, publishedUrlsSchema } from "../../helpers/preview-url.js";
+import { checkHumanInTheLoop } from "../../helpers/human-in-the-loop.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to unpublish"),
@@ -28,6 +29,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["publish"],
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   handler: async ({ id }, extra) => {
+    const gate = checkHumanInTheLoop({ verb: "unpublish", documentId: id });
+    if (gate) return gate;
+
     const docResult = await chainCms("get-document-by-id", { id });
     if (!docResult.ok) return docResult.errorResult;
     const doc = docResult.data;

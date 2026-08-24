@@ -12,6 +12,7 @@ import { ContentBuilder } from "../../content/__tests__/helpers/content-builder.
 import { ContentTestHelper } from "../../content/__tests__/helpers/content-test-helper.js";
 import { mcpClientManager } from "../../../mcp-client.js";
 import { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
+import { withHumanInTheLoopBlocking } from "../../../../testing/human-in-the-loop-test-helper.js";
 
 const elicitation = createElicitation();
 
@@ -82,4 +83,17 @@ describe("schedule-publish", () => {
     const hasSchedule = variants.some((v: any) => v.scheduledPublishDate != null);
     expect(hasSchedule).toBe(true);
   }, 60000);
+
+  it("blocks schedule-publish when the human-in-the-loop gate is enabled, before touching the CMS", async () => {
+    await withHumanInTheLoopBlocking(async () => {
+      const result = await schedulePublishTool.handler(
+        { id: "00000000-0000-0000-0000-000000000000", publishDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), culture: undefined },
+        extra,
+      );
+      expect(result.isError).toBe(true);
+      expect(getStructuredContent(result)).toEqual(
+        expect.objectContaining({ status: 403, title: expect.stringContaining("blocked") }),
+      );
+    });
+  }, 30000);
 });

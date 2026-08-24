@@ -6,10 +6,13 @@ import {
   initPublishingTestState,
   createElicitation,
   expectElicitationCancel,
+  NON_EXISTENT_UUID,
 } from "./setup.js";
 import unpublishPageTool from "../post/unpublish-page.js";
 import publishPageTool from "../post/publish-page.js";
 import { expectUnpublished, expectPublished } from "../../../../testing/state-assertions.js";
+import { callTool } from "../../../../testing/call-tool-with-validation.js";
+import { withHumanInTheLoopBlocking } from "../../../../testing/human-in-the-loop-test-helper.js";
 
 const elicitation = createElicitation();
 
@@ -63,5 +66,15 @@ describe("unpublish-page", () => {
     await expectElicitationCancel(() =>
       unpublishPageTool.handler({ id: testPageId }, extra),
     );
+  }, 30000);
+
+  it("blocks unpublish when the human-in-the-loop gate is enabled, before touching the CMS", async () => {
+    await withHumanInTheLoopBlocking(async () => {
+      const result = await callTool(unpublishPageTool, { id: NON_EXISTENT_UUID }, extra);
+      expect(result.isError).toBe(true);
+      expect(getStructuredContent(result)).toEqual(
+        expect.objectContaining({ status: 403, title: expect.stringContaining("blocked") }),
+      );
+    });
   }, 30000);
 });

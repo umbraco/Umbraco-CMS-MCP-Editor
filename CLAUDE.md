@@ -191,6 +191,7 @@ entries, and the tree-walk audit — its own change.
 | `UMBRACO_EXCLUDE_SLICES` | `--umbraco-exclude-slices` | Exclude these slices |
 | `UMBRACO_READONLY` | `--umbraco-readonly` | Block write operations |
 | `DISABLE_MCP_CHAINING` | `--disable-mcp-chaining` | Disable MCP server chaining |
+| `UMBRACO_HUMAN_IN_THE_LOOP` | `--umbraco-human-in-the-loop` | Block publish/unpublish/delete on content, requiring a person to act in the backoffice (default: on) |
 
 Custom fields defined in `config/server-config.ts`.
 

@@ -11,7 +11,9 @@ import {
   createMockRequestHandlerExtra,
   createSnapshotResult,
   createElicitation,
+  NON_EXISTENT_UUID,
 } from "./setup.js";
+import { withHumanInTheLoopBlocking } from "../../../../testing/human-in-the-loop-test-helper.js";
 import {
   ContentBuilder,
   ContentTestHelper,
@@ -320,6 +322,20 @@ describe("save-and-publish", () => {
     expect(data.published).toBe(false);
     expect(await readValue(doc.getId(), "title")).not.toBe("Never Saved");
   }, 60000);
+
+  it("blocks save-and-publish when the human-in-the-loop gate is enabled, before touching the CMS", async () => {
+    await withHumanInTheLoopBlocking(async () => {
+      const result = await callTool(
+        saveAndPublishTool,
+        { id: NON_EXISTENT_UUID, values: undefined, includeDescendants: false },
+        extra,
+      );
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toEqual(
+        expect.objectContaining({ status: 403, title: expect.stringContaining("blocked") }),
+      );
+    });
+  }, 30000);
 });
 
 /**

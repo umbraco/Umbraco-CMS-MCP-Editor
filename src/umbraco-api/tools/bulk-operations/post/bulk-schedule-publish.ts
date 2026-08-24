@@ -10,6 +10,7 @@ import {
   type BulkOperationOutput,
 } from "../../helpers/bulk-handler.js";
 import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
+import { checkHumanInTheLoop } from "../../helpers/human-in-the-loop.js";
 
 const inputSchema = {
   ids: z.array(z.string().uuid()).min(1).max(10).describe("The IDs of the pages to schedule for publishing (max 10)"),
@@ -39,6 +40,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["publish"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   handler: async ({ ids, publishDate }, extra) => {
+    const gate = checkHumanInTheLoop({ verb: "publish" });
+    if (gate) return gate;
+
     const validationError = validateBulkIds(ids);
     if (validationError) return createToolResult(validationError as BulkOperationOutput);
 

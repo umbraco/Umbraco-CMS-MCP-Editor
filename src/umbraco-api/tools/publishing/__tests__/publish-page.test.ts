@@ -8,6 +8,8 @@ import {
 } from "./setup.js";
 import publishPageTool from "../post/publish-page.js";
 import { expectPublished } from "../../../../testing/state-assertions.js";
+import { callTool } from "../../../../testing/call-tool-with-validation.js";
+import { withHumanInTheLoopBlocking } from "../../../../testing/human-in-the-loop-test-helper.js";
 
 describe("publish-page", () => {
   setupTestEnvironment();
@@ -41,5 +43,15 @@ describe("publish-page", () => {
       extra,
     );
     expect(result.isError).toBeTruthy();
+  }, 30000);
+
+  it("blocks publishing when the human-in-the-loop gate is enabled, before touching the CMS", async () => {
+    await withHumanInTheLoopBlocking(async () => {
+      const result = await callTool(publishPageTool, { id: NON_EXISTENT_UUID, includeDescendants: false }, extra);
+      expect(result.isError).toBe(true);
+      expect(getStructuredContent(result)).toEqual(
+        expect.objectContaining({ status: 403, title: expect.stringContaining("blocked") }),
+      );
+    });
   }, 30000);
 });
