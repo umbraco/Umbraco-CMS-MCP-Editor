@@ -23,7 +23,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["delete"],
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   handler: async ({ id }, extra) => {
-    const gate = checkHumanInTheLoop({ verb: "delete" });
+    const gate = checkHumanInTheLoop({ verb: "delete", documentId: id });
     if (gate) return gate;
 
     const docResult = await chainCms("get-document-by-id", { id });

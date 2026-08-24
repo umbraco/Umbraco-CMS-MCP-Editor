@@ -112,7 +112,15 @@ describe("human-in-the-loop gate", () => {
       expect(detail).not.toContain("workspace/document/edit");
     });
 
-    it("always uses the Content section URL for delete, never a document link", () => {
+    it("links to the document edit screen for delete with a documentId", () => {
+      delete process.env.UMBRACO_HUMAN_IN_THE_LOOP;
+      process.env.UMBRACO_BASE_URL = "https://cms.example.com";
+      const result = checkHumanInTheLoop({ verb: "delete", documentId: "abc-123" });
+      const detail = String((result as any).structuredContent?.detail ?? "");
+      expect(detail).toContain("https://cms.example.com/umbraco/section/content/workspace/document/edit/abc-123");
+    });
+
+    it("falls back to the Content section URL for delete with no documentId (e.g. an already-trashed item)", () => {
       delete process.env.UMBRACO_HUMAN_IN_THE_LOOP;
       process.env.UMBRACO_BASE_URL = "https://cms.example.com";
       const result = checkHumanInTheLoop({ verb: "delete" });

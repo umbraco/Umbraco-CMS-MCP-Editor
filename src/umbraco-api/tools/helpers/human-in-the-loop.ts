@@ -2,13 +2,18 @@ import { createToolResultError } from "@umbraco-cms/mcp-server-sdk";
 import { getUmbracoBaseUrl } from "./preview-url.js";
 
 /**
- * publish/unpublish can point at a specific document when one exists; delete
- * never does (only a generic Content-section link), which this union enforces
- * at the call site rather than by convention.
+ * `documentId` links to that document's own edit screen (delete, publish,
+ * and unpublish are all reachable from its "..." entity-action menu there);
+ * omitting it falls back to the generic Content section link. Callers whose
+ * target is already trashed (permanent-delete-recycle-bin-item,
+ * empty-recycle-bin) must omit it — a trashed item isn't part of the normal
+ * content tree, so its regular edit-screen URL won't resolve.
  */
-export type HumanInTheLoopAction =
-  | { verb: "publish" | "unpublish"; documentId?: string; hint?: string }
-  | { verb: "delete"; hint?: string };
+export type HumanInTheLoopAction = {
+  verb: "publish" | "unpublish" | "delete";
+  documentId?: string;
+  hint?: string;
+};
 
 let override: boolean | undefined;
 
@@ -67,10 +72,7 @@ export function checkHumanInTheLoop(
   if (!isHumanInTheLoopBlocking()) return null;
 
   const verbLabel = action.verb === "publish" ? "Publish" : action.verb === "unpublish" ? "Unpublish" : "Delete";
-  const url =
-    action.verb !== "delete" && action.documentId
-      ? buildDocumentEditUrl(action.documentId)
-      : buildContentSectionUrl();
+  const url = action.documentId ? buildDocumentEditUrl(action.documentId) : buildContentSectionUrl();
 
   const linkSentence = url ? ` Open ${url} and do it there.` : "";
   const hintSentence = action.hint ? ` ${action.hint}` : "";
