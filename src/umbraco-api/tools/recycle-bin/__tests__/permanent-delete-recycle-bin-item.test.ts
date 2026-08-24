@@ -18,6 +18,7 @@ import {
   RecycleBinTestHelper,
 } from "./setup.js";
 import permanentDeleteTool from "../delete/permanent-delete-recycle-bin-item.js";
+import { withHumanInTheLoopBlocking } from "../../../../testing/human-in-the-loop-test-helper.js";
 
 const TEST_FOLDER_NAME = "_Test PermDelete RecycleBin";
 const CHILD_FOLDER_NAME = "_Test PermDelete RecycleBin Child";
@@ -97,4 +98,31 @@ describe("permanent-delete-recycle-bin-item", () => {
     const stillThere = await RecycleBinTestHelper.findInBin("media", TEST_FOLDER_NAME);
     expect(stillThere).toBeDefined();
   }, 60000);
+
+  it("blocks permanent delete of content when the human-in-the-loop gate is enabled, before touching the CMS", async () => {
+    await withHumanInTheLoopBlocking(async () => {
+      const result = await permanentDeleteTool.handler(
+        { id: "00000000-0000-0000-0000-000000000000", type: "content" },
+        extra,
+      );
+      expect(result.isError).toBe(true);
+      expect(getStructuredContent(result)).toEqual(
+        expect.objectContaining({ status: 403, title: expect.stringContaining("blocked") }),
+      );
+    });
+  }, 30000);
+
+  it("does not gate media even when the human-in-the-loop gate is enabled", async () => {
+    await withHumanInTheLoopBlocking(async () => {
+      const result = await permanentDeleteTool.handler(
+        { id: "00000000-0000-0000-0000-000000000000", type: "media" },
+        extra,
+      );
+      // Out of scope for now — falls through to the real lookup, which fails
+      // with a not-found error rather than the gate's 403.
+      expect(result.isError).toBe(true);
+      const data = getStructuredContent(result) as any;
+      expect(data?.title).not.toContain("blocked");
+    });
+  }, 30000);
 });

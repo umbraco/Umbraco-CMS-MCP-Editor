@@ -13,6 +13,12 @@ import "dotenv/config";
 // must drive elicitation themselves, so always clear it before any test runs.
 delete process.env.UMBRACO_AUTO_CONFIRM;
 
+// The human-in-the-loop gate blocks content publish/unpublish/delete by
+// default. Tests exercise real publish/unpublish/delete behavior, so open the
+// gate unconditionally here; tests that verify the gate itself flip this back
+// with withHumanInTheLoopBlocking (src/testing/human-in-the-loop-test-helper.ts).
+process.env.UMBRACO_HUMAN_IN_THE_LOOP = "false";
+
 import https from "node:https";
 import { Agent, setGlobalDispatcher, fetch as undiciFetch, FormData as undiciFormData, Request as undiciRequest } from "undici";
 

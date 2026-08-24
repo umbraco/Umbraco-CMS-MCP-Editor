@@ -2,6 +2,7 @@ import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { chainedTools, itemName, probeSubtree, formatNamePreview, SUBTREE_PROBE_LIMIT } from "../helpers.js";
+import { checkHumanInTheLoop } from "../../helpers/human-in-the-loop.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("ID of the trashed item to permanently delete."),
@@ -23,6 +24,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["delete"],
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   handler: async ({ id, type }, extra) => {
+    if (type === "content") {
+      const gate = checkHumanInTheLoop({ verb: "delete" });
+      if (gate) return gate;
+    }
+
     const tools = chainedTools(type);
 
     // Step 1: Look the item up so the elicitation can name it rather than show a GUID.

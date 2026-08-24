@@ -9,6 +9,7 @@ import {
   type BulkOperationOutput,
 } from "../../helpers/bulk-handler.js";
 import { fetchPublishedUrls, publishedUrlsSchema } from "../../helpers/preview-url.js";
+import { checkHumanInTheLoop } from "../../helpers/human-in-the-loop.js";
 
 const inputSchema = {
   ids: z.array(z.string().uuid()).min(1).max(10).describe("The IDs of the pages to unpublish (max 10)"),
@@ -37,6 +38,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["publish"],
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   handler: async ({ ids }, extra) => {
+    const gate = checkHumanInTheLoop({ verb: "unpublish" });
+    if (gate) return gate;
+
     const validationError = validateBulkIds(ids);
     if (validationError) return createToolResult(validationError as BulkOperationOutput);
 

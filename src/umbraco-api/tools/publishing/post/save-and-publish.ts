@@ -3,6 +3,7 @@ import { withStandardDecorators, createToolResult, createToolResultError, ToolDe
 import { chainCms } from "../../../cms-chain.js";
 import { fetchPublishedUrls, publishedUrlsSchema } from "../../helpers/preview-url.js";
 import { verifyDocumentPublished } from "../../helpers/verify-published.js";
+import { checkHumanInTheLoop } from "../../helpers/human-in-the-loop.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to save and publish"),
@@ -50,6 +51,13 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["publish", "update"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   handler: async ({ id, values, includeDescendants }, extra) => {
+    const gate = checkHumanInTheLoop({
+      verb: "publish",
+      documentId: id,
+      hint: "To save property changes without publishing, use edit-page instead.",
+    });
+    if (gate) return gate;
+
     const docResult = await chainCms("get-document-by-id", { id });
     if (!docResult.ok) return docResult.errorResult;
     const doc = docResult.data;

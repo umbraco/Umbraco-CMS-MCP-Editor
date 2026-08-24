@@ -58,6 +58,8 @@ import { allModes, allModeNames, allSliceNames, loadServerConfig, clearConfigCac
 // Server-level instructions sent to MCP clients during initialization.
 import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
 
+import { setHumanInTheLoopOverride } from "./umbraco-api/tools/helpers/human-in-the-loop.js";
+
 // Configure the API client for use with toolkit helpers
 // This connects your generated Orval client to executeGetApiCall, executeVoidApiCall, etc.
 // ============================================================================
@@ -87,6 +89,7 @@ clearConfigCache();
 
 // Load server configuration (includes filtering settings from env vars)
 const serverConfig = await loadServerConfig(true);
+setHumanInTheLoopOverride(serverConfig.custom.humanInTheLoop);
 
 // Create collection config loader with our registries
 const configLoader = createCollectionConfigLoader({
