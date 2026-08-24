@@ -15,6 +15,10 @@ const BASE_VARS = {
   UMBRACO_OAUTH_CLIENT_ID: "umbraco-editor-mcp-hosted",
   COOKIE_ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   ENABLE_INFO_ENDPOINT: "true",
+  // These tests exercise real write flows (elicitation, publish, etc.), so open
+  // the human-in-the-loop gate — the Worker sandbox only sees vars declared
+  // here, not the outer test process's environment.
+  UMBRACO_HUMAN_IN_THE_LOOP: "false",
 };
 
 export async function startWorker(varsOverride?: Record<string, string>): Promise<string> {
