@@ -10,23 +10,34 @@ export type HumanInTheLoopAction =
   | { verb: "publish" | "unpublish"; documentId?: string; hint?: string }
   | { verb: "delete"; hint?: string };
 
-let overrideForceOn: boolean | undefined;
+let override: boolean | undefined;
 
 /**
- * Set once from src/index.ts after loadServerConfig(), reflecting whether
- * --umbraco-human-in-the-loop was passed on the CLI. The SDK's generic boolean
- * config field collapses any falsy CLI/env value to `undefined`, so this can
- * only ever signal "force the gate closed" — there is no way to force it open
- * from the CLI. Opening the gate is a UMBRACO_HUMAN_IN_THE_LOOP=false decision
- * made in the environment, not on the command line.
+ * Set once at startup by whichever entry point resolved config for this
+ * runtime: `src/index.ts` (stdio) from the CLI-flag/env-resolved custom
+ * config field, or `src/worker.ts` (hosted) from the Worker's `env` binding.
+ * `undefined` means "no override" — `isHumanInTheLoopBlocking()` falls
+ * through to a direct `process.env` read.
+ *
+ * The hosted path in particular cannot rely on that fallback: a Durable
+ * Object's tool-handler execution context doesn't reliably reflect vars
+ * passed to `env` the same way plain module-scope code does, so
+ * `src/worker.ts` reads `this.env.UMBRACO_HUMAN_IN_THE_LOOP` directly (the
+ * one channel confirmed to work inside the Durable Object) and pushes the
+ * resolved value here explicitly, the same way `UMBRACO_READONLY` is read
+ * from `env` rather than `process.env` in hosted mode.
+ *
+ * On the stdio side, the SDK's generic boolean config field collapses any
+ * falsy CLI/env value to `undefined`, so that path can only ever push `true`
+ * (force closed) or `undefined` (no override) — never `false`.
  */
-export function setHumanInTheLoopOverride(forceOn: boolean | undefined): void {
-  overrideForceOn = forceOn;
+export function setHumanInTheLoopOverride(value: boolean | undefined): void {
+  override = value;
 }
 
 /** True when publish/unpublish/delete on content must be refused. */
 export function isHumanInTheLoopBlocking(): boolean {
-  if (overrideForceOn) return true;
+  if (override !== undefined) return override;
   const raw = process.env.UMBRACO_HUMAN_IN_THE_LOOP;
   return raw?.trim().toLowerCase() !== "false";
 }

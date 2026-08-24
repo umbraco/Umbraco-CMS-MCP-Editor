@@ -33,6 +33,7 @@ import { collections, allModes, allModeNames, allSliceNames } from "./collection
 import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
 import { createPermissiveCodegenUser, setServerRef } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "./umbraco-api/mcp-client.js";
+import { setHumanInTheLoopOverride } from "./umbraco-api/tools/helpers/human-in-the-loop.js";
 
 // Import CMS collections for in-process chaining
 import {
@@ -100,6 +101,16 @@ export class UmbracoMcpAgent extends McpAgent<HostedMcpEnv, unknown, AuthProps> 
 
     // Make the underlying Server available to tools that need elicitation.
     setServerRef(this.server.server);
+
+    // Mirrors UMBRACO_READONLY: read directly off the Worker's env binding
+    // (HostedMcpEnv doesn't declare this field, so it's not a plain vars
+    // passthrough elsewhere), not process.env — a Durable Object's
+    // tool-handler execution context doesn't reliably reflect vars the way
+    // module-scope code does.
+    const humanInTheLoopEnv = (this.env as unknown as Record<string, string | undefined>).UMBRACO_HUMAN_IN_THE_LOOP;
+    setHumanInTheLoopOverride(
+      humanInTheLoopEnv === "false" ? false : humanInTheLoopEnv === "true" ? true : undefined
+    );
 
     // Register the CMS as an in-process server on mcpClientManager so
     // editor tools can call mcpClientManager.callTool("cms", ...).

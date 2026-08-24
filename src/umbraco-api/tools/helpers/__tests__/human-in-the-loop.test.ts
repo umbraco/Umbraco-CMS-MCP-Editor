@@ -74,6 +74,12 @@ describe("human-in-the-loop gate", () => {
       expect(isHumanInTheLoopBlocking()).toBe(true);
     });
 
+    it("setHumanInTheLoopOverride(false) forces the gate open even when the env var says blocking", () => {
+      delete process.env.UMBRACO_HUMAN_IN_THE_LOOP;
+      setHumanInTheLoopOverride(false);
+      expect(isHumanInTheLoopBlocking()).toBe(false);
+    });
+
     it("setHumanInTheLoopOverride(undefined) clears a prior override", () => {
       setHumanInTheLoopOverride(true);
       setHumanInTheLoopOverride(undefined);
