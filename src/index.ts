@@ -17,10 +17,14 @@ import {
   gatherChainedTools,
   setServerRef,
   initializeUmbracoFetch,
+  configureDryRunMode,
+  checkUmbracoVersion,
+  configureVersionCheckHook,
   type CollectionConfiguration,
   type ToolCollectionExport,
 } from "@umbraco-cms/mcp-server-sdk";
 import { CHAINED_DEPS } from "./auth/chained-deps.generated.js";
+import { chainCms } from "./umbraco-api/cms-chain.js";
 
 // Import the Orval-generated API client
 // Tool collections come from the shared registry in collections.ts, which the
@@ -36,7 +40,14 @@ import { mcpClientManager } from "./umbraco-api/mcp-client.js";
 import { mcpServers } from "./config/mcp-servers.js";
 
 // Import registries for tool filtering
-import { allModes, allModeNames, allSliceNames, loadServerConfig, clearConfigCache } from "./config/index.js";
+import {
+  allModes,
+  allModeNames,
+  allSliceNames,
+  loadServerConfig,
+  clearConfigCache,
+  UMBRACO_TARGET_MAJOR,
+} from "./config/index.js";
 
 // Server-level instructions sent to MCP clients during initialization.
 import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
@@ -70,6 +81,13 @@ clearConfigCache();
 
 // Load server configuration (includes filtering settings from env vars)
 const serverConfig = await loadServerConfig(true);
+
+// UMBRACO_DRY_RUN / --umbraco-dry-run is a base SDK config field, already
+// parsed above, and every tool already passes through `withDryRun` via
+// `withStandardDecorators` — but nothing reads the parsed value unless we
+// activate it here. When enabled, mutation tools return a preview instead
+// of executing (read-only tools are unaffected).
+configureDryRunMode(serverConfig.umbraco.dryRun ?? false);
 
 // Create collection config loader with our registries
 const configLoader = createCollectionConfigLoader({
@@ -113,6 +131,44 @@ async function main() {
         await mcpClientManager.connect(srv.name);
         console.error(`Connected to chained server: ${srv.name}`);
       }
+
+      // Umbraco-major compatibility guard. `@umbraco-cms/mcp-dev`'s own
+      // stdio entry point runs this same `checkUmbracoVersion` check for
+      // itself when it's spawned as our subprocess, but that only guards
+      // its own process — it can't reach across the process boundary to
+      // protect our tools. Replicate the check here, against the same
+      // chained connection, using the tool it already exposes for this
+      // (`get-server-information`) so we never call the Management API
+      // directly. `configureVersionCheckHook()` wires the result into
+      // `withPreExecutionCheck`, already present on every tool via
+      // `withStandardDecorators`, blocking the first tool call with a
+      // warning on a major mismatch (see `checkUmbracoVersion` doc comment
+      // in @umbraco-cms/mcp-server-sdk for the full contract).
+      //
+      // On a genuine mismatch, the chained subprocess's *own* copy of this
+      // same check (it inherits UMBRACO_EXPECTED_MAJOR from our env) blocks
+      // its own first tool call with the same warning — and this probe is
+      // that first call. That block clears itself immediately after firing
+      // once ("a deliberate retry after the user has seen the warning
+      // succeeds" — see the SDK doc comment), so retry once rather than
+      // treating the block as a fetch failure; otherwise this check would
+      // silently never activate for our own tools on exactly the mismatch
+      // it exists to catch.
+      let serverInfo = await chainCms("get-server-information", {});
+      if (!serverInfo.ok) {
+        serverInfo = await chainCms("get-server-information", {});
+      }
+      if (serverInfo.ok) {
+        await checkUmbracoVersion({
+          mcpVersion: packageJson.version,
+          expectedUmbracoMajor: process.env.UMBRACO_EXPECTED_MAJOR?.trim() || UMBRACO_TARGET_MAJOR,
+          client: { getServerInformation: async () => serverInfo.data },
+        });
+        configureVersionCheckHook();
+      } else {
+        console.error("Warning: could not fetch CMS server information for the version compatibility check");
+      }
+
       availableChainedTools = await gatherChainedTools(
         mcpClientManager,
         mcpServers.map((s) => s.name),

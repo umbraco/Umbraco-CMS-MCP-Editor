@@ -42,6 +42,14 @@ new_sqlite_classes = ["UmbracoMcpAgent"]
 # UMBRACO_EXCLUDE_SLICES = ""
 # UMBRACO_READONLY = "false"
 #
+# Preview mutating tools instead of executing them (see worker.ts).
+# UMBRACO_DRY_RUN = "false"
+#
+# Override the Umbraco major this deployment expects to be connected to
+# (defaults to src/config/umbraco-target.ts). Only set when deliberately
+# targeting a different major than this server was built for.
+# UMBRACO_EXPECTED_MAJOR = "18"
+#
 # Umbraco Cloud multi-tenant routing — set to "true" to engage the Cloud
 # preset (MCP endpoint becomes /at/{alias}/, per-request URLs resolve to
 # https://{alias}.{region}.umbraco.io). Leave unset for single-tenant.
