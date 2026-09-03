@@ -17,6 +17,7 @@ import {
   gatherChainedTools,
   setServerRef,
   initializeUmbracoFetch,
+  useDraft202012ToolSchemas,
   type CollectionConfiguration,
   type ToolCollectionExport,
 } from "@umbraco-cms/mcp-server-sdk";
@@ -200,6 +201,12 @@ async function main() {
       registeredToolCount++;
     }
   }
+
+  // Advertise JSON Schema draft 2020-12 (not the default draft-7) for tool
+  // schemas, matching the fix applied to the SDK's own stdio template
+  // (umbraco/Umbraco-MCP-Base@23ea2f3). Without this, strict draft-2020-12
+  // MCP clients can reject our tool schemas.
+  useDraft202012ToolSchemas(server);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
