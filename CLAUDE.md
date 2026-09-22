@@ -20,7 +20,9 @@ A live-MCP audit campaign in `docs/audits/mcp-live-validation/` exercised every 
 - `v17/dev` / `v17/main` — a second, parallel branch pair with the same relationship as
   `dev`/`main`, tracking the Umbraco 17–compatible maintenance line instead of the current
   (Umbraco 18) line that `dev`/`main` track. Feature branches: `feature/<name>-v17` (the
-  `-v17` suffix says "this branch targets the v17 line").
+  `-v17` suffix says "this branch targets the v17 line"). **The worktree hook doesn't know
+  about this yet** — `EnterWorktree` always bases new branches off `dev`/`main`, so a
+  `-v17` branch needs its base moved to `v17/dev` by hand until the hook is taught to do it.
 
 ## PR / CI workflow
 
