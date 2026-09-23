@@ -58,9 +58,8 @@ stages:
         targetPath: '$(Build.ArtifactStagingDirectory)'
         artifact: 'npm-package'
 
-# This package is not published to public npm yet. Prereleases go to the
-# private MyGet feed (umbracoprereleases) instead. The public-npm release stage
-# is kept commented below for when the package is promoted.
+# Prereleases go to the private MyGet feed (umbracoprereleases). Public npm
+# publishing is enabled below (Deploy_Npm, gated to refs/heads/main).
 - stage: Deploy_Prerelease
   displayName: Prerelease (MyGet)
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
@@ -113,8 +112,7 @@ stages:
           displayName: Push package to MyGet
           workingDirectory: $(Pipeline.Workspace)/npm-package
 
-# Public npm release — enable when the package is promoted publicly.
-#
+# Public npm release, gated to refs/heads/main (the v18/main line).
 - stage: Deploy_Npm
   displayName: Npm release
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
@@ -171,8 +169,8 @@ stages:
 
 # The MCP Registry release stage requires a server.json in the repo root
 # (consumed by mcp-publisher). This repo has none, so the stage is commented
-# out. Add a server.json and uncomment both this stage and Deploy_Npm above
-# to publish to the MCP registry.
+# out. Add a server.json and uncomment this stage to publish to the MCP
+# registry (Deploy_Npm above is already live).
 #
 # - stage: Deploy_MCP_Registry
 #   displayName: MCP Registry release
