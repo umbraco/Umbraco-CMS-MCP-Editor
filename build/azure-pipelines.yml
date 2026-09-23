@@ -57,9 +57,9 @@ stages:
         targetPath: '$(Build.ArtifactStagingDirectory)'
         artifact: 'npm-package'
 
-# This package is not published to public npm yet. Prereleases go to the
-# private MyGet feed (umbracoprereleases) instead. The public-npm release stage
-# is kept commented below for when the package is promoted.
+# Prereleases on both lines go to the private MyGet feed (umbracoprereleases).
+# Public npm publishing is enabled below on this line (Deploy_Npm, gated to
+# refs/heads/v17/main and scoped to lts-17* dist-tags).
 - stage: Deploy_Prerelease
   displayName: Prerelease (MyGet)
   condition: and(succeeded(), in(variables['Build.SourceBranch'], 'refs/heads/main', 'refs/heads/v17/main'))
@@ -192,8 +192,11 @@ stages:
 
 # The MCP Registry release stage requires a server.json in the repo root
 # (consumed by mcp-publisher). This repo has none, so the stage is commented
-# out. Add a server.json and uncomment both this stage and Deploy_Npm above
-# to publish to the MCP registry.
+# out. It's also written for the main/v18 line only (condition on
+# refs/heads/main, isStableRelease read from a Deploy_Npm output this
+# branch's Deploy_Npm doesn't emit) — enabling it here would need its own
+# v17/main condition and matching output-variable plumbing in Deploy_Npm
+# above, not just uncommenting.
 #
 # - stage: Deploy_MCP_Registry
 #   displayName: MCP Registry release
