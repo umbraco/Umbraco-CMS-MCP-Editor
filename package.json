@@ -1,6 +1,6 @@
 {
   "name": "@umbraco-cms/mcp-editor",
-  "version": "17.6.0-beta.4",
+  "version": "17.6.0-beta.5",
   "type": "module",
   "description": "MCP server for umbraco-mcp-editor-cms",
   "main": "dist/index.js",
