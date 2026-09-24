@@ -196,9 +196,11 @@ entries, and the tree-walk audit — its own change.
 | `UMBRACO_INCLUDE_SLICES` | `--umbraco-include-slices` | Include only these slices |
 | `UMBRACO_EXCLUDE_SLICES` | `--umbraco-exclude-slices` | Exclude these slices |
 | `UMBRACO_READONLY` | `--umbraco-readonly` | Block write operations |
+| `UMBRACO_DRY_RUN` | `--umbraco-dry-run` | Preview mutation tools instead of executing them (read-only tools unaffected) |
+| `UMBRACO_EXPECTED_MAJOR` | `--umbraco-expected-major` | Override the Umbraco major this server expects (default: `src/config/umbraco-target.ts`) — mismatches block the first tool call with a warning |
 | `DISABLE_MCP_CHAINING` | `--disable-mcp-chaining` | Disable MCP server chaining |
 
-Custom fields defined in `config/server-config.ts`.
+Custom fields defined in `config/server-config.ts`. `UMBRACO_DRY_RUN` and `UMBRACO_EXPECTED_MAJOR` are base `@umbraco-cms/mcp-server-sdk` fields, activated in `src/index.ts` (stdio) and `src/worker.ts` (hosted) — see the comments there for how each mirrors the equivalent check in `@umbraco-cms/mcp-dev`'s own stdio entry point.
 
 ## Modes and Slices
 

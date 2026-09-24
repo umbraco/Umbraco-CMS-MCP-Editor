@@ -31,8 +31,9 @@ import { umbracoCloudSiteRouting } from "@umbraco-cms/mcp-hosted/cloud";
 // Import tool collections and registries (shared with stdio mode via collections.ts)
 import { collections, allModes, allModeNames, allSliceNames } from "./collections.js";
 import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
-import { createPermissiveCodegenUser, setServerRef } from "@umbraco-cms/mcp-server-sdk";
+import { createPermissiveCodegenUser, setServerRef, configureDryRunMode } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "./umbraco-api/mcp-client.js";
+import { UMBRACO_TARGET_MAJOR } from "./config/umbraco-target.js";
 
 // Import CMS collections for in-process chaining
 import {
@@ -80,6 +81,16 @@ const options = {
   siteRouting: umbracoCloudSiteRouting({
     oauthClientId: "umbraco-cms-editor-mcp-hosted",
   }),
+  // Umbraco-major compatibility guard — the hosted counterpart of the
+  // `checkUmbracoVersion` call the stdio entry point (index.ts) makes by
+  // hand. Here `createPerRequestServer` does the whole thing for us: it
+  // checks the connected Umbraco's version on every request and folds a
+  // mismatch warning into that request's `instructions`, with the same
+  // `env.UMBRACO_EXPECTED_MAJOR` override precedence as stdio's
+  // `UMBRACO_EXPECTED_MAJOR`. Mirrors how @umbraco-cms/mcp-dev's own
+  // standalone binary stamps a generated `UMBRACO_TARGET_MAJOR` constant
+  // for the identical SDK check.
+  expectedUmbracoMajor: UMBRACO_TARGET_MAJOR,
 };
 
 const serverOptions = getServerOptions(options);
@@ -100,6 +111,15 @@ export class UmbracoMcpAgent extends McpAgent<HostedMcpEnv, unknown, AuthProps> 
 
     // Make the underlying Server available to tools that need elicitation.
     setServerRef(this.server.server);
+
+    // UMBRACO_DRY_RUN — the hosted counterpart of the stdio entry point's
+    // `configureDryRunMode(serverConfig.umbraco.dryRun ?? false)`. Unlike
+    // `expectedUmbracoMajor` above, `@umbraco-cms/mcp-hosted` has no
+    // built-in handling for this var (it's not part of `HostedMcpEnv`), so
+    // we read it from the Worker env binding ourselves. Every tool already
+    // passes through `withDryRun` via `withStandardDecorators`; this is
+    // what actually activates it.
+    configureDryRunMode((this.env as unknown as Record<string, string | undefined>).UMBRACO_DRY_RUN === "true");
 
     // Register the CMS as an in-process server on mcpClientManager so
     // editor tools can call mcpClientManager.callTool("cms", ...).
