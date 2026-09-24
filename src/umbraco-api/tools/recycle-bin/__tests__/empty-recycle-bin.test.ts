@@ -16,6 +16,7 @@ import {
   RecycleBinTestHelper,
 } from "./setup.js";
 import emptyRecycleBinTool from "../delete/empty-recycle-bin.js";
+import { withHumanInTheLoopBlocking } from "../../../../testing/human-in-the-loop-test-helper.js";
 
 const TEST_FOLDER_NAME = "_Test Empty RecycleBin";
 const elicitation = createElicitation();
@@ -78,4 +79,14 @@ describe("empty-recycle-bin", () => {
     expect(stillThere).toBeDefined();
     expect(stillThere?.id).toBe(trashed.getId());
   }, 60000);
+
+  it("blocks emptying the content recycle bin when the human-in-the-loop gate is enabled, before touching the CMS", async () => {
+    await withHumanInTheLoopBlocking(async () => {
+      const result = await emptyRecycleBinTool.handler({ type: "content" }, extra);
+      expect(result.isError).toBe(true);
+      expect(getStructuredContent(result)).toEqual(
+        expect.objectContaining({ status: 403, title: expect.stringContaining("blocked") }),
+      );
+    });
+  }, 30000);
 });

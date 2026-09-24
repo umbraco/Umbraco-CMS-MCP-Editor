@@ -10,6 +10,7 @@ import {
 } from "./setup.js";
 import listChildrenTool from "../../content/get/list-children.js";
 import bulkSchedulePublishTool from "../post/bulk-schedule-publish.js";
+import { withHumanInTheLoopBlocking } from "../../../../testing/human-in-the-loop-test-helper.js";
 
 const elicitation = createElicitation();
 
@@ -63,5 +64,18 @@ describe("bulk-schedule-publish", () => {
         extra,
       ),
     );
+  }, 30000);
+
+  it("blocks bulk-schedule-publish when the human-in-the-loop gate is enabled, before touching the CMS", async () => {
+    await withHumanInTheLoopBlocking(async () => {
+      const result = await bulkSchedulePublishTool.handler(
+        { ids: ["00000000-0000-0000-0000-000000000000"], publishDate: FUTURE_DATE },
+        extra,
+      );
+      expect(result.isError).toBe(true);
+      expect(getStructuredContent(result)).toEqual(
+        expect.objectContaining({ status: 403, title: expect.stringContaining("blocked") }),
+      );
+    });
   }, 30000);
 });

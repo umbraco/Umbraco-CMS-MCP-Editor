@@ -28,6 +28,8 @@ import {
 export interface MyServerCustomConfig {
   /** Disable MCP server chaining (useful for testing or isolated deployments) */
   disableMcpChaining?: boolean;
+  /** Force the human-in-the-loop publish/unpublish/delete gate closed (CLI-only; see helpers/human-in-the-loop.ts) */
+  humanInTheLoop?: boolean;
 }
 
 // ============================================================================
@@ -46,6 +48,12 @@ const customFields: ConfigFieldDefinition[] = [
     name: "disableMcpChaining",
     envVar: "DISABLE_MCP_CHAINING",
     cliFlag: "disable-mcp-chaining",
+    type: "boolean",
+  },
+  {
+    name: "humanInTheLoop",
+    envVar: "UMBRACO_HUMAN_IN_THE_LOOP",
+    cliFlag: "umbraco-human-in-the-loop",
     type: "boolean",
   },
 ];
