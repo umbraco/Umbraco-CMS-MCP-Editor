@@ -2,6 +2,7 @@ import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { fetchPublishedUrls, publishedUrlsSchema } from "../../helpers/preview-url.js";
+import { checkHumanInTheLoop } from "../../helpers/human-in-the-loop.js";
 
 const inputSchema = {
   name: z.string().describe("The name of the page to create"),
@@ -30,6 +31,12 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["create", "publish"],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   handler: async ({ name, documentTypeId, parentId, values }) => {
+    const gate = checkHumanInTheLoop({
+      verb: "publish",
+      hint: "To create the page as a draft without publishing, use create-page instead.",
+    });
+    if (gate) return gate;
+
     // CreateAndPublishDocumentInput requires editorAlias on each value, same as
     // create-document. The LLM only supplies the property alias, so resolve
     // editorAlias by looking up the document type's properties -> data types.

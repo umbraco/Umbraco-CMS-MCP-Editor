@@ -2,6 +2,7 @@ import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { chainedTools, itemName, formatNamePreview } from "../helpers.js";
+import { checkHumanInTheLoop } from "../../helpers/human-in-the-loop.js";
 
 const inputSchema = {
   type: z.enum(["content", "media"]).describe("Which recycle bin to empty."),
@@ -21,6 +22,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["delete"],
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   handler: async ({ type }, extra) => {
+    if (type === "content") {
+      const gate = checkHumanInTheLoop({ verb: "delete" });
+      if (gate) return gate;
+    }
+
     const tools = chainedTools(type);
 
     // Step 1: Peek at the bin so the elicitation can name what will be destroyed.

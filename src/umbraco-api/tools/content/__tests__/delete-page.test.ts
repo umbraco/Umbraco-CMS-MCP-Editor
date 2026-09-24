@@ -8,9 +8,13 @@ import {
   expectElicitationCancel,
   ContentBuilder,
   ContentTestHelper,
+  getStructuredContent,
+  NON_EXISTENT_UUID,
 } from "./setup.js";
 import deletePageTool from "../delete/delete-page.js";
 import { expectInRecycleBin } from "../../../../testing/state-assertions.js";
+import { callTool } from "../../../../testing/call-tool-with-validation.js";
+import { withHumanInTheLoopBlocking } from "../../../../testing/human-in-the-loop-test-helper.js";
 
 const TEST_PAGE_NAME = "_Test Delete Page";
 
@@ -78,5 +82,15 @@ describe("delete-page", () => {
   it("should cancel delete when elicitation is rejected", async () => {
     elicitation.rejectAll();
     await expectElicitationCancel(() => deletePageTool.handler({ id: testPageId }, extra));
+  }, 30000);
+
+  it("blocks delete when the human-in-the-loop gate is enabled, before touching the CMS", async () => {
+    await withHumanInTheLoopBlocking(async () => {
+      const result = await callTool(deletePageTool, { id: NON_EXISTENT_UUID }, extra);
+      expect(result.isError).toBe(true);
+      expect(getStructuredContent(result)).toEqual(
+        expect.objectContaining({ status: 403, title: expect.stringContaining("blocked") }),
+      );
+    });
   }, 30000);
 });

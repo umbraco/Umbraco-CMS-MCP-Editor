@@ -173,9 +173,10 @@ describe("Server Config", () => {
     it("should return all custom field definitions", () => {
       const fields = getCustomFieldDefinitions();
 
-      expect(fields).toHaveLength(1);
+      expect(fields).toHaveLength(2);
       expect(fields.map(f => f.name)).toEqual([
         "disableMcpChaining",
+        "humanInTheLoop",
       ]);
     });
 
@@ -186,6 +187,11 @@ describe("Server Config", () => {
       expect(chaining?.type).toBe("boolean");
       expect(chaining?.envVar).toBe("DISABLE_MCP_CHAINING");
       expect(chaining?.cliFlag).toBe("disable-mcp-chaining");
+
+      const humanInTheLoop = fields.find(f => f.name === "humanInTheLoop");
+      expect(humanInTheLoop?.type).toBe("boolean");
+      expect(humanInTheLoop?.envVar).toBe("UMBRACO_HUMAN_IN_THE_LOOP");
+      expect(humanInTheLoop?.cliFlag).toBe("umbraco-human-in-the-loop");
     });
 
     it("should return a copy to prevent mutation", () => {

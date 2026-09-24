@@ -22,6 +22,7 @@ import {
 import { callTool } from "../../../../testing/call-tool-with-validation.js";
 import { expectPublished } from "../../../../testing/state-assertions.js";
 import createAndPublishPageTool from "../post/create-and-publish-page.js";
+import { withHumanInTheLoopBlocking } from "../../../../testing/human-in-the-loop-test-helper.js";
 
 const TEST_PAGE_NAME = "_Test Create And Publish Page";
 const TEST_VALUES = [{ alias: "title", value: "Created And Published Title" }];
@@ -82,5 +83,19 @@ describe("create-and-publish-page", () => {
     );
 
     expect(result.isError).toBeTruthy();
+  }, 30000);
+
+  it("blocks create-and-publish when the human-in-the-loop gate is enabled, before touching the CMS", async () => {
+    await withHumanInTheLoopBlocking(async () => {
+      const result = await callTool(
+        createAndPublishPageTool,
+        { name: TEST_PAGE_NAME, documentTypeId: NON_EXISTENT_UUID, parentId: testPageId, values: undefined },
+        extra,
+      );
+      expect(result.isError).toBe(true);
+      expect(getStructuredContent(result)).toEqual(
+        expect.objectContaining({ status: 403, title: expect.stringContaining("blocked") }),
+      );
+    });
   }, 30000);
 });

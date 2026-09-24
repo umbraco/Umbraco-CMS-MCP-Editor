@@ -11,6 +11,7 @@ import {
 import { ContentBuilder } from "../../content/__tests__/helpers/content-builder.js";
 import bulkPublishTool from "../post/bulk-publish.js";
 import { expectPublished } from "../../../../testing/state-assertions.js";
+import { withHumanInTheLoopBlocking } from "../../../../testing/human-in-the-loop-test-helper.js";
 
 const elicitation = createElicitation();
 
@@ -115,5 +116,18 @@ describe("bulk-publish", () => {
         extra,
       ),
     );
+  }, 30000);
+
+  it("blocks bulk-publish when the human-in-the-loop gate is enabled, before touching the CMS", async () => {
+    await withHumanInTheLoopBlocking(async () => {
+      const result = await bulkPublishTool.handler(
+        { ids: ["00000000-0000-0000-0000-000000000000"], includeDescendants: false },
+        extra,
+      );
+      expect(result.isError).toBe(true);
+      expect(getStructuredContent(result)).toEqual(
+        expect.objectContaining({ status: 403, title: expect.stringContaining("blocked") }),
+      );
+    });
   }, 30000);
 });
