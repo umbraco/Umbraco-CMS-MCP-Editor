@@ -1,8 +1,8 @@
 {
   "name": "@umbraco-cms/mcp-editor",
-  "version": "17.6.0-beta.4",
+  "version": "17.6.0-beta.5",
   "type": "module",
-  "description": "MCP server for umbraco-mcp-editor-cms",
+  "description": "MCP server giving AI assistants editorial control over Umbraco CMS content",
   "main": "dist/index.js",
   "exports": {
     ".": "./dist/index.js",
