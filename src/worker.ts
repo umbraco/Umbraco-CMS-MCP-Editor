@@ -11,6 +11,7 @@
  */
 
 // Wrangler virtual modules (resolved at wrangler build time)
+import { tracing } from "cloudflare:workers";
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import OAuthProvider from "@cloudflare/workers-oauth-provider";
@@ -23,6 +24,7 @@ import {
   createPerRequestServer,
   getServerOptions,
   type HostedMcpEnv,
+  type HostedMcpServerOptions,
   type AuthProps,
   type ChainedServerConsentConfig,
 } from "@umbraco-cms/mcp-hosted";
@@ -33,6 +35,7 @@ import { collections, allModes, allModeNames, allSliceNames } from "./collection
 import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
 import { createPermissiveCodegenUser, setServerRef } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "./umbraco-api/mcp-client.js";
+import packageJson from "../package.json" with { type: "json" };
 
 // Import CMS collections for in-process chaining
 import {
@@ -66,9 +69,11 @@ const cmsChainedServer: ChainedServerConsentConfig = {
 // https://{alias}.{region}.umbraco.io. Region defaults to
 // env.UMBRACO_CLOUD_REGION or "euwest01".
 // Each Cloud project must register an OAuth client with the id below.
-const options = {
+// Typed so a misplaced option fails to compile rather than being silently
+// dropped by getServerOptions().
+const options: HostedMcpServerOptions = {
   name: "umbraco-cms-editor-mcp-hosted",
-  version: "1.0.0",
+  version: packageJson.version,
   instructions: SERVER_INSTRUCTIONS,
   collections,
   modeRegistry: allModes,
@@ -80,6 +85,10 @@ const options = {
   siteRouting: umbracoCloudSiteRouting({
     oauthClientId: "umbraco-cms-editor-mcp-hosted",
   }),
+  // Opts into @umbraco-cms/mcp-hosted's span instrumentation (tools/call,
+  // mcp.server.init, mcp.auth.refresh). Without it the Worker only emits
+  // Cloudflare's automatic spans.
+  telemetry: { tracing },
 };
 
 const serverOptions = getServerOptions(options);
