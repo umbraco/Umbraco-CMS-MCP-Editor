@@ -14,6 +14,7 @@
   "scripts": {
     "cleanup:orphans": "node scripts/kill-orphan-demosites.mjs",
     "clean": "rimraf dist",
+    "sync-lockfile": "npm install --package-lock-only --ignore-scripts",
     "build": "tsup --config tsup.config.ts",
     "compile": "tsc --noEmit",
     "watch": "tsup --config tsup.config.ts --watch",
