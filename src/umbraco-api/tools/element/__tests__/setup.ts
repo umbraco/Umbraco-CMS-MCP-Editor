@@ -13,6 +13,7 @@ export {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
+  getResultText,
 } from "@umbraco-cms/mcp-server-sdk/testing";
 
 export { createEditorSnapshotResult as createSnapshotResult } from "../../../../testing/snapshot-helpers.js";

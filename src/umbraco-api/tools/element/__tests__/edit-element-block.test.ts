@@ -14,6 +14,7 @@ import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
+  getResultText,
   createSnapshotResult,
   createElementBlockFixture,
   extractChainedResult,
@@ -184,7 +185,12 @@ describe("edit-element-block", () => {
     );
 
     expect(result.isError).toBe(true);
-    expect(getStructuredContent(result)).toContain("no settings entry");
+    // beta.43 of @umbraco-cms/mcp-server-sdk stopped setting structuredContent
+    // on error results (intentional — see cms-chain.ts's
+    // extractInnerProblemDetails doc comment). This tool passes a plain
+    // string to createToolResultError, so content[0].text IS that string
+    // (no JSON parsing needed).
+    expect(getResultText(result)).toContain("no settings entry");
   }, 60000);
 
   it("should return an error for a non-existent element", async () => {

@@ -8,6 +8,7 @@ export {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
+  getResultText,
 } from "@umbraco-cms/mcp-server-sdk/testing";
 
 export { setupEditorElicitation } from "../../../../testing/setup-elicitation.js";

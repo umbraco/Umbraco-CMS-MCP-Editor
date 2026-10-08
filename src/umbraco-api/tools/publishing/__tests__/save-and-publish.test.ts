@@ -11,6 +11,7 @@ import {
   createMockRequestHandlerExtra,
   createSnapshotResult,
   createElicitation,
+  getResultText,
 } from "./setup.js";
 import {
   ContentBuilder,
@@ -246,11 +247,16 @@ describe("save-and-publish", () => {
     expect(result.isError).toBe(true);
     // The caller must be told the save was rolled back too — a bare publish
     // error would read as "the edits landed, only the publish didn't".
-    expect(result.structuredContent).toMatchObject({
+    // beta.43 of @umbraco-cms/mcp-server-sdk stopped setting structuredContent
+    // on error results (intentional — see cms-chain.ts's
+    // extractInnerProblemDetails doc comment); the ProblemDetails is now
+    // only in content[0].text.
+    const problemDetails = JSON.parse(getResultText(result)) as { detail?: unknown };
+    expect(problemDetails).toMatchObject({
       title: "Save and publish failed",
       detail: expect.stringContaining("No changes were saved"),
     });
-    expect(String((result.structuredContent as { detail?: unknown }).detail)).toContain("atomic");
+    expect(String(problemDetails.detail)).toContain("atomic");
 
     // Nothing persisted: neither the valid property alongside the invalid one,
     // nor any other property, nor the rejected alias itself.
