@@ -8,13 +8,23 @@ type CmsChainResult<TName extends CmsToolsName> =
 
 /**
  * Pull the ProblemDetails-shaped payload out of a chained `CallToolResult`
- * error envelope. The SDK's `createToolResultError(problemDetails)` puts the
- * details directly under `structuredContent`, so we just take that. If the
- * caller chose compat mode (no structuredContent) we fall back to JSON-parsing
- * `content[0].text`. Synthesize a minimal ProblemDetails if neither is present
- * — callers always receive a stable shape.
+ * error envelope.
+ *
+ * As of `@umbraco-cms/mcp-server-sdk` beta.43, `createToolResultError` no
+ * longer sets `structuredContent` on error results at all (intentionally —
+ * see its JSDoc and https://github.com/umbraco/Umbraco-MCP-Base/issues/343:
+ * some MCP clients validate `structuredContent` against the tool's
+ * outputSchema even on `isError` results, discarding the real error). So the
+ * `content[0].text` JSON-parse path below is now the normal path, not just a
+ * compat-mode fallback; the `structuredContent` check only still matters for
+ * chained tools running an older SDK. Synthesize a minimal ProblemDetails if
+ * neither is present — callers always receive a stable shape.
+ *
+ * Exported so other internal (never wire-facing) consumers that need to
+ * inspect a tool result's ProblemDetails — e.g. `bulk-handler.ts`'s
+ * `parseBulkError` — can reuse the same extraction instead of duplicating it.
  */
-function extractInnerProblemDetails(result: Record<string, unknown>): Record<string, unknown> {
+export function extractInnerProblemDetails(result: Record<string, unknown>): Record<string, unknown> {
   if (result.structuredContent && typeof result.structuredContent === "object") {
     return result.structuredContent as Record<string, unknown>;
   }

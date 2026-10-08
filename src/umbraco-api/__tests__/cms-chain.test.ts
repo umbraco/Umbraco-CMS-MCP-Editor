@@ -7,9 +7,18 @@
  * produced structuredContent.structuredContent.problemDetails and the LLM
  * reported "validation failed but no detail was returned" because it looks at
  * structuredContent directly. This test pins the single-layer shape we want.
+ *
+ * As of `@umbraco-cms/mcp-server-sdk` beta.43, `createToolResultError` no
+ * longer sets `structuredContent` on the error results it builds (intentional
+ * — see `cms-chain.ts`'s `extractInnerProblemDetails` doc comment and
+ * https://github.com/umbraco/Umbraco-MCP-Base/issues/343). So these tests now
+ * read `errorResult`'s single-layer ProblemDetails back out of
+ * `content[0].text` instead of `structuredContent` — the "no double-wrap"
+ * shape being pinned is otherwise unchanged.
  */
 
 import { describe, it, expect, jest, beforeEach, afterEach } from "@jest/globals";
+import { getResultText } from "@umbraco-cms/mcp-server-sdk/testing";
 import { chainCms } from "../cms-chain.js";
 import { mcpClientManager } from "../mcp-client.js";
 
@@ -48,10 +57,12 @@ describe("chainCms", () => {
 
     expect(result.errorResult.isError).toBe(true);
 
-    // The key assertion: our errorResult.structuredContent IS the ProblemDetails,
-    // NOT the chained envelope. Pre-fix this is nested under .structuredContent.
-    expect(result.errorResult.structuredContent).toEqual(innerProblemDetails);
-    expect((result.errorResult.structuredContent as any)?.errors?.["$.values[0].value"])
+    // The key assertion: errorResult's single-layer ProblemDetails (read back
+    // out of content[0].text) IS the inner ProblemDetails, NOT the chained
+    // envelope. Pre-fix this was nested under .structuredContent.structuredContent.
+    const problemDetails = JSON.parse(getResultText(result.errorResult as any));
+    expect(problemDetails).toEqual(innerProblemDetails);
+    expect(problemDetails?.errors?.["$.values[0].value"])
       .toEqual(["The required property 'pageTitle' was empty."]);
   });
 
@@ -73,7 +84,7 @@ describe("chainCms", () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected error result");
-    expect(result.errorResult.structuredContent).toEqual(innerProblemDetails);
+    expect(JSON.parse(getResultText(result.errorResult as any))).toEqual(innerProblemDetails);
   });
 
   it("falls back to a synthesized ProblemDetails when neither structuredContent nor text is available", async () => {
@@ -88,7 +99,7 @@ describe("chainCms", () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected error result");
-    const sc = result.errorResult.structuredContent as any;
+    const sc = JSON.parse(getResultText(result.errorResult as any));
     expect(sc).toMatchObject({
       status: 500,
       title: expect.any(String),
@@ -107,7 +118,7 @@ describe("chainCms", () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected error result");
     expect(result.errorResult.isError).toBe(true);
-    const sc = result.errorResult.structuredContent as any;
+    const sc = JSON.parse(getResultText(result.errorResult as any));
     expect(sc.detail).toContain("get-document-public-access");
     expect(sc.detail).toContain("-32602");
   });

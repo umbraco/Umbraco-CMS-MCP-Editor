@@ -6,7 +6,7 @@
  */
 
 import { encodeCursor } from "@umbraco-cms/mcp-server-sdk";
-import { chainCms } from "../../cms-chain.js";
+import { chainCms, extractInnerProblemDetails } from "../../cms-chain.js";
 
 const MAX_BULK_ITEMS = 10;
 export const SKIPPED_SENTINEL = "Skipped — previous item failed";
@@ -129,9 +129,13 @@ export function validateBulkIds(ids: string[]): BulkOperationOutput | null {
 /**
  * Extract the ProblemDetails out of a chained CMS errorResult.
  *
- * chainCms now surfaces the ProblemDetails directly under `errorResult.structuredContent`
- * (single layer), so this just reads that. The legacy string path is kept for
- * callers that pass `content[0].text` (a JSON-serialized ProblemDetails) directly.
+ * `errorResult` is built by the SDK's `createToolResultError`, which (as of
+ * `@umbraco-cms/mcp-server-sdk` beta.43) no longer sets `structuredContent`
+ * on error results — the ProblemDetails is only JSON-serialized into
+ * `content[0].text` (intentional; see `cms-chain.ts`'s
+ * `extractInnerProblemDetails` doc comment). Reuses that same extraction so
+ * the two don't drift. The legacy string path is kept for callers that pass
+ * `content[0].text` directly rather than the full errorResult object.
  *
  * @param err - The full errorResult object (preferred) or the content[0].text string.
  */
@@ -139,12 +143,7 @@ export function parseBulkError(err: unknown): unknown {
   if (err === null || err === undefined) return "Unknown error";
 
   if (typeof err === "object") {
-    const asRecord = err as Record<string, unknown>;
-    const sc = asRecord.structuredContent;
-    if (sc !== null && sc !== undefined && typeof sc === "object") {
-      return sc;
-    }
-    return err;
+    return extractInnerProblemDetails(err as Record<string, unknown>);
   }
 
   // Legacy path: caller passes content[0].text (a JSON string of the ProblemDetails).
