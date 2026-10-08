@@ -107,6 +107,24 @@ describe("chainCms", () => {
     });
   });
 
+  it("preserves the raw text when content[0].text is present but not valid JSON", async () => {
+    const chainedFailure = {
+      isError: true,
+      content: [{ type: "text" as const, text: "Something went wrong talking to Umbraco" }],
+    };
+
+    spy.mockResolvedValueOnce(chainedFailure as any);
+
+    const result = await chainCms("get-document-by-id" as any, { id: "00000000-0000-0000-0000-000000000000" } as any);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected error result");
+    const sc = JSON.parse(getResultText(result.errorResult as any));
+    // The real message must survive — not be replaced by a generic
+    // "no structured details" placeholder that discards it.
+    expect(sc.detail).toContain("Something went wrong talking to Umbraco");
+  });
+
   it("returns ok with extracted data on the success path", async () => {
     const successData = { id: "abc", name: "Test" };
     const chainedSuccess = {

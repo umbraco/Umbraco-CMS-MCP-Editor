@@ -20,9 +20,10 @@ type CmsChainResult<TName extends CmsToolsName> =
  * chained tools running an older SDK. Synthesize a minimal ProblemDetails if
  * neither is present — callers always receive a stable shape.
  *
- * Exported so other internal (never wire-facing) consumers that need to
- * inspect a tool result's ProblemDetails — e.g. `bulk-handler.ts`'s
- * `parseBulkError` — can reuse the same extraction instead of duplicating it.
+ * Exported so other internal consumers that need to inspect a tool result's
+ * ProblemDetails before reshaping it into their own response — e.g.
+ * `bulk-handler.ts`'s `parseBulkError` — can reuse the same extraction
+ * instead of duplicating it.
  */
 export function extractInnerProblemDetails(result: Record<string, unknown>): Record<string, unknown> {
   if (result.structuredContent && typeof result.structuredContent === "object") {
@@ -40,7 +41,15 @@ export function extractInnerProblemDetails(result: Record<string, unknown>): Rec
           return parsed as Record<string, unknown>;
         }
       } catch {
-        // Fall through to synthesized default.
+        // Not JSON — a plain human-readable string (createToolResultError
+        // supports passing one directly, e.g. edit-element-block.ts). Surface
+        // it rather than discarding it for a generic message.
+        return {
+          type: "Error",
+          title: "Chained tool error",
+          status: 500,
+          detail: `Chained CMS tool returned a non-JSON error: ${text}`,
+        };
       }
     }
   }

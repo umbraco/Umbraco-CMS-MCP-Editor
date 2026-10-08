@@ -251,8 +251,16 @@ describe("save-and-publish", () => {
     // on error results (intentional — see cms-chain.ts's
     // extractInnerProblemDetails doc comment); the ProblemDetails is now
     // only in content[0].text.
-    const problemDetails = JSON.parse(getResultText(result)) as { detail?: unknown };
+    const problemDetails = JSON.parse(getResultText(result)) as { detail?: unknown; status?: unknown };
     expect(problemDetails).toMatchObject({
+      // The upstream ProblemDetails fields must survive the merge — a regression
+      // that reads the wrong field on the chained errorResult (e.g. the now-gone
+      // `.structuredContent`) falls back to a generic 500 with no upstream data,
+      // and this would still pass without these two assertions. (404 +
+      // PropertyTypeNotFound: Umbraco's actual reason for rejecting the unknown
+      // property alias — not something this tool could invent on its own.)
+      status: 404,
+      operationStatus: "PropertyTypeNotFound",
       title: "Save and publish failed",
       detail: expect.stringContaining("No changes were saved"),
     });
