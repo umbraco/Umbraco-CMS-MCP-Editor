@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { findSettingsKey } from "../../helpers/block-builder.js";
 import { buildPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 
 
@@ -19,6 +20,7 @@ const outputSchema = z.object({
     blocks: z.array(z.object({
       contentKey: z.string().describe("The block's unique key — use this with edit-block"),
       contentTypeKey: z.string().describe("The block's element type ID"),
+      settingsKey: z.string().optional().describe("The key of the block's settings entry. Absent when the block has no settings."),
       properties: z.array(z.object({
         alias: z.string(),
         value: z.any(),
@@ -48,14 +50,22 @@ function isRteWithBlocks(value: any): boolean {
   );
 }
 
-function extractBlocks(contentData: any[]): Array<{ contentKey: string; contentTypeKey: string; properties: Array<{ alias: string; value: any }> }> {
-  return contentData.map((block: any) => ({
-    contentKey: block.key ?? "",
-    contentTypeKey: block.contentTypeKey ?? "",
-    properties: Array.isArray(block.values)
-      ? block.values.map((v: any) => ({ alias: v.alias ?? "", value: v.value }))
-      : [],
-  }));
+// A block's settings live in a separate settingsData entry; the pairing is only
+// recorded in the layout, so `container` (the value holding layout + contentData)
+// is passed in to resolve each block's settingsKey.
+function extractBlocks(contentData: any[], container: unknown): Array<{ contentKey: string; contentTypeKey: string; settingsKey?: string; properties: Array<{ alias: string; value: any }> }> {
+  return contentData.map((block: any) => {
+    const contentKey = block.key ?? "";
+    const settingsKey = findSettingsKey(container, contentKey);
+    return {
+      contentKey,
+      contentTypeKey: block.contentTypeKey ?? "",
+      ...(settingsKey ? { settingsKey } : {}),
+      properties: Array.isArray(block.values)
+        ? block.values.map((v: any) => ({ alias: v.alias ?? "", value: v.value }))
+        : [],
+    };
+  });
 }
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
@@ -84,13 +94,13 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
           return {
             propertyAlias: v.alias,
             editorAlias: "Umbraco.RichText",
-            blocks: extractBlocks(value.blocks!.contentData!),
+            blocks: extractBlocks(value.blocks!.contentData!, value.blocks),
           };
         }
         return {
           propertyAlias: v.alias,
           editorAlias: v.editorAlias ?? undefined,
-          blocks: extractBlocks(value.contentData!),
+          blocks: extractBlocks(value.contentData!, value),
         };
       });
 
