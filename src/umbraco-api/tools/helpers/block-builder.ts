@@ -117,3 +117,38 @@ export function isRteWithBlocks(value: any): boolean {
     Array.isArray(value.blocks?.contentData)
   );
 }
+
+/**
+ * A block's settings live in a separate `settingsData` entry under their own
+ * key, paired with the content only via the layout. Returns the settingsKey
+ * for `contentKey`, recursing through BlockGrid `areas[].items[]`.
+ */
+export function findSettingsKey(container: unknown, contentKey: string): string | undefined {
+  const layout = (container as { layout?: Record<string, unknown> } | null)?.layout;
+  if (!layout || typeof layout !== "object") return undefined;
+  return searchLayout(Object.values(layout), contentKey);
+}
+
+function searchLayout(entries: unknown[], contentKey: string): string | undefined {
+  for (const entry of entries) {
+    if (Array.isArray(entry)) {
+      const found = searchLayout(entry, contentKey);
+      if (found) return found;
+      continue;
+    }
+    if (!entry || typeof entry !== "object") continue;
+    const candidate = entry as { contentKey?: string; settingsKey?: unknown; areas?: unknown[]; items?: unknown[] };
+    if (candidate.contentKey === contentKey) {
+      return typeof candidate.settingsKey === "string" && candidate.settingsKey.length > 0
+        ? candidate.settingsKey
+        : undefined;
+    }
+    for (const nested of [candidate.areas, candidate.items]) {
+      if (Array.isArray(nested)) {
+        const found = searchLayout(nested, contentKey);
+        if (found) return found;
+      }
+    }
+  }
+  return undefined;
+}

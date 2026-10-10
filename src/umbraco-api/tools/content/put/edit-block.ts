@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { findSettingsKey, isRteWithBlocks } from "../../helpers/block-inspector.js";
+import { findSettingsKey, isRteWithBlocks } from "../../helpers/block-builder.js";
 import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 import { validateDocumentState, validationResultSchema } from "../../helpers/validate-document.js";
 
