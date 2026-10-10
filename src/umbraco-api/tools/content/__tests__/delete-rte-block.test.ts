@@ -12,6 +12,7 @@ import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
+  createSnapshotResult,
   createElicitation,
   extractChainedResult,
 } from "./setup.js";
@@ -50,8 +51,8 @@ describe("delete-block — Rich Text", () => {
   }, 60000);
 
   it("removes the umb-rte-block tag from markup and drops the contentData entry", async () => {
-    if (!fixture) return;
-    const f = fixture;
+    expect(fixture).not.toBeNull();
+    const f = fixture!;
 
     const result = await callTool(deleteBlockTool, {
       id: f.pageId,
@@ -62,6 +63,7 @@ describe("delete-block — Rich Text", () => {
     }, extra);
     expect(result.isError).toBeFalsy();
     expect((getStructuredContent(result) as any).contentKey).toBe(SEEDED_BLOCK_KEY);
+    expect(createSnapshotResult(result, f.pageId)).toMatchSnapshot();
 
     const propValue = await getPropValue(f.pageId, f.propertyAlias);
     expect(typeof propValue?.markup).toBe("string");

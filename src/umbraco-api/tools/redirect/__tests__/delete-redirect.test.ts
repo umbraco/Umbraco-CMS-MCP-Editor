@@ -3,6 +3,7 @@ import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
+  getResultText,
   createElicitation,
   expectElicitationCancel,
   NON_EXISTENT_UUID,
@@ -178,7 +179,12 @@ describe("delete-redirect", () => {
       {},
     );
     expect(result.isError).toBe(true);
-    expect(result.structuredContent).toMatchObject({
+    // beta.43 of @umbraco-cms/mcp-server-sdk stopped setting structuredContent
+    // on error results (intentional — see cms-chain.ts's
+    // extractInnerProblemDetails doc comment); the ProblemDetails is now only
+    // in content[0].text.
+    const problemDetails = JSON.parse(getResultText(result));
+    expect(problemDetails).toMatchObject({
       status: 404,
       title: expect.stringMatching(/redirect/i),
     });
