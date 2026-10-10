@@ -1,16 +1,14 @@
-import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import {
-  buildBlockEntry,
-  exposeEntry,
-  insertAtPosition,
+  buildBlockWriteResult,
   isBlockListOrGridValue,
-  resolveBlockEditorAliases,
+  toNewBlockProperties,
+  toPlacement,
 } from "../../helpers/block-builder.js";
-import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
-import { validateDocumentState, validationResultSchema } from "../../helpers/validate-document.js";
+import { previewUrlSchema } from "../../helpers/preview-url.js";
+import { validationResultSchema } from "../../helpers/validate-document.js";
 
 const positionSchema = z.object({
   mode: z.enum(["append", "prepend", "before", "after"]).describe("Where to place the new block within its scope (top-level row or named area)"),
@@ -47,14 +45,6 @@ const outputSchema = z.object({
   validation: validationResultSchema,
 });
 
-type GridLayoutItem = {
-  contentKey: string;
-  settingsKey?: string;
-  columnSpan?: number;
-  rowSpan?: number;
-  areas?: Array<{ key: string; items: GridLayoutItem[] }>;
-};
-
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "add-blockgrid-block",
   description: "Add a new block to a BlockGrid property on a page. Supports rowSpan/columnSpan and inserting into a named area on a parent block. Use inspect-blocks first to find the propertyAlias and a sample contentTypeKey. For non-string property values inside the block (media pickers, content pickers, image cropper, slider, color, date, etc.) call get-property-value-template with the editor alias first to see the expected JSON shape. For BlockList use add-blocklist-block; for blocks inside a Rich Text property use add-rte-block. Changes are saved as a draft, NOT published.",
@@ -82,124 +72,41 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const doc = docResult.data;
     const pageName = doc.variants?.[0]?.name ?? "Unknown";
 
-    // Look up the existing value for the property (may be absent when the property
-    // has never been populated — e.g. a newly-created page).  An absent value is
-    // NOT an error: we simply start with an empty BlockGrid container.
+    // The property may have no value yet (e.g. a newly-created page) — that's fine,
+    // create-document-block starts an empty container. Only a populated property can
+    // be checked for the wrong editor type here.
     const existingProp = (doc.values ?? []).find(
       (v) => v.alias === propertyAlias && (v.culture ?? null) === (culture ?? null) && (v.segment ?? null) === (segment ?? null),
     );
-    const propValue: any = existingProp?.value ?? {
-      layout: { "Umbraco.BlockGrid": [] },
-      contentData: [],
-      settingsData: [],
-      expose: [],
-    };
 
-    if (existingProp && (!isBlockListOrGridValue(propValue) || existingProp.editorAlias !== "Umbraco.BlockGrid")) {
+    if (existingProp?.value && (!isBlockListOrGridValue(existingProp.value) || existingProp.editorAlias !== "Umbraco.BlockGrid")) {
       return createToolResultError({ content: [{ type: "text", text: `Property '${propertyAlias}' on '${pageName}' is not a BlockGrid. Use inspect-blocks to confirm the editor type, or add-blocklist-block / add-rte-block as appropriate.` }], isError: true });
     }
 
-    const contentEditorAliases = await resolveBlockEditorAliases(contentTypeKey);
-    if (!contentEditorAliases.ok) return contentEditorAliases.errorResult;
-
-    let settingsEditorAliases: Map<string, string> | null = null;
-    if (settingsTypeKey) {
-      const settingsResult = await resolveBlockEditorAliases(settingsTypeKey);
-      if (!settingsResult.ok) return settingsResult.errorResult;
-      settingsEditorAliases = settingsResult.editorAliasByAlias;
-    }
-
-    const newContentKey = randomUUID();
-    const newSettingsKey = settingsTypeKey ? randomUUID() : undefined;
     const cultureValue = culture ?? null;
     const segmentValue = segment ?? null;
 
-    const newContentEntry = buildBlockEntry(newContentKey, contentTypeKey, values, contentEditorAliases.editorAliasByAlias, cultureValue, segmentValue);
-    const newSettingsEntry = settingsTypeKey && newSettingsKey && settingsValues
-      ? buildBlockEntry(newSettingsKey, settingsTypeKey, settingsValues, settingsEditorAliases ?? new Map(), cultureValue, segmentValue)
-      : null;
+    const blockProperties = await toNewBlockProperties(contentTypeKey, values, settingsTypeKey, settingsValues, cultureValue, segmentValue);
+    if (!blockProperties.ok) return blockProperties.errorResult;
 
-    const layoutKey = "Umbraco.BlockGrid";
-    const layoutEntry: GridLayoutItem = {
-      contentKey: newContentKey,
-      ...(newSettingsKey ? { settingsKey: newSettingsKey } : {}),
-      columnSpan: columnSpan ?? 12,
-      rowSpan: rowSpan ?? 1,
-      // Top-level grid blocks include an areas array that mirrors the element
-      // type's area configuration. We don't know the configured areas without
-      // a doc-type lookup, so default to an empty array — Umbraco will fill in
-      // the configured areas on first edit in the backoffice.
-      ...(areaKey ? {} : { areas: [] }),
-    };
-
-    const topLayout: GridLayoutItem[] = Array.isArray(propValue.layout?.[layoutKey]) ? propValue.layout[layoutKey] : [];
-    let nextTopLayout: GridLayoutItem[];
-
-    if (areaKey) {
-      const parentIndex = topLayout.findIndex(item => item.contentKey === parentContentKey);
-      if (parentIndex === -1) {
-        return createToolResultError({ content: [{ type: "text", text: `Parent block '${parentContentKey}' was not found in '${propertyAlias}'.` }], isError: true });
-      }
-      const parent = topLayout[parentIndex];
-      const areas = Array.isArray(parent.areas) ? parent.areas : [];
-      const areaIndex = areas.findIndex(area => area.key === areaKey);
-      if (areaIndex === -1) {
-        return createToolResultError({ content: [{ type: "text", text: `Area '${areaKey}' was not found on parent block '${parentContentKey}'.` }], isError: true });
-      }
-      const area = areas[areaIndex];
-      const insertResult = insertAtPosition(area.items ?? [], layoutEntry, resolvedPosition, item => item.contentKey === resolvedPosition.anchorContentKey);
-      if (!insertResult.ok) {
-        return createToolResultError({ content: [{ type: "text", text: `Anchor block '${resolvedPosition.anchorContentKey}' was not found in area '${areaKey}'.` }], isError: true });
-      }
-      const updatedArea = { ...area, items: insertResult.list };
-      const updatedAreas = areas.slice();
-      updatedAreas[areaIndex] = updatedArea;
-      const updatedParent = { ...parent, areas: updatedAreas };
-      nextTopLayout = topLayout.slice();
-      nextTopLayout[parentIndex] = updatedParent;
-    } else {
-      const insertResult = insertAtPosition(topLayout, layoutEntry, resolvedPosition, item => item.contentKey === resolvedPosition.anchorContentKey);
-      if (!insertResult.ok) {
-        return createToolResultError({ content: [{ type: "text", text: `Anchor block '${resolvedPosition.anchorContentKey}' was not found in '${propertyAlias}'.` }], isError: true });
-      }
-      nextTopLayout = insertResult.list;
-    }
-
-    const newValue = {
-      ...propValue,
-      layout: { ...(propValue.layout ?? {}), [layoutKey]: nextTopLayout },
-      contentData: [...(propValue.contentData ?? []), newContentEntry],
-      settingsData: newSettingsEntry
-        ? [...(propValue.settingsData ?? []), newSettingsEntry]
-        : (propValue.settingsData ?? []),
-      expose: [...(propValue.expose ?? []), exposeEntry(newContentKey, cultureValue, segmentValue)],
-    };
-
-    const updateResult = await chainCms("update-document-properties", {
-      id,
-      properties: [{
-        alias: propertyAlias,
-        value: newValue,
-        culture: cultureValue,
-        segment: segmentValue,
-      }],
+    const createResult = await chainCms("create-document-block", {
+      documentId: id,
+      propertyAlias,
+      culture: cultureValue,
+      segment: segmentValue,
+      contentTypeKey,
+      properties: blockProperties.properties,
+      settings: blockProperties.settings,
+      placement: toPlacement(resolvedPosition),
+      grid: {
+        columnSpan: columnSpan ?? 12,
+        rowSpan: rowSpan ?? 1,
+        ...(areaKey && parentContentKey ? { areaKey, parentContentKey } : {}),
+      },
     });
-    if (!updateResult.ok) return updateResult.errorResult;
+    if (!createResult.ok) return createResult.errorResult;
 
-    const validation = await validateDocumentState(id);
-    const baseMessage = `Added a new block to "${pageName}" (saved, not published)`;
-    const message = validation.valid
-      ? baseMessage
-      : `${baseMessage} — but ${validation.errors.length} validation error(s) must be resolved before this page can be published`;
-
-    return createToolResult({
-      message,
-      id,
-      name: pageName,
-      contentKey: newContentKey,
-      previewUrl: await fetchPreviewUrl(id),
-      validation,
-    });
+    return buildBlockWriteResult(id, pageName, createResult.data.results[0].contentKey, `Added a new block to "${pageName}" (saved, not published)`);
   },
 };
 

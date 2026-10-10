@@ -10,6 +10,7 @@ import { mcpClientManager } from "../../../mcp-client.js";
 import addBlocklistBlockTool from "../post/add-blocklist-block.js";
 import { createBlockListFixture, type BlockListFixture } from "./helpers/block-fixture.js";
 import { ContentBuilder } from "./helpers/content-builder.js";
+import { createBlockSnapshotResult } from "./helpers/block-snapshot.js";
 import { callTool } from "../../../../testing/call-tool-with-validation.js";
 import { initContentTestState } from "./setup.js";
 
@@ -25,34 +26,29 @@ describe("add-blocklist-block", () => {
 
   const extra = createMockRequestHandlerExtra();
   let fixture: BlockListFixture | null = null;
+  let settingsFixture: BlockListFixture | null = null;
   const adHocPages: string[] = [];
 
   beforeAll(async () => {
     fixture = await createBlockListFixture(extra, "_Test add-blocklist-block fixture");
+    settingsFixture = await createBlockListFixture(extra, "_Test add-blocklist-block settings fixture", { seedSettings: true });
   }, 120000);
 
   afterAll(async () => {
     if (fixture) await fixture.cleanup();
+    if (settingsFixture) await settingsFixture.cleanup();
     while (adHocPages.length > 0) {
       const id = adHocPages.pop()!;
       await ContentTestHelper.cleanupById(id);
     }
   }, 60000);
 
-  function skipIfNoFixture() {
-    if (!fixture) {
-      // No BlockList donor on this Umbraco instance — skip the test rather than fail.
-      // The demo site usually has one, but custom installs may not.
-      return true;
-    }
-    return false;
-  }
 
   it("appends a new block to an existing BlockList by default", async () => {
-    if (skipIfNoFixture()) return;
+    expect(fixture).not.toBeNull();
     const f = fixture!;
 
-    const result = await addBlocklistBlockTool.handler(
+    const result = await callTool(addBlocklistBlockTool, 
       {
         id: f.pageId,
         propertyAlias: f.propertyAlias,
@@ -71,6 +67,7 @@ describe("add-blocklist-block", () => {
     const data = getStructuredContent(result) as any;
     expect(data.contentKey).toMatch(/^[0-9a-f-]{36}$/i);
     expect(data.id).toBe(f.pageId);
+    expect(createBlockSnapshotResult(result, f.pageId)).toMatchSnapshot();
 
     const layout = await getBlockListLayout(f.pageId, f.propertyAlias);
     expect(layout.length).toBeGreaterThanOrEqual(2);
@@ -79,10 +76,10 @@ describe("add-blocklist-block", () => {
   }, 60000);
 
   it("prepends a new block when position.mode = 'prepend'", async () => {
-    if (skipIfNoFixture()) return;
+    expect(fixture).not.toBeNull();
     const f = fixture!;
 
-    const result = await addBlocklistBlockTool.handler(
+    const result = await callTool(addBlocklistBlockTool, 
       {
         id: f.pageId,
         propertyAlias: f.propertyAlias,
@@ -104,10 +101,10 @@ describe("add-blocklist-block", () => {
   }, 60000);
 
   it("inserts before/after an anchor block by contentKey", async () => {
-    if (skipIfNoFixture()) return;
+    expect(fixture).not.toBeNull();
     const f = fixture!;
 
-    const beforeResult = await addBlocklistBlockTool.handler(
+    const beforeResult = await callTool(addBlocklistBlockTool, 
       {
         id: f.pageId,
         propertyAlias: f.propertyAlias,
@@ -124,7 +121,7 @@ describe("add-blocklist-block", () => {
     expect(beforeResult.isError).toBeFalsy();
     const beforeData = getStructuredContent(beforeResult) as any;
 
-    const afterResult = await addBlocklistBlockTool.handler(
+    const afterResult = await callTool(addBlocklistBlockTool, 
       {
         id: f.pageId,
         propertyAlias: f.propertyAlias,
@@ -150,10 +147,10 @@ describe("add-blocklist-block", () => {
   }, 60000);
 
   it("rejects 'before' without anchorContentKey", async () => {
-    if (skipIfNoFixture()) return;
+    expect(fixture).not.toBeNull();
     const f = fixture!;
 
-    const result = await addBlocklistBlockTool.handler(
+    const result = await callTool(addBlocklistBlockTool, 
       {
         id: f.pageId,
         propertyAlias: f.propertyAlias,
@@ -172,10 +169,10 @@ describe("add-blocklist-block", () => {
   }, 30000);
 
   it("rejects when settingsValues is provided without settingsTypeKey", async () => {
-    if (skipIfNoFixture()) return;
+    expect(fixture).not.toBeNull();
     const f = fixture!;
 
-    const result = await addBlocklistBlockTool.handler(
+    const result = await callTool(addBlocklistBlockTool, 
       {
         id: f.pageId,
         propertyAlias: f.propertyAlias,
@@ -194,10 +191,10 @@ describe("add-blocklist-block", () => {
   }, 30000);
 
   it("rejects when targeted property is not a BlockList", async () => {
-    if (skipIfNoFixture()) return;
+    expect(fixture).not.toBeNull();
     const f = fixture!;
 
-    const result = await addBlocklistBlockTool.handler(
+    const result = await callTool(addBlocklistBlockTool, 
       {
         id: f.pageId,
         propertyAlias: "nonExistentPropertyAlias_zzz",
@@ -215,22 +212,19 @@ describe("add-blocklist-block", () => {
   }, 30000);
 
   it("creates a block with both content and settings when settingsTypeKey is provided", async () => {
-    if (skipIfNoFixture()) return;
-    const f = fixture!;
-    if (!f.settings) {
-      // Demo donor doesn't expose a settings element type — skip rather than fail.
-      return;
-    }
+    expect(settingsFixture?.settings).toBeTruthy();
+    const f = settingsFixture!;
+    const settings = f.settings!;
 
-    const result = await addBlocklistBlockTool.handler(
+    const result = await callTool(addBlocklistBlockTool,
       {
         id: f.pageId,
         propertyAlias: f.propertyAlias,
         contentTypeKey: f.elementTypeId,
         values: [{ alias: f.blockPropertyAlias, value: "_with-settings content" }],
         position: undefined,
-        settingsTypeKey: f.settings.settingsElementTypeId,
-        settingsValues: [{ alias: f.settings.settingsPropertyAlias, value: "_with-settings settings" }],
+        settingsTypeKey: settings.settingsElementTypeId,
+        settingsValues: [{ alias: settings.settingsPropertyAlias, value: "_with-settings settings" }],
         culture: undefined,
         segment: undefined,
       },
@@ -247,7 +241,7 @@ describe("add-blocklist-block", () => {
   }, 60000);
 
   it("adds first block to a BlockList property that has no value yet (regression: empty property)", async () => {
-    if (skipIfNoFixture()) return;
+    expect(fixture).not.toBeNull();
     const f = fixture!;
 
     // Resolve the parent to use when creating the page — the donor doctype may not

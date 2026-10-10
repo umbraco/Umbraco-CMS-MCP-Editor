@@ -11,6 +11,8 @@ import {
 } from "./setup.js";
 import { mcpClientManager } from "../../../mcp-client.js";
 import inspectBlocksTool from "../get/inspect-blocks.js";
+import { callTool } from "../../../../testing/call-tool-with-validation.js";
+import { createBlockListFixture, type BlockListFixture } from "./helpers/block-fixture.js";
 
 describe("inspect-blocks", () => {
   setupTestEnvironment();
@@ -18,6 +20,7 @@ describe("inspect-blocks", () => {
   const extra = createMockRequestHandlerExtra();
   let testPage: ContentBuilder | null = null;
   let testPageId: string;
+  let settingsFixture: BlockListFixture | null = null;
 
   beforeAll(async () => {
     const state = await initContentTestState(extra);
@@ -96,12 +99,15 @@ describe("inspect-blocks", () => {
       .withValue(propertyAlias, blockListValue)
       .create();
     testPageId = testPage.getId();
+
+    settingsFixture = await createBlockListFixture(extra, "_Test inspect-blocks settings fixture", { seedSettings: true });
   }, 120000);
 
   afterAll(async () => {
     if (testPage) {
       await ContentTestHelper.cleanupById(testPage.getId());
     }
+    if (settingsFixture) await settingsFixture.cleanup();
   }, 30000);
 
   it("should return block structure for a page", async () => {
@@ -112,4 +118,18 @@ describe("inspect-blocks", () => {
 
     expect(createSnapshotResult(result, testPageId)).toMatchSnapshot();
   }, 30000);
+
+  it("reports the paired settingsKey for a block with settings", async () => {
+    expect(settingsFixture?.seededSettingsKey).toBeTruthy();
+    const f = settingsFixture!;
+
+    const result = await callTool(inspectBlocksTool, { id: f.pageId, propertyAlias: f.propertyAlias }, extra);
+    expect(result.isError).toBeFalsy();
+
+    const data = getStructuredContent(result) as any;
+    const block = (data?.blockProperties ?? [])
+      .flatMap((bp: any) => bp.blocks ?? [])
+      .find((b: any) => b.contentKey === f.seededBlockKey);
+    expect(block?.settingsKey).toBe(f.seededSettingsKey);
+  }, 60000);
 });

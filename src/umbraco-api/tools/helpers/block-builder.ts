@@ -1,5 +1,7 @@
 import { chainCms } from "../../cms-chain.js";
-import { createToolResultError } from "@umbraco-cms/mcp-server-sdk";
+import { createToolResult, createToolResultError } from "@umbraco-cms/mcp-server-sdk";
+import { fetchPreviewUrl } from "./preview-url.js";
+import { validateDocumentState } from "./validate-document.js";
 
 export type BlockValue = { alias: string; value: unknown };
 
@@ -8,65 +10,91 @@ export type Position = {
   anchorContentKey?: string;
 };
 
-type EditorAliasResult =
-  | { ok: true; editorAliasByAlias: Map<string, string> }
+type BlockProperty ={ alias: string; value: unknown; culture: string | null; segment: string | null };
+
+type BlockPropertiesResult =
+  | { ok: true; properties: BlockProperty[] }
   | { ok: false; errorResult: ReturnType<typeof createToolResultError> };
 
-export async function resolveBlockEditorAliases(contentTypeKey: string): Promise<EditorAliasResult> {
-  const docTypeResult = await chainCms("get-document-type-by-id", { id: contentTypeKey });
-  if (!docTypeResult.ok) return { ok: false, errorResult: docTypeResult.errorResult };
-  const dataTypeIds = Array.from(new Set(docTypeResult.data.properties.map(p => p.dataType.id)));
-  if (dataTypeIds.length === 0) {
-    return { ok: true, editorAliasByAlias: new Map() };
-  }
-  const dataTypesResult = await chainCms("get-data-types-by-id-array", { id: dataTypeIds });
-  if (!dataTypesResult.ok) return { ok: false, errorResult: dataTypesResult.errorResult };
-  const editorAliasByDataTypeId = new Map(
-    dataTypesResult.data.items.map(dt => [dt.id, dt.editorAlias]),
-  );
-  const editorAliasByAlias = new Map<string, string>();
-  for (const prop of docTypeResult.data.properties) {
-    const editorAlias = editorAliasByDataTypeId.get(prop.dataType.id);
-    if (editorAlias) editorAliasByAlias.set(prop.alias, editorAlias);
-  }
-  return { ok: true, editorAliasByAlias };
-}
-
-export function buildBlockEntry(
-  contentKey: string,
-  contentTypeKey: string,
+/**
+ * Maps editor-supplied block values onto create-document-block's property shape.
+ * The document's culture/segment is only stamped on element properties that vary
+ * by it — create-document-block rejects a culture on an invariant property.
+ */
+async function toBlockProperties(
+  elementTypeKey: string,
   values: ReadonlyArray<BlockValue>,
-  editorAliasByAlias: Map<string, string>,
   culture: string | null,
   segment: string | null,
-): { key: string; contentTypeKey: string; values: Array<{ editorAlias: string; culture: string | null; segment: string | null; alias: string; value: unknown }> } {
+): Promise<BlockPropertiesResult> {
+  if (values.length === 0) return { ok: true, properties: [] };
+  const docTypeResult = await chainCms("get-document-type-by-id", { id: elementTypeKey });
+  if (!docTypeResult.ok) return { ok: false, errorResult: docTypeResult.errorResult };
+  const definitions = new Map(docTypeResult.data.properties.map(p => [p.alias, p]));
   return {
-    key: contentKey,
-    contentTypeKey,
-    values: values.map(v => ({
-      editorAlias: editorAliasByAlias.get(v.alias) ?? "",
-      culture,
-      segment,
-      alias: v.alias,
-      value: v.value,
-    })),
+    ok: true,
+    properties: values.map(v => {
+      const def = definitions.get(v.alias);
+      return {
+        alias: v.alias,
+        value: v.value,
+        culture: def?.variesByCulture ? culture : null,
+        segment: def?.variesBySegment ? segment : null,
+      };
+    }),
   };
 }
 
-export function insertAtPosition<T>(
-  list: ReadonlyArray<T>,
-  item: T,
-  position: Position,
-  matchAnchor: (entry: T) => boolean,
-): { ok: true; list: T[] } | { ok: false; reason: "anchor-not-found" } {
-  if (position.mode === "append") return { ok: true, list: [...list, item] };
-  if (position.mode === "prepend") return { ok: true, list: [item, ...list] };
-  const anchorIndex = list.findIndex(matchAnchor);
-  if (anchorIndex === -1) return { ok: false, reason: "anchor-not-found" };
-  const insertIndex = position.mode === "before" ? anchorIndex : anchorIndex + 1;
-  const next = [...list];
-  next.splice(insertIndex, 0, item);
-  return { ok: true, list: next };
+type NewBlockPropertiesResult =
+  | { ok: true; properties: BlockProperty[]; settings?: { properties: BlockProperty[] } }
+  | { ok: false; errorResult: ReturnType<typeof createToolResultError> };
+
+/**
+ * Builds create-document-block's `properties` and `settings` from the editor
+ * tools' values/settingsValues. The settings element type itself comes from the
+ * data type configuration on the CMS side; settingsTypeKey is only used to
+ * resolve which settings properties vary by culture/segment.
+ */
+export async function toNewBlockProperties(
+  contentTypeKey: string,
+  values: ReadonlyArray<BlockValue>,
+  settingsTypeKey: string | undefined,
+  settingsValues: ReadonlyArray<BlockValue> | undefined,
+  culture: string | null,
+  segment: string | null,
+): Promise<NewBlockPropertiesResult> {
+  const content = await toBlockProperties(contentTypeKey, values, culture, segment);
+  if (!content.ok) return content;
+  if (!settingsTypeKey || !settingsValues) return { ok: true, properties: content.properties };
+  const settings = await toBlockProperties(settingsTypeKey, settingsValues, culture, segment);
+  if (!settings.ok) return settings;
+  return { ok: true, properties: content.properties, settings: { properties: settings.properties } };
+}
+
+export function toPlacement(position: Position): { position: Position["mode"]; contentKey?: string } {
+  return position.mode === "before" || position.mode === "after"
+    ? { position: position.mode, contentKey: position.anchorContentKey }
+    : { position: position.mode };
+}
+
+/**
+ * Shared response for the block write tools once the chained CMS write has
+ * succeeded: re-validates the document and attaches the preview URL.
+ */
+export async function buildBlockWriteResult(id: string, pageName: string, contentKey: string, baseMessage: string) {
+  const validation = await validateDocumentState(id);
+  const message = validation.valid
+    ? baseMessage
+    : `${baseMessage} — but ${validation.errors.length} validation error(s) must be resolved before this page can be published`;
+
+  return createToolResult({
+    message,
+    id,
+    name: pageName,
+    contentKey,
+    previewUrl: await fetchPreviewUrl(id),
+    validation,
+  });
 }
 
 export function isBlockListOrGridValue(value: any): boolean {
@@ -90,33 +118,37 @@ export function isRteWithBlocks(value: any): boolean {
   );
 }
 
-export type ExposeEntry = { contentKey: string; culture: string | null; segment: string | null };
-
-export function exposeEntry(contentKey: string, culture: string | null, segment: string | null): ExposeEntry {
-  return { contentKey, culture, segment };
+/**
+ * A block's settings live in a separate `settingsData` entry under their own
+ * key, paired with the content only via the layout. Returns the settingsKey
+ * for `contentKey`, recursing through BlockGrid `areas[].items[]`.
+ */
+export function findSettingsKey(container: unknown, contentKey: string): string | undefined {
+  const layout = (container as { layout?: Record<string, unknown> } | null)?.layout;
+  if (!layout || typeof layout !== "object") return undefined;
+  return searchLayout(Object.values(layout), contentKey);
 }
 
-type BlockContainer = {
-  layout?: Record<string, Array<{ contentKey: string; settingsKey?: string }>>;
-  contentData?: Array<{ key: string }>;
-  settingsData?: Array<{ key: string }>;
-  expose?: Array<{ contentKey: string }>;
-};
-
-export function removeBlockFromContainer<T extends BlockContainer>(
-  container: T,
-  contentKey: string,
-  layoutKey: string,
-  newLayoutList: ReadonlyArray<{ contentKey: string; settingsKey?: string }>,
-  doomedSettingsKey: string | undefined,
-): T {
-  return {
-    ...container,
-    layout: { ...(container.layout ?? {}), [layoutKey]: [...newLayoutList] },
-    contentData: (container.contentData ?? []).filter((entry: { key: string }) => entry.key !== contentKey),
-    settingsData: doomedSettingsKey
-      ? (container.settingsData ?? []).filter((entry: { key: string }) => entry.key !== doomedSettingsKey)
-      : (container.settingsData ?? []),
-    expose: (container.expose ?? []).filter((entry: { contentKey: string }) => entry.contentKey !== contentKey),
-  };
+function searchLayout(entries: unknown[], contentKey: string): string | undefined {
+  for (const entry of entries) {
+    if (Array.isArray(entry)) {
+      const found = searchLayout(entry, contentKey);
+      if (found) return found;
+      continue;
+    }
+    if (!entry || typeof entry !== "object") continue;
+    const candidate = entry as { contentKey?: string; settingsKey?: unknown; areas?: unknown[]; items?: unknown[] };
+    if (candidate.contentKey === contentKey) {
+      return typeof candidate.settingsKey === "string" && candidate.settingsKey.length > 0
+        ? candidate.settingsKey
+        : undefined;
+    }
+    for (const nested of [candidate.areas, candidate.items]) {
+      if (Array.isArray(nested)) {
+        const found = searchLayout(nested, contentKey);
+        if (found) return found;
+      }
+    }
+  }
+  return undefined;
 }

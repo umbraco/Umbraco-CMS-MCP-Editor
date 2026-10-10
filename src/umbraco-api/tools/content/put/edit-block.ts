@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { findSettingsKey, isRteWithBlocks } from "../../helpers/block-builder.js";
 import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 import { validateDocumentState, validationResultSchema } from "../../helpers/validate-document.js";
 
@@ -41,6 +42,25 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const fieldNames = values.map((v) => v.alias);
     const resolvedBlockType = blockType ?? "content";
 
+    // A block's settings live in a separate `settingsData` entry under its own
+    // key, and update-block-property addresses blocks by that key — so for a
+    // settings edit, translate the caller's contentKey (what inspect-blocks
+    // reports) into the paired settingsKey.
+    let targetKey = contentKey;
+    if (resolvedBlockType === "settings") {
+      const rawValue = (docResult.data.values ?? []).find(
+        (v) => v.alias === propertyAlias && (v.culture ?? null) === (culture ?? null) && (v.segment ?? null) === (segment ?? null),
+      )?.value;
+      const container = isRteWithBlocks(rawValue) ? (rawValue as { blocks: unknown }).blocks : rawValue;
+      const settingsKey = findSettingsKey(container, contentKey);
+      if (!settingsKey) {
+        return createToolResultError(
+          `Block ${contentKey} in property "${propertyAlias}" has no settings entry, so its settings cannot be edited. Use inspect-blocks to check for a settingsKey, or omit blockType to edit the block's content.`,
+        );
+      }
+      targetKey = settingsKey;
+    }
+
     const propsTuple = values.map(v => ({ alias: v.alias, value: v.value })) as [
       { alias: string; value: any }, ...{ alias: string; value: any }[]
     ];
@@ -50,7 +70,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       culture: culture ?? null,
       segment: segment ?? null,
       updates: [{
-        contentKey,
+        contentKey: targetKey,
         blockType: resolvedBlockType,
         properties: propsTuple,
       }],

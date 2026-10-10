@@ -117,6 +117,9 @@ const PROVISIONED_BLOCKGRID_NAME = "_Audit blockgrid";
 const PROVISIONED_RTE_NAME = "_Audit rte with blocks";
 const PROVISIONED_DOCTYPE_ALIAS = "_auditBlockHost";
 const PROVISIONED_DOCTYPE_NAME = "_Audit block host";
+const PROVISIONED_BLOCKLIST_NAME = "_Audit blocklist with settings";
+const PROVISIONED_BLOCKLIST_DOCTYPE_ALIAS = "_auditBlockListHost";
+const PROVISIONED_BLOCKLIST_DOCTYPE_NAME = "_Audit blocklist host";
 
 interface ProvisionedDonor {
   donorDocTypeId: string;
@@ -126,17 +129,10 @@ interface ProvisionedDonor {
 }
 
 /**
- * Idempotently provision a doc type with a BlockGrid property and an RTE
- * (Tiptap with `Umb.Tiptap.Block`) property, both backed by a TextBox-bearing
- * element type. Returns the per-editor donor info — the same shape as
- * findDonor — and a cleanup callback for the doc type's data types and
- * element type. The caller is responsible for cleaning up created pages.
+ * Idempotently provision the shared audit element type (one TextBox "title"
+ * property) used by all provisioned block donors.
  */
-async function provisionBlockGridAndRteDonors(): Promise<{
-  blockGrid: ProvisionedDonor;
-  rte: ProvisionedDonor;
-  docTypeId: string;
-} | null> {
+async function provisionAuditElementType(): Promise<string | null> {
   // 1 — TextBox datatype
   const findTextbox = await mcpClientManager.callTool("cms", "find-data-type", { name: PROVISIONED_TEXTBOX_NAME });
   if (findTextbox.isError) return null;
@@ -169,9 +165,84 @@ async function provisionBlockGridAndRteDonors(): Promise<{
     elementTypeId = extractChainedResult(createdElement)?.id;
   } else {
     const allDocTypes = await mcpClientManager.callTool("cms", "get-all-document-types", {});
-    const items = (extractChainedResult(allDocTypes)?.items ?? []) as Array<{ id: string; alias: string }>;
-    elementTypeId = items.find(d => d.alias === PROVISIONED_ELEMENT_ALIAS)?.id;
+    const items = (extractChainedResult(allDocTypes)?.items ?? []) as Array<{ id: string; alias?: string; name?: string }>;
+    elementTypeId = items.find(d => d.alias === PROVISIONED_ELEMENT_ALIAS || d.name === PROVISIONED_ELEMENT_NAME)?.id;
   }
+  return elementTypeId ?? null;
+}
+
+async function findDocTypeId(alias: string, name: string): Promise<string | undefined> {
+  const allDocTypes = await mcpClientManager.callTool("cms", "get-all-document-types", {});
+  const docTypes = (extractChainedResult(allDocTypes)?.items ?? []) as Array<{ id: string; alias?: string; name?: string }>;
+  return docTypes.find(d => d.alias === alias || d.name === name)?.id;
+}
+
+/**
+ * Idempotently provision a doc type with a BlockList property whose block type
+ * has a settings element type configured. The Clean starter kit's BlockList
+ * content carries no settings, so settings coverage can't come from a donor page.
+ * The audit element type doubles as the settings element type (its TextBox
+ * "title" property is the settings value).
+ */
+async function provisionBlockListSettingsDonor(): Promise<Required<DonorInfo> | null> {
+  const elementTypeId = await provisionAuditElementType();
+  if (!elementTypeId) return null;
+
+  const findListDt = await mcpClientManager.callTool("cms", "find-data-type", { name: PROVISIONED_BLOCKLIST_NAME });
+  let blockListDtId = (extractChainedResult(findListDt)?.items ?? []).find((d: any) => d.name === PROVISIONED_BLOCKLIST_NAME)?.id;
+  if (!blockListDtId) {
+    const created = await mcpClientManager.callTool("cms", "create-data-type", {
+      name: PROVISIONED_BLOCKLIST_NAME,
+      editorAlias: "Umbraco.BlockList",
+      editorUiAlias: "Umb.PropertyEditorUi.BlockList",
+      values: [
+        { alias: "blocks", value: [{ contentElementTypeKey: elementTypeId, settingsElementTypeKey: elementTypeId }] },
+      ],
+    });
+    if (created.isError) return null;
+    blockListDtId = extractChainedResult(created)?.id;
+  }
+  if (!blockListDtId) return null;
+
+  let docTypeId = await findDocTypeId(PROVISIONED_BLOCKLIST_DOCTYPE_ALIAS, PROVISIONED_BLOCKLIST_DOCTYPE_NAME);
+  if (!docTypeId) {
+    const created = await mcpClientManager.callTool("cms", "create-document-type", {
+      name: PROVISIONED_BLOCKLIST_DOCTYPE_NAME,
+      alias: PROVISIONED_BLOCKLIST_DOCTYPE_ALIAS,
+      icon: "icon-document",
+      allowedAsRoot: true,
+      compositions: [],
+      allowedDocumentTypes: [],
+      properties: [
+        { name: "Blocks", alias: "blocks", dataTypeId: blockListDtId, group: "Content" },
+      ],
+    });
+    if (created.isError) return null;
+    docTypeId = extractChainedResult(created)?.id;
+  }
+  if (!docTypeId) return null;
+
+  return {
+    donorDocTypeId: docTypeId,
+    propertyAlias: "blocks",
+    elementTypeId,
+    blockPropertyAlias: "title",
+    settings: { settingsElementTypeId: elementTypeId, settingsPropertyAlias: "title" },
+  };
+}
+
+/**
+ * Idempotently provision a doc type with a BlockGrid property and an RTE
+ * (Tiptap with `Umb.Tiptap.Block`) property, both backed by the audit
+ * element type. Returns the per-editor donor info — the same shape as
+ * findDonor. The caller is responsible for cleaning up created pages.
+ */
+async function provisionBlockGridAndRteDonors(): Promise<{
+  blockGrid: ProvisionedDonor;
+  rte: ProvisionedDonor;
+  docTypeId: string;
+} | null> {
+  const elementTypeId = await provisionAuditElementType();
   if (!elementTypeId) return null;
 
   // 3 — BlockGrid datatype configured with the element type
@@ -218,9 +289,7 @@ async function provisionBlockGridAndRteDonors(): Promise<{
   if (!rteDtId) return null;
 
   // 5 — Doc type that exposes both as properties, allowed at root
-  const allDocTypes = await mcpClientManager.callTool("cms", "get-all-document-types", {});
-  const docTypes = (extractChainedResult(allDocTypes)?.items ?? []) as Array<{ id: string; alias: string }>;
-  let docTypeId = docTypes.find(d => d.alias === PROVISIONED_DOCTYPE_ALIAS)?.id;
+  let docTypeId = await findDocTypeId(PROVISIONED_DOCTYPE_ALIAS, PROVISIONED_DOCTYPE_NAME);
   if (!docTypeId) {
     const created = await mcpClientManager.callTool("cms", "create-document-type", {
       name: PROVISIONED_DOCTYPE_NAME,
@@ -257,16 +326,26 @@ async function provisionBlockGridAndRteDonors(): Promise<{
 }
 
 interface CreateBlockListFixtureOptions {
-  /** Seed the block with a settingsKey + settingsData entry. No-op if the donor exposes no settings element type. */
+  /**
+   * Seed the block with a settingsKey + settingsData entry. Uses a provisioned
+   * BlockList donor whose block type has a settings element type configured
+   * (the page is created at root), so `settings` is always set on the fixture.
+   */
   seedSettings?: boolean;
 }
 
 export async function createBlockListFixture(extra: any, name: string, options: CreateBlockListFixtureOptions = {}): Promise<BlockListFixture | null> {
-  const donor = await findDonor("Umbraco.BlockList", extra);
+  const seedSettings = options.seedSettings === true;
+  let donor: DonorInfo | null;
+  let parentId: string | undefined;
+  if (seedSettings) {
+    donor = await provisionBlockListSettingsDonor();
+  } else {
+    donor = await findDonor("Umbraco.BlockList", extra);
+    parentId = (await initContentTestState(extra)).testPageId;
+  }
   if (!donor) return null;
-  const state = await initContentTestState(extra);
 
-  const seedSettings = options.seedSettings === true && !!donor.settings;
   const layoutEntry: { contentKey: string; settingsKey?: string } = seedSettings
     ? { contentKey: SEEDED_BLOCK_KEY, settingsKey: SEEDED_SETTINGS_KEY }
     : { contentKey: SEEDED_BLOCK_KEY };
@@ -295,12 +374,12 @@ export async function createBlockListFixture(extra: any, name: string, options: 
     expose: [{ contentKey: SEEDED_BLOCK_KEY, culture: null, segment: null }],
   };
 
-  const page = await new ContentBuilder()
+  let builder = new ContentBuilder()
     .withName(name)
     .withDocumentType(donor.donorDocTypeId)
-    .withParent(state.testPageId)
-    .withValue(donor.propertyAlias, blockListValue)
-    .create();
+    .withValue(donor.propertyAlias, blockListValue);
+  if (parentId) builder = builder.withParent(parentId);
+  const page = await builder.create();
 
   return {
     ...donor,

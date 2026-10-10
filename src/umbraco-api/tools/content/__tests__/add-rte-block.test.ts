@@ -11,6 +11,7 @@ import addRteBlockTool from "../post/add-rte-block.js";
 import inspectBlocksTool from "../get/inspect-blocks.js";
 import { createRteFixture, type RteFixture } from "./helpers/block-fixture.js";
 import { ContentBuilder } from "./helpers/content-builder.js";
+import { createBlockSnapshotResult } from "./helpers/block-snapshot.js";
 import { callTool } from "../../../../testing/call-tool-with-validation.js";
 
 async function getRteValue(pageId: string, propertyAlias: string): Promise<{ markup?: string; blocks?: { layout?: any; contentData?: any[] } } | undefined> {
@@ -33,15 +34,12 @@ describe("add-rte-block", () => {
     if (fixture) await fixture.cleanup();
   }, 60000);
 
-  function skipIfNoFixture() {
-    return !fixture;
-  }
 
   it("appends a new block tag to the rich text markup and registers the block content", async () => {
-    if (skipIfNoFixture()) return;
+    expect(fixture).not.toBeNull();
     const f = fixture!;
 
-    const result = await addRteBlockTool.handler(
+    const result = await callTool(addRteBlockTool, 
       {
         id: f.pageId,
         propertyAlias: f.propertyAlias,
@@ -58,6 +56,7 @@ describe("add-rte-block", () => {
     expect(result.isError).toBeFalsy();
     const data = getStructuredContent(result) as any;
     expect(data.contentKey).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(createBlockSnapshotResult(result, f.pageId)).toMatchSnapshot();
 
     // Block content registered
     const inspect = await inspectBlocksTool.handler({ id: f.pageId, propertyAlias: f.propertyAlias }, extra);
@@ -71,10 +70,10 @@ describe("add-rte-block", () => {
   }, 60000);
 
   it("prepends a new block tag at the start of the markup", async () => {
-    if (skipIfNoFixture()) return;
+    expect(fixture).not.toBeNull();
     const f = fixture!;
 
-    const result = await addRteBlockTool.handler(
+    const result = await callTool(addRteBlockTool, 
       {
         id: f.pageId,
         propertyAlias: f.propertyAlias,
@@ -92,15 +91,14 @@ describe("add-rte-block", () => {
     const data = getStructuredContent(result) as any;
 
     const value = await getRteValue(f.pageId, f.propertyAlias);
-    // Prepended tag comes before any other content
-    expect(value!.markup!.indexOf(`data-content-key="${data.contentKey}"`)).toBe(0);
+    expect(value!.markup!.startsWith(`<umb-rte-block data-content-key="${data.contentKey}"`)).toBe(true);
   }, 60000);
 
   it("inserts before/after an anchor block by contentKey", async () => {
-    if (skipIfNoFixture()) return;
+    expect(fixture).not.toBeNull();
     const f = fixture!;
 
-    const beforeResult = await addRteBlockTool.handler(
+    const beforeResult = await callTool(addRteBlockTool, 
       {
         id: f.pageId,
         propertyAlias: f.propertyAlias,
@@ -117,7 +115,7 @@ describe("add-rte-block", () => {
     expect(beforeResult.isError).toBeFalsy();
     const beforeData = getStructuredContent(beforeResult) as any;
 
-    const afterResult = await addRteBlockTool.handler(
+    const afterResult = await callTool(addRteBlockTool, 
       {
         id: f.pageId,
         propertyAlias: f.propertyAlias,
@@ -145,10 +143,10 @@ describe("add-rte-block", () => {
   }, 60000);
 
   it("rejects 'after' against an unknown anchor", async () => {
-    if (skipIfNoFixture()) return;
+    expect(fixture).not.toBeNull();
     const f = fixture!;
 
-    const result = await addRteBlockTool.handler(
+    const result = await callTool(addRteBlockTool, 
       {
         id: f.pageId,
         propertyAlias: f.propertyAlias,
@@ -166,10 +164,10 @@ describe("add-rte-block", () => {
   }, 30000);
 
   it("rejects when targeted property is not a Rich Text with blocks", async () => {
-    if (skipIfNoFixture()) return;
+    expect(fixture).not.toBeNull();
     const f = fixture!;
 
-    const result = await addRteBlockTool.handler(
+    const result = await callTool(addRteBlockTool, 
       {
         id: f.pageId,
         propertyAlias: "nonExistentPropertyAlias_zzz",
@@ -187,7 +185,7 @@ describe("add-rte-block", () => {
   }, 30000);
 
   it("adds first block to an RTE property that has no value yet (regression: empty property)", async () => {
-    if (skipIfNoFixture()) return;
+    expect(fixture).not.toBeNull();
     const f = fixture!;
 
     // Create a fresh page using the same doctype but WITHOUT seeding any RTE value.
