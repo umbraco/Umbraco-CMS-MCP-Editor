@@ -10,6 +10,7 @@ import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
+  createSnapshotResult,
   createElicitation,
   expectElicitationCancel,
   extractChainedResult,
@@ -62,10 +63,10 @@ describe("delete-block — BlockList", () => {
   }, 60000);
 
   it("deletes the seeded block and leaves sibling blocks intact", async () => {
-    if (!fixture) return;
-    const f = fixture;
+    expect(fixture).not.toBeNull();
+    const f = fixture!;
 
-    const appendResult = await addBlocklistBlockTool.handler(
+    const appendResult = await callTool(addBlocklistBlockTool, 
       {
         id: f.pageId,
         propertyAlias: f.propertyAlias,
@@ -94,6 +95,7 @@ describe("delete-block — BlockList", () => {
     const data = getStructuredContent(result) as any;
     expect(data.contentKey).toBe(SEEDED_BLOCK_KEY);
     expect(data.id).toBe(f.pageId);
+    expect(createSnapshotResult(result, f.pageId)).toMatchSnapshot();
 
     const propValue = await getPropValue(f.pageId, f.propertyAlias);
     const contentData: any[] = propValue?.contentData ?? [];
@@ -109,8 +111,8 @@ describe("delete-block — BlockList", () => {
   }, 60000);
 
   it("deleting a block with settings also drops its settingsData entry", async () => {
-    if (!settingsFixture || !settingsFixture.seededSettingsKey) return;
-    const f = settingsFixture;
+    expect(settingsFixture?.seededSettingsKey).toBeTruthy();
+    const f = settingsFixture!;
 
     const result = await callTool(deleteBlockTool, {
       id: f.pageId,
@@ -127,8 +129,8 @@ describe("delete-block — BlockList", () => {
   }, 60000);
 
   it("errors cleanly when contentKey does not exist — no confirm prompt shown", async () => {
-    if (!fixture) return;
-    const f = fixture;
+    expect(fixture).not.toBeNull();
+    const f = fixture!;
 
     const UNKNOWN_KEY = "deadbeef-dead-4ead-8ead-deadbeefcafe";
     const result = await callTool(deleteBlockTool, {
@@ -143,8 +145,8 @@ describe("delete-block — BlockList", () => {
   }, 30000);
 
   it("errors when the property does not exist on the page — no confirm prompt shown", async () => {
-    if (!fixture) return;
-    const f = fixture;
+    expect(fixture).not.toBeNull();
+    const f = fixture!;
 
     const result = await callTool(deleteBlockTool, {
       id: f.pageId,
@@ -159,12 +161,12 @@ describe("delete-block — BlockList", () => {
   }, 30000);
 
   it("leaves the page unchanged when the user declines confirmation", async () => {
-    if (!fixture) return;
-    const f = fixture;
+    expect(fixture).not.toBeNull();
+    const f = fixture!;
 
     const propBefore = await getPropValue(f.pageId, f.propertyAlias);
     const layoutBefore: any[] = propBefore?.layout?.["Umbraco.BlockList"] ?? [];
-    if (layoutBefore.length === 0) return;
+    expect(layoutBefore.length).toBeGreaterThan(0);
     const targetKey: string = layoutBefore[0].contentKey;
 
     elicitation.rejectAll();
@@ -185,8 +187,8 @@ describe("delete-block — BlockList", () => {
   }, 60000);
 
   it("deletes the only block on a page that started empty (lifecycle regression)", async () => {
-    if (!fixture) return; // Re-use fixture to get donor info
-    const f = fixture;
+    expect(fixture).not.toBeNull(); // Re-use fixture to get donor info
+    const f = fixture!;
 
     // Create a fresh page with NO block values
     const state = await initContentTestState(extra);
