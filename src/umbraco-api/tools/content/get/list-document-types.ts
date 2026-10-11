@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { hasSettingsAccess } from "../../helpers/settings-access.js";
 
 
 const inputSchema = {
@@ -36,16 +37,24 @@ interface DocTypeDetails {
   icon?: string | null;
 }
 
+type TreeWalkResult =
+  | { ok: true; nodes: DocTypeNode[] }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  | { ok: false; errorResult: any };
+
 /**
  * Walk the doc-type tree, descending into folders, and return only actual document types.
  * The doc-type tree's root level is folder containers ("Compositions" / "Elements" /
  * "Pages") — listing root alone yields no usable types, so we recurse.
+ *
+ * A chained failure partway through (e.g. `Forbidden`) must not be swallowed —
+ * it's surfaced as an error rather than silently truncating the list.
  */
-async function collectDocumentTypeIds(): Promise<DocTypeNode[]> {
+async function collectDocumentTypeIds(): Promise<TreeWalkResult> {
   const collected: DocTypeNode[] = [];
   const PAGE_SIZE = 100;
 
-  async function walk(parentId: string | undefined): Promise<void> {
+  async function walk(parentId: string | undefined): Promise<TreeWalkResult | undefined> {
     let cursor: string | undefined = encodeCursor({ s: 0, t: PAGE_SIZE });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let result: any;
@@ -53,11 +62,14 @@ async function collectDocumentTypeIds(): Promise<DocTypeNode[]> {
       result = parentId
         ? await chainCms("get-document-type-children", { parentId, cursor })
         : await chainCms("get-document-type-root", { cursor });
-      if (!result.ok) return;
+      if (!result.ok) return { ok: false, errorResult: result.errorResult };
       const items: DocTypeNode[] = (result.data.items as DocTypeNode[] | undefined) ?? [];
       for (const item of items) {
         if (item.isFolder) {
-          if (item.hasChildren) await walk(item.id);
+          if (item.hasChildren) {
+            const childResult = await walk(item.id);
+            if (childResult && !childResult.ok) return childResult;
+          }
         } else {
           collected.push(item);
         }
@@ -66,34 +78,51 @@ async function collectDocumentTypeIds(): Promise<DocTypeNode[]> {
       if (!nextCursor) break;
       cursor = nextCursor;
     }
+    return undefined;
   }
 
-  await walk(undefined);
-  return collected;
+  const failure = await walk(undefined);
+  if (failure && !failure.ok) return failure;
+  return { ok: true, nodes: collected };
 }
+
+type ResolveDetailsResult =
+  | { ok: true; details: DocTypeDetails[] }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  | { ok: false; errorResult: any };
 
 /**
  * Resolve the actual aliases by fetching each doc type by id. The tree-walk
  * response carries flags but in practice they don't contain the doc-type alias,
  * so we call get-document-type-by-id per item (in parallel) to get the
  * top-level alias field that's documented on the per-id endpoint.
+ *
+ * A chained failure for any one item must not silently drop it from the
+ * results — it's surfaced as an error for the whole call.
  */
-async function resolveDocTypeDetails(nodes: DocTypeNode[]): Promise<DocTypeDetails[]> {
+async function resolveDocTypeDetails(nodes: DocTypeNode[]): Promise<ResolveDetailsResult> {
   const results = await Promise.all(
-    nodes.map(async (node): Promise<DocTypeDetails | null> => {
+    nodes.map(async (node): Promise<ResolveDetailsResult & { node: DocTypeNode }> => {
       const detailResult = await chainCms("get-document-type-by-id", { id: node.id });
-      if (!detailResult.ok) return null;
+      if (!detailResult.ok) return { ok: false, errorResult: detailResult.errorResult, node };
       const d = detailResult.data;
       return {
-        id: node.id,
-        alias: d.alias ?? "",
-        name: d.name ?? node.name,
-        description: d.description ?? undefined,
-        icon: d.icon ?? node.icon,
+        ok: true,
+        details: [{
+          id: node.id,
+          alias: d.alias ?? "",
+          name: d.name ?? node.name,
+          description: d.description ?? undefined,
+          icon: d.icon ?? node.icon,
+        }],
+        node,
       };
     }),
   );
-  return results.filter((r): r is DocTypeDetails => r !== null);
+  const failed = results.find((r) => !r.ok);
+  if (failed && !failed.ok) return { ok: false, errorResult: failed.errorResult };
+  const details = results.flatMap((r) => (r.ok ? r.details : []));
+  return { ok: true, details };
 }
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
@@ -104,9 +133,26 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   slices: ["list"],
   annotations: { readOnlyHint: true },
   handler: async ({ take, skip }) => {
-    const nodes = await collectDocumentTypeIds();
+    // Settings gate — see settings-access.ts. The document-type tree only
+    // works against Settings-section endpoints; an editor without Settings
+    // access gets a raw Forbidden (or, in the tree walk, a silently
+    // empty/truncated list). Refuse up front with a clear 403 instead.
+    if (!(await hasSettingsAccess())) {
+      return createToolResultError({
+        status: 403,
+        title: "Settings access required",
+        detail: "Listing document types requires the API user's Umbraco user to have access to the Settings section. Grant Settings-section access to the API user's user group in the Umbraco backoffice (Settings → Users → [group] → Sections), then retry.",
+      });
+    }
+
+    const treeResult = await collectDocumentTypeIds();
+    if (!treeResult.ok) return treeResult.errorResult;
+    const { nodes } = treeResult;
+
     const sliced = nodes.slice(skip, skip + take);
-    const details = await resolveDocTypeDetails(sliced);
+    const detailsResult = await resolveDocTypeDetails(sliced);
+    if (!detailsResult.ok) return detailsResult.errorResult;
+    const { details } = detailsResult;
 
     return createToolResult({
       items: details.map((d) => ({
