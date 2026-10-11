@@ -21,10 +21,12 @@ import {
 } from "./setup.js";
 import { callTool } from "../../../../testing/call-tool-with-validation.js";
 import { expectPublished } from "../../../../testing/state-assertions.js";
+import { getOrCreateCompositionDoctypeFixture } from "./helpers/composition-doctype-fixture.js";
 import createAndPublishPageTool from "../post/create-and-publish-page.js";
 
 const TEST_PAGE_NAME = "_Test Create And Publish Page";
 const TEST_VALUES = [{ alias: "title", value: "Created And Published Title" }];
+const TEST_COMPOSITION_PAGE_NAME = "_Test Create And Publish Page Composition Value";
 
 describe("create-and-publish-page", () => {
   setupTestEnvironment();
@@ -82,5 +84,52 @@ describe("create-and-publish-page", () => {
     );
 
     expect(result.isError).toBeTruthy();
+  }, 30000);
+
+  it("resolves editorAlias for a value on a composition-inherited property", async () => {
+    const fixture = await getOrCreateCompositionDoctypeFixture();
+
+    const result = await callTool(
+      createAndPublishPageTool,
+      {
+        name: TEST_COMPOSITION_PAGE_NAME,
+        documentTypeId: fixture.hostDocumentTypeId,
+        parentId: undefined,
+        values: [
+          { alias: fixture.hostPropertyAlias, value: "Host value" },
+          { alias: fixture.compositionPropertyAlias, value: "Composition-inherited value" },
+        ],
+      },
+      extra,
+    );
+
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    lastCreatedId = data.id;
+
+    await expectPublished(data.id, extra);
+  }, 30000);
+
+  it("fails before calling Umbraco when a value's alias isn't a property on the document type", async () => {
+    const fixture = await getOrCreateCompositionDoctypeFixture();
+
+    const result = await callTool(
+      createAndPublishPageTool,
+      {
+        name: TEST_COMPOSITION_PAGE_NAME,
+        documentTypeId: fixture.hostDocumentTypeId,
+        parentId: undefined,
+        values: [{ alias: "notARealPropertyAlias", value: "whatever" }],
+      },
+      extra,
+    );
+
+    expect(result.isError).toBeTruthy();
+    const text = JSON.stringify(result);
+    expect(text).toContain("notARealPropertyAlias");
+
+    // No partial page should have been created or published.
+    const found = await ContentTestHelper.findDocument(TEST_COMPOSITION_PAGE_NAME);
+    expect(found).toBeUndefined();
   }, 30000);
 });

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { fetchPublishedUrls, publishedUrlsSchema } from "../../helpers/preview-url.js";
+import { resolveValueEditorAliases } from "../helpers/resolve-value-editor-aliases.js";
 
 const inputSchema = {
   name: z.string().describe("The name of the page to create"),
@@ -32,33 +33,16 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   handler: async ({ name, documentTypeId, parentId, values }) => {
     // CreateAndPublishDocumentInput requires editorAlias on each value, same as
     // create-document. The LLM only supplies the property alias, so resolve
-    // editorAlias by looking up the document type's properties -> data types.
-    const editorAliasByPropertyAlias = new Map<string, string>();
-    if (values && values.length > 0) {
-      const docTypeResult = await chainCms("get-document-type-by-id", { id: documentTypeId });
-      if (!docTypeResult.ok) return docTypeResult.errorResult;
-      const dataTypeIds = Array.from(new Set(docTypeResult.data.properties.map(p => p.dataType.id)));
-      const dataTypesResult = await chainCms("get-data-types-by-id-array", { id: dataTypeIds });
-      if (!dataTypesResult.ok) return dataTypesResult.errorResult;
-      const editorAliasByDataTypeId = new Map(
-        dataTypesResult.data.items.map(dt => [dt.id, dt.editorAlias]),
-      );
-      for (const prop of docTypeResult.data.properties) {
-        const editorAlias = editorAliasByDataTypeId.get(prop.dataType.id);
-        if (editorAlias) editorAliasByPropertyAlias.set(prop.alias, editorAlias);
-      }
-    }
+    // editorAlias by looking up the document type's own + composition-inherited
+    // properties -> data types. A value whose alias doesn't resolve to any
+    // property (own or inherited) fails here, before Umbraco is called.
+    const resolvedValuesResult = await resolveValueEditorAliases(documentTypeId, values);
+    if (!resolvedValuesResult.ok) return resolvedValuesResult.errorResult;
 
     const createResult = await chainCms("create-and-publish-document", {
       documentTypeId,
       name,
-      values: (values ?? []).map(v => ({
-        alias: v.alias,
-        value: v.value,
-        culture: v.culture ?? null,
-        segment: v.segment ?? null,
-        editorAlias: editorAliasByPropertyAlias.get(v.alias) ?? "",
-      })),
+      values: resolvedValuesResult.values,
       ...(parentId ? { parentId } : {}),
     });
     if (!createResult.ok) return createResult.errorResult;
