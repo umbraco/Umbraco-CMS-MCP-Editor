@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { collectBlockProperties, enrichBlockNotFoundError, findSettingsKey, isRteWithBlocks } from "../../helpers/block-inspector.js";
+import { classifyBlockUpdateResults, enrichBlockNotFoundError, findSettingsKey, isRteWithBlocks } from "../../helpers/block-inspector.js";
 import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 import { validateDocumentState, validationResultSchema } from "../../helpers/validate-document.js";
 
@@ -26,6 +26,7 @@ const outputSchema = z.object({
   updatedFields: z.array(z.string()),
   previewUrl: previewUrlSchema,
   validation: validationResultSchema,
+  warnings: z.array(z.string()).optional(),
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
@@ -76,37 +77,45 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       }],
     });
     if (!updateResult.ok) {
-      return enrichBlockNotFoundError(
-        updateResult.errorResult,
-        collectBlockProperties(docResult.data.values ?? [], propertyAlias),
-      );
+      return enrichBlockNotFoundError(updateResult.errorResult, docResult.data.values ?? [], {
+        propertyAlias,
+        note: "A block's settingsKey (reported by inspect-blocks) is not a valid contentKey — pass the block's contentKey together with blockType: \"settings\" to edit its settings instead.",
+      });
     }
 
     // `update-block-property`'s top-level `success` is always true once the
-    // call itself completes — per-block outcomes live only in `results[]`
-    // (e.g. a property alias not on the block's element type produces a
-    // `results` entry with its own `success: false`). Check that instead of
-    // the top-level flag, or a failed write is reported as saved — see
-    // edit-element-block.ts for the same pattern. Don't trust the chained
-    // tool's declared shape: a missing/empty `results` array is treated as a
-    // failure too, and any entry whose `success` isn't literally `true`
-    // counts as failed (not just an explicit `false`).
+    // call itself completes, and even a per-block result's own `success` flag
+    // can't be trusted alone: upstream sets it to
+    // `totalProcessed > 0 || errors.length === 0`, so a block with one valid
+    // alias and one invalid one still reads `success: true` with `errors`
+    // populated, and a block where nothing was written and no error was
+    // recorded either (e.g. an alias that only produced a `warnings` entry)
+    // reads `success: true, errors: []`. Comparing how many properties were
+    // actually written (`updatedCount`/`addedCount`) against how many were
+    // requested is the only check that catches both — see
+    // `classifyBlockUpdateResults`'s own doc comment for the full case list.
+    // `edit-element-block.ts` still uses the simpler `success === false`
+    // check; if it's ever seen to hit the same gap, the fix is to switch it
+    // to this helper too.
     const results = updateResult.data.results;
     if (!results || results.length === 0) {
       return createToolResultError(
         "update-block-property returned no per-block result — cannot confirm the write succeeded.",
       );
     }
-    const failed = results.filter((r) => r.success !== true);
-    if (failed.length > 0) {
-      const detail = failed
-        .flatMap((r) => (r.errors?.length ? r.errors : [r.message]))
-        .join("; ");
+    const classification = classifyBlockUpdateResults(results, fieldNames.length);
+    if (classification.outcome === "failed") {
       return createToolResultError(
-        `Block update failed: ${detail || updateResult.data.message || "no detail returned"}`,
+        `Block update failed: ${classification.detail || updateResult.data.message || "no detail returned"}`,
+      );
+    }
+    if (classification.outcome === "partial") {
+      return createToolResultError(
+        `Block update partially failed: ${classification.processedCount} of ${fieldNames.length} field(s) saved — ${classification.detail}`,
       );
     }
 
+    const warnings = classification.warnings;
     const validation = await validateDocumentState(id);
     const target = resolvedBlockType === "settings" ? "settings" : "content";
     const baseMessage = `Updated ${fieldNames.length} field(s) in block ${target} on "${pageName}" (saved, not published)`;
@@ -122,6 +131,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       updatedFields: fieldNames,
       previewUrl: await fetchPreviewUrl(id),
       validation,
+      ...(warnings.length ? { warnings } : {}),
     });
   },
 };

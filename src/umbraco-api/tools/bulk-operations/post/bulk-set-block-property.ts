@@ -8,9 +8,9 @@ import {
   type BulkItemDetail,
 } from "../../helpers/bulk-handler.js";
 import {
-  collectBlockProperties,
+  classifyBlockUpdateResults,
   enrichBlockNotFoundError,
-  type InspectedBlockContainer,
+  type WalkableValue,
 } from "../../helpers/block-inspector.js";
 import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 import { validateDocumentState, validationResultSchema, type ValidationResult } from "../../helpers/validate-document.js";
@@ -38,6 +38,7 @@ const outputSchema = z.object({
     error: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
     previewUrl: previewUrlSchema.optional(),
     validation: validationResultSchema.optional(),
+    warnings: z.array(z.string()).optional(),
   })),
   successCount: z.number(),
   failureCount: z.number(),
@@ -108,7 +109,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     const items: BulkItemDetail[] = [];
     const pageBlocks = new Map<string, BlockMatch[]>();
-    const blockContainersByItem = new Map<string, InspectedBlockContainer[]>();
+    const docValuesByItem = new Map<string, WalkableValue[]>();
 
     for (const id of ids) {
       const docResult = await chainCms("get-document-by-id", { id });
@@ -128,7 +129,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       // chained tool (stale contentKey from a change between this fetch and the
       // update below) can list contentTypeKey for each available block without
       // a second lookup.
-      blockContainersByItem.set(id, collectBlockProperties(doc.values ?? [], propertyAlias));
+      docValuesByItem.set(id, doc.values ?? []);
     }
 
     if (items.length === 0) {
@@ -172,6 +173,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       error?: unknown;
       previewUrl?: { url: string; requiresBackofficeAuth: true } | null;
       validation?: ValidationResult;
+      warnings?: string[];
     }> = [];
     let stopped = false;
     let totalBlocksUpdated = 0;
@@ -223,7 +225,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       if (!updateResult.ok) {
         const enriched = enrichBlockNotFoundError(
           updateResult.errorResult,
-          blockContainersByItem.get(item.id) ?? [],
+          docValuesByItem.get(item.id) ?? [],
+          { propertyAlias },
         );
         results.push({
           id: item.id,
@@ -236,14 +239,19 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         stopped = true;
       } else {
         // `update-block-property`'s top-level `success` is always true once the
-        // call itself completes — per-block outcomes live only in `results[]`
-        // (e.g. an alias that doesn't exist on this block's element type).
-        // Check that instead of `updateResult.ok` alone, or a failed write is
-        // reported as `blocksUpdated: blocks.length` — see edit-element-block.ts
-        // for the same pattern. Don't trust the chained tool's declared shape:
-        // a missing/empty `results` array is treated as a failure too, and any
-        // entry whose `success` isn't literally `true` counts as failed (not
-        // just an explicit `false`).
+        // call itself completes, and even a per-block result's own `success`
+        // flag can't be trusted alone: upstream sets it to
+        // `totalProcessed > 0 || errors.length === 0`, so a block with one
+        // valid alias and one invalid one still reads `success: true` with
+        // `errors` populated, and a block where nothing was written and no
+        // error was recorded either reads `success: true, errors: []`.
+        // Comparing how many properties were actually written across every
+        // matched block against how many were requested (`blocks.length *
+        // values.length`) is the only check that catches both — see
+        // `classifyBlockUpdateResults`'s own doc comment for the full case
+        // list. `edit-element-block.ts` still uses the simpler
+        // `success === false` check; if it's ever seen to hit the same gap,
+        // the fix is to switch it to this helper too.
         const blockResults = updateResult.data.results;
         if (!blockResults || blockResults.length === 0) {
           results.push({
@@ -256,21 +264,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
           });
           stopped = true;
         } else {
-          const failed = blockResults.filter((r) => r.success !== true);
-          if (failed.length > 0) {
-            const detail = failed
-              .flatMap((r) => (r.errors?.length ? r.errors : [r.message]))
-              .join("; ");
-            results.push({
-              id: item.id,
-              name: item.name,
-              success: false,
-              blocksUpdated: 0,
-              previousVersionId: item.currentVersionId || undefined,
-              error: `Block update failed: ${detail || updateResult.data.message || "no detail returned"}`,
-            });
-            stopped = true;
-          } else {
+          const classification = classifyBlockUpdateResults(blockResults, blocks.length * values.length);
+          if (classification.outcome === "clean") {
             totalBlocksUpdated += blocks.length;
             results.push({
               id: item.id,
@@ -278,7 +273,24 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
               success: true,
               blocksUpdated: blocks.length,
               previousVersionId: item.currentVersionId || undefined,
+              ...(classification.warnings.length ? { warnings: classification.warnings } : {}),
             });
+          } else {
+            // Blocks that wrote at least one property did save something, even
+            // though this page's overall row is marked failed — count them.
+            totalBlocksUpdated += classification.updatedEntryCount;
+            results.push({
+              id: item.id,
+              name: item.name,
+              success: false,
+              blocksUpdated: classification.updatedEntryCount,
+              previousVersionId: item.currentVersionId || undefined,
+              error: classification.outcome === "failed"
+                ? `Block update failed: ${classification.detail}`
+                : `Block update partially failed: ${classification.processedCount} of ${blocks.length * values.length} propert${blocks.length * values.length === 1 ? "y" : "ies"} saved, across ${classification.updatedEntryCount} of ${blockResults.length} block(s) — ${classification.detail}`,
+              ...(classification.warnings.length ? { warnings: classification.warnings } : {}),
+            });
+            stopped = true;
           }
         }
       }

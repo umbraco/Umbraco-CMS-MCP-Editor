@@ -204,4 +204,40 @@ describe("edit-block", () => {
     const text = result.content[0].text as string;
     expect(text).toContain("Block update failed");
   }, 60000);
+
+  it("reports a partial failure — and still saves the valid alias — when only one of several aliases is invalid", async () => {
+    // Upstream `update-block-property` reports `success: true` on this result
+    // whenever at least one property saved, even if another alias in the same
+    // call failed — so a plain `success !== true` check misses this case and
+    // reports a full success while silently dropping the invalid alias's value.
+    expect(settingsFixture).not.toBeNull();
+    const f = settingsFixture!;
+    const validValue = "_partial write valid value";
+
+    const result = await callTool(editBlockTool, {
+      id: f.pageId,
+      propertyAlias: f.propertyAlias,
+      contentKey: f.seededBlockKey,
+      values: [
+        { alias: f.blockPropertyAlias, value: validValue },
+        { alias: "_notARealPropertyAliasOnThisElementType", value: "_should not apply" },
+      ],
+      blockType: undefined,
+      culture: undefined,
+      segment: undefined,
+    }, extra);
+
+    expect(result.isError).toBe(true);
+    const text = result.content[0].text as string;
+    expect(text).toContain("partially failed");
+    expect(text).toContain("1 of 2 field(s) saved");
+
+    // The valid alias's value was still persisted, despite the overall error.
+    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: f.pageId });
+    const doc = extractChainedResult(docResult);
+    const propValue = (doc.values ?? []).find((v: any) => v.alias === f.propertyAlias)?.value;
+    const block = (propValue?.contentData ?? []).find((b: any) => b.key === f.seededBlockKey);
+    const updatedProp = (block?.values ?? []).find((p: any) => p.alias === f.blockPropertyAlias);
+    expect(updatedProp?.value).toBe(validValue);
+  }, 60000);
 });
