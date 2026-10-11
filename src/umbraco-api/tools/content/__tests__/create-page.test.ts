@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterEach } from "@jest/globals";
+import { describe, it, expect, beforeAll, afterEach, afterAll } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
@@ -9,6 +9,7 @@ import {
 } from "./setup.js";
 import createPageTool from "../post/create-page.js";
 import getPageTool from "../get/get-page.js";
+import { CompositionDoctypeFixture } from "./helpers/composition-doctype-fixture.js";
 
 const TEST_PAGE_NAME = "_Test Create Page";
 
@@ -52,4 +53,55 @@ describe("create-page", () => {
 
     expect(createSnapshotResult(verifyResult, data.id)).toMatchSnapshot();
   }, 30000);
+
+  describe("composition-inherited properties (#201)", () => {
+    const fixture = new CompositionDoctypeFixture();
+    let hostDocTypeId: string;
+    let propertyAlias: string;
+
+    beforeAll(async () => {
+      const result = await fixture.create();
+      hostDocTypeId = result.hostDocTypeId;
+      propertyAlias = result.propertyAlias;
+    }, 30000);
+
+    afterAll(async () => {
+      await fixture.cleanup();
+    }, 30000);
+
+    it("resolves editorAlias for a value on a composition-inherited property and creates the page", async () => {
+      const result = await createPageTool.handler(
+        {
+          name: "_Test Create Page Composition",
+          documentTypeId: hostDocTypeId,
+          parentId: undefined,
+          values: [{ alias: propertyAlias, value: "Composed SEO Title" }],
+        },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      lastCreatedId = data.id;
+      expect(typeof data.id).toBe("string");
+    }, 30000);
+
+    it("fails before calling Umbraco for an alias that is not a property on the document type at all", async () => {
+      const result = await createPageTool.handler(
+        {
+          name: "_Test Create Page Bogus Alias",
+          documentTypeId: hostDocTypeId,
+          parentId: undefined,
+          values: [{ alias: "thisAliasDoesNotExistAnywhere", value: "irrelevant" }],
+        },
+        extra,
+      );
+
+      expect(result.isError).toBeTruthy();
+
+      // No page should have been created — searching for it should find nothing.
+      const found = await ContentTestHelper.findDocument("_Test Create Page Bogus Alias");
+      expect(found).toBeUndefined();
+    }, 30000);
+  });
 });
