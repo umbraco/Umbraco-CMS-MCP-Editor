@@ -9,7 +9,7 @@
  * - Valid credentials in .env file
  */
 
-import { describe, it, expect, beforeAll, afterEach } from "@jest/globals";
+import { describe, it, expect, jest, beforeAll, afterEach } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
@@ -21,9 +21,11 @@ import {
 } from "./setup.js";
 import { callTool } from "../../../../testing/call-tool-with-validation.js";
 import { expectPublished } from "../../../../testing/state-assertions.js";
+import { mcpClientManager } from "../../../mcp-client.js";
 import createAndPublishPageTool from "../post/create-and-publish-page.js";
 
 const TEST_PAGE_NAME = "_Test Create And Publish Page";
+const TEST_PAGE_NAME_FALLBACK = "_Test Create And Publish Page Fallback";
 const TEST_VALUES = [{ alias: "title", value: "Created And Published Title" }];
 
 describe("create-and-publish-page", () => {
@@ -82,5 +84,43 @@ describe("create-and-publish-page", () => {
     );
 
     expect(result.isError).toBeTruthy();
+  }, 30000);
+
+  it("falls back to create-document + publish-document when create-and-publish-document isn't available", async () => {
+    // Only listTools is mocked — create-document and publish-document still
+    // run for real against the running Umbraco, exercising the actual
+    // fallback sequence end to end.
+    const listToolsSpy = jest.spyOn(mcpClientManager, "listTools");
+    listToolsSpy.mockImplementationOnce(async () => ({
+      tools: [
+        { name: "get-document-type-by-id" },
+        { name: "get-data-types-by-id-array" },
+        { name: "create-document" },
+        { name: "publish-document" },
+      ],
+    }));
+
+    try {
+      const result = await callTool(
+        createAndPublishPageTool,
+        {
+          name: TEST_PAGE_NAME_FALLBACK,
+          documentTypeId: testDocumentTypeId,
+          parentId: testPageId,
+          values: TEST_VALUES,
+        },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+
+      const data = getStructuredContent(result) as any;
+      lastCreatedId = data.id;
+
+      expect(data.message).toBe(`Created and published "${TEST_PAGE_NAME_FALLBACK}"`);
+      await expectPublished(data.id, extra);
+    } finally {
+      listToolsSpy.mockRestore();
+    }
   }, 30000);
 });

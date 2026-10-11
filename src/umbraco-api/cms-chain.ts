@@ -42,6 +42,23 @@ function extractInnerProblemDetails(result: Record<string, unknown>): Record<str
   };
 }
 
+/**
+ * Check whether a chained CMS tool is currently registered on the connected
+ * Umbraco instance. Some CMS tools are gated at runtime by `isUmbracoAtLeast`
+ * checks the chained server makes against the live instance's reported
+ * version (e.g. `create-and-publish-document` / `update-and-publish-document`,
+ * only registered from Umbraco 17.6 — see `cms-tool-types-augment.d.ts`), so
+ * the same tool name can be callable against one site and "Tool not found"
+ * against another. Checked fresh on every call rather than memoized: cheap
+ * today, and once the upstream gating issue is fixed the answer becomes a
+ * per-site constant rather than a process-wide one, so caching it now would
+ * just be a stale-cache bug waiting to happen.
+ */
+export async function isCmsToolAvailable(toolName: CmsToolsName): Promise<boolean> {
+  const { tools } = await mcpClientManager.listTools("cms");
+  return tools.some((t) => t.name === toolName);
+}
+
 export async function chainCms<TName extends CmsToolsName>(
   toolName: TName,
   args: CmsTools[TName]["input"],

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
-import { chainCms } from "../../../cms-chain.js";
+import { chainCms, isCmsToolAvailable } from "../../../cms-chain.js";
 import { fetchPublishedUrls, publishedUrlsSchema } from "../../helpers/preview-url.js";
 
 const inputSchema = {
@@ -49,20 +49,59 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       }
     }
 
-    const createResult = await chainCms("create-and-publish-document", {
+    const mappedValues = (values ?? []).map(v => ({
+      alias: v.alias,
+      value: v.value,
+      culture: v.culture ?? null,
+      segment: v.segment ?? null,
+      editorAlias: editorAliasByPropertyAlias.get(v.alias) ?? "",
+    }));
+
+    // create-and-publish-document is only registered on Umbraco 17.6+ (gated
+    // at runtime by the chained CMS server against the connected instance's
+    // version — see cms-tool-types-augment.d.ts). When it isn't available,
+    // fall back to create-document followed by publish-document. This tool
+    // only does invariant creation today, so the fallback publishes with a
+    // null culture to match.
+    if (await isCmsToolAvailable("create-and-publish-document")) {
+      const createResult = await chainCms("create-and-publish-document", {
+        documentTypeId,
+        name,
+        values: mappedValues,
+        ...(parentId ? { parentId } : {}),
+      });
+      if (!createResult.ok) return createResult.errorResult;
+      const createdId = createResult.data.id;
+
+      return createToolResult({
+        message: `Created and published "${name}"`,
+        id: createdId,
+        name,
+        publishedUrls: createdId ? await fetchPublishedUrls(createdId) : [],
+      });
+    }
+
+    const createDocumentResult = await chainCms("create-document", {
       documentTypeId,
       name,
-      values: (values ?? []).map(v => ({
-        alias: v.alias,
-        value: v.value,
-        culture: v.culture ?? null,
-        segment: v.segment ?? null,
-        editorAlias: editorAliasByPropertyAlias.get(v.alias) ?? "",
-      })),
+      values: mappedValues,
       ...(parentId ? { parentId } : {}),
     });
-    if (!createResult.ok) return createResult.errorResult;
-    const createdId = createResult.data.id;
+    if (!createDocumentResult.ok) return createDocumentResult.errorResult;
+    const createdId = createDocumentResult.data.id;
+
+    const publishResult = await chainCms("publish-document", {
+      id: createdId,
+      data: { publishSchedules: [{ culture: null }] },
+    });
+    if (!publishResult.ok) {
+      return createToolResult({
+        message: `Created "${name}" as a draft but publish failed: ${publishResult.errorResult.content?.[0]?.text ?? "unknown error"}`,
+        id: createdId,
+        name,
+        publishedUrls: [],
+      });
+    }
 
     return createToolResult({
       message: `Created and published "${name}"`,

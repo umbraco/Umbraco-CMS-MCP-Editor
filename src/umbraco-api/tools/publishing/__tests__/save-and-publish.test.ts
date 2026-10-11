@@ -5,11 +5,12 @@
  * Runs against a real Umbraco instance via the chained @umbraco-cms/mcp-dev MCP server.
  */
 
-import { describe, it, expect, beforeAll, afterEach } from "@jest/globals";
+import { describe, it, expect, jest, beforeAll, afterEach } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   createSnapshotResult,
+  getStructuredContent,
 } from "./setup.js";
 import {
   ContentBuilder,
@@ -19,9 +20,12 @@ import {
 import saveAndPublishTool from "../post/save-and-publish.js";
 import editPageTool from "../../content/put/edit-page.js";
 import { expectPublished } from "../../../../testing/state-assertions.js";
+import { callTool } from "../../../../testing/call-tool-with-validation.js";
+import { mcpClientManager } from "../../../mcp-client.js";
 
 const TEST_PAGE_NAME_WITH_VALUES = "_Test Save Publish With Values";
 const TEST_PAGE_NAME_NO_VALUES = "_Test Save Publish No Values";
+const TEST_PAGE_NAME_FALLBACK = "_Test Save Publish Fallback";
 
 describe("save-and-publish", () => {
   setupTestEnvironment();
@@ -85,5 +89,48 @@ describe("save-and-publish", () => {
 
     expect(createSnapshotResult(result, doc.getId())).toMatchSnapshot();
     await expectPublished(doc.getId(), extra);
+  }, 60000);
+
+  it("falls back to update-document + publish-document when update-and-publish-document isn't available", async () => {
+    const doc = await new ContentBuilder()
+      .withName(TEST_PAGE_NAME_FALLBACK)
+      .withDocumentType(testDocumentTypeId)
+      .withParent(testParentId)
+      .create();
+    lastCreatedId = doc.getId();
+
+    // Only listTools is mocked — get-document-by-id, update-document and
+    // publish-document still run for real against the running Umbraco,
+    // exercising the actual fallback sequence end to end.
+    const listToolsSpy = jest.spyOn(mcpClientManager, "listTools");
+    listToolsSpy.mockImplementationOnce(async () => ({
+      tools: [
+        { name: "get-document-by-id" },
+        { name: "update-document" },
+        { name: "publish-document" },
+      ],
+    }));
+
+    try {
+      const result = await callTool(
+        saveAndPublishTool,
+        {
+          id: doc.getId(),
+          values: [{ alias: "title", value: "Save And Publish Fallback Title" }],
+          includeDescendants: false,
+        },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      expect(data.saved).toBe(true);
+      expect(data.published).toBe(true);
+      expect(data.updatedFields).toEqual(["title"]);
+
+      await expectPublished(doc.getId(), extra);
+    } finally {
+      listToolsSpy.mockRestore();
+    }
   }, 60000);
 });

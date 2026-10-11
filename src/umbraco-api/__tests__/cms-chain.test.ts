@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, jest, beforeEach, afterEach } from "@jest/globals";
-import { chainCms } from "../cms-chain.js";
+import { chainCms, isCmsToolAvailable } from "../cms-chain.js";
 import { mcpClientManager } from "../mcp-client.js";
 
 describe("chainCms", () => {
@@ -127,5 +127,40 @@ describe("chainCms", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("expected success result");
     expect(result.data).toEqual(successData);
+  });
+});
+
+describe("isCmsToolAvailable", () => {
+  let spy: ReturnType<typeof jest.spyOn>;
+
+  beforeEach(() => {
+    spy = jest.spyOn(mcpClientManager, "listTools");
+  });
+
+  afterEach(() => {
+    spy.mockRestore();
+  });
+
+  it("returns true when the tool is in the chained server's tool list", async () => {
+    spy.mockResolvedValueOnce({
+      tools: [
+        { name: "get-document-by-id" },
+        { name: "update-and-publish-document" },
+      ],
+    } as any);
+
+    const result = await isCmsToolAvailable("update-and-publish-document" as any);
+
+    expect(result).toBe(true);
+  });
+
+  it("returns false when the tool is absent from the chained server's tool list", async () => {
+    spy.mockResolvedValueOnce({
+      tools: [{ name: "get-document-by-id" }],
+    } as any);
+
+    const result = await isCmsToolAvailable("update-and-publish-document" as any);
+
+    expect(result).toBe(false);
   });
 });
