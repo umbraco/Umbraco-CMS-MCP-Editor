@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { hasSettingsAccess } from "../../helpers/settings-access.js";
+import { checkSettingsAccess } from "../../helpers/settings-access.js";
 
 type ErrorResult = ReturnType<typeof createToolResultError>;
 
@@ -134,14 +134,16 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   annotations: { readOnlyHint: true },
   handler: async ({ take, skip }) => {
     // Settings gate — see settings-access.ts. The document-type tree only
-    // works against Settings-section endpoints; an editor without Settings
+    // works against Settings-section endpoints; a user without Settings
     // access gets a raw Forbidden (or, in the tree walk, a silently
     // empty/truncated list). Refuse up front with a clear 403 instead.
-    if (!(await hasSettingsAccess())) {
+    const accessCheck = await checkSettingsAccess();
+    if (!accessCheck.ok) return accessCheck.errorResult;
+    if (!accessCheck.hasAccess) {
       return createToolResultError({
         status: 403,
         title: "Settings access required",
-        detail: "Listing document types requires the API user's Umbraco user to have access to the Settings section. Grant Settings-section access to the API user's user group in the Umbraco backoffice (Settings → Users → [group] → Sections), then retry.",
+        detail: "Listing document types requires the signed-in Umbraco user to have access to the Settings section. Grant Settings-section access to the user's group in the Umbraco backoffice (Users → [group] → Sections), then retry.",
       });
     }
 

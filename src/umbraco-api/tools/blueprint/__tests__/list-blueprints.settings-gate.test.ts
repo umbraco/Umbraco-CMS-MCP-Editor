@@ -25,7 +25,6 @@ jest.unstable_mockModule(cmsChainPath, () => ({
 }));
 
 const { default: listBlueprintsTool } = await import("../get/list-blueprints.js");
-const { clearSettingsAccessCache } = await import("../../helpers/settings-access.js");
 const { createMockRequestHandlerExtra, getResultText } = await import(
   "@umbraco-cms/mcp-server-sdk/testing"
 );
@@ -35,7 +34,6 @@ describe("list-blueprints — Settings access gate", () => {
 
   beforeEach(() => {
     mockChainCms.mockReset();
-    clearSettingsAccessCache();
   });
 
   it("returns a 403 and never attempts the chained call when the user lacks Settings access", async () => {
@@ -79,5 +77,27 @@ describe("list-blueprints — Settings access gate", () => {
     expect(result.isError).toBeTruthy();
     const data = JSON.parse(getResultText(result as never));
     expect(data.title).toBe("Forbidden");
+  });
+
+  it("surfaces a failed get-user-current check as its own error, not a misleading 403", async () => {
+    mockChainCms.mockImplementation(async (toolName: string) => {
+      if (toolName === "get-user-current") {
+        return {
+          ok: false,
+          errorResult: {
+            isError: true,
+            content: [{ type: "text", text: JSON.stringify({ status: 500, title: "Internal Server Error", detail: "transient" }) }],
+          },
+        };
+      }
+      throw new Error(`Unexpected chained call: ${toolName}`);
+    });
+
+    const result = await listBlueprintsTool.handler({ parentId: undefined }, extra as never);
+
+    expect(result.isError).toBeTruthy();
+    const data = JSON.parse(getResultText(result as never));
+    expect(data.status).toBe(500);
+    expect(data.title).toBe("Internal Server Error");
   });
 });

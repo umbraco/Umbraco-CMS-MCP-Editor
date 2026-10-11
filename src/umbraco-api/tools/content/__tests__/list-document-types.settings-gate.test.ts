@@ -22,7 +22,6 @@ jest.unstable_mockModule(cmsChainPath, () => ({
 }));
 
 const { default: listDocumentTypesTool } = await import("../get/list-document-types.js");
-const { clearSettingsAccessCache } = await import("../../helpers/settings-access.js");
 const { createMockRequestHandlerExtra, getResultText } = await import(
   "@umbraco-cms/mcp-server-sdk/testing"
 );
@@ -34,7 +33,6 @@ describe("list-document-types — Settings access gate and error propagation", (
 
   beforeEach(() => {
     mockChainCms.mockReset();
-    clearSettingsAccessCache();
   });
 
   it("returns a 403 and never attempts the tree walk when the user lacks Settings access", async () => {
@@ -192,7 +190,7 @@ describe("list-document-types — Settings access gate and error propagation", (
     expect(data.title).toBe("Forbidden");
   });
 
-  it("does not permanently cache a transient get-user-current failure (retries on the next call)", async () => {
+  it("surfaces a failed get-user-current check as its own error, not a misleading 403", async () => {
     let userCurrentCalls = 0;
     mockChainCms.mockImplementation(async (toolName: string) => {
       if (toolName === "get-user-current") {
@@ -217,8 +215,35 @@ describe("list-document-types — Settings access gate and error propagation", (
     const first = await listDocumentTypesTool.handler({}, extra as never);
     expect(first.isError).toBeTruthy();
     const firstData = JSON.parse(getResultText(first as never));
+    expect(firstData.status).toBe(500);
+    expect(firstData.title).toBe("Internal Server Error");
+
+    const second = await listDocumentTypesTool.handler({}, extra as never);
+    expect(second.isError).toBeFalsy();
+
+    expect(userCurrentCalls).toBe(2);
+  });
+
+  it("checks fresh on every call — two different users in a row get their own answer, not a stale cached one", async () => {
+    let userCurrentCalls = 0;
+    mockChainCms.mockImplementation(async (toolName: string) => {
+      if (toolName === "get-user-current") {
+        userCurrentCalls += 1;
+        return {
+          ok: true,
+          data: { allowedSections: userCurrentCalls === 1 ? [sections.content] : [sections.settings] },
+        };
+      }
+      if (toolName === "get-document-type-root") {
+        return { ok: true, data: { items: [], nextCursor: null } };
+      }
+      throw new Error(`Unexpected chained call: ${toolName}`);
+    });
+
+    const first = await listDocumentTypesTool.handler({}, extra as never);
+    expect(first.isError).toBeTruthy();
+    const firstData = JSON.parse(getResultText(first as never));
     expect(firstData.status).toBe(403);
-    expect(firstData.title).toContain("Settings");
 
     const second = await listDocumentTypesTool.handler({}, extra as never);
     expect(second.isError).toBeFalsy();
