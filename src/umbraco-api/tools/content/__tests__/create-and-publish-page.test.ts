@@ -131,6 +131,7 @@ describe("create-and-publish-page", () => {
       );
 
       expect(result.isError).toBeTruthy();
+      expect(JSON.stringify(result)).toContain("thisAliasDoesNotExistAnywhere");
 
       // No page should have been created — searching for it should find nothing.
       const found = await ContentTestHelper.findDocument("_Test Create And Publish Page Bogus Alias");

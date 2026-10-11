@@ -52,14 +52,13 @@ export async function resolveDocumentTypeProperties(
     .filter((id): id is string => typeof id === "string");
 
   if (compositionIds.length > 0) {
-    const compositions = await Promise.all(
-      compositionIds.map(async (cid) => {
-        const r = await chainCms("get-document-type-by-id", { id: cid });
-        return r.ok ? r.data : null;
-      }),
+    const compositionResults = await Promise.all(
+      compositionIds.map((cid) => chainCms("get-document-type-by-id", { id: cid })),
     );
-    for (const comp of compositions) {
-      if (comp && Array.isArray(comp.properties)) addProperties(comp.properties);
+    const failed = compositionResults.find((r) => !r.ok);
+    if (failed && !failed.ok) return { ok: false, errorResult: failed.errorResult };
+    for (const r of compositionResults) {
+      if (r.ok && Array.isArray(r.data.properties)) addProperties(r.data.properties);
     }
   }
 

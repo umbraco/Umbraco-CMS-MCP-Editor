@@ -7,6 +7,7 @@ import {
   initContentTestState,
   ContentTestHelper,
 } from "./setup.js";
+import { callTool } from "../../../../testing/call-tool-with-validation.js";
 import createPageTool from "../post/create-page.js";
 import getPageTool from "../get/get-page.js";
 import { CompositionDoctypeFixture } from "./helpers/composition-doctype-fixture.js";
@@ -70,7 +71,8 @@ describe("create-page", () => {
     }, 30000);
 
     it("resolves editorAlias for a value on a composition-inherited property and creates the page", async () => {
-      const result = await createPageTool.handler(
+      const result = await callTool(
+        createPageTool,
         {
           name: "_Test Create Page Composition",
           documentTypeId: hostDocTypeId,
@@ -87,7 +89,8 @@ describe("create-page", () => {
     }, 30000);
 
     it("fails before calling Umbraco for an alias that is not a property on the document type at all", async () => {
-      const result = await createPageTool.handler(
+      const result = await callTool(
+        createPageTool,
         {
           name: "_Test Create Page Bogus Alias",
           documentTypeId: hostDocTypeId,
@@ -98,6 +101,7 @@ describe("create-page", () => {
       );
 
       expect(result.isError).toBeTruthy();
+      expect(JSON.stringify(result)).toContain("thisAliasDoesNotExistAnywhere");
 
       // No page should have been created — searching for it should find nothing.
       const found = await ContentTestHelper.findDocument("_Test Create Page Bogus Alias");
