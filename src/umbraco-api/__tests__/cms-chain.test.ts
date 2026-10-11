@@ -24,13 +24,16 @@ import { mcpClientManager } from "../mcp-client.js";
 
 describe("chainCms", () => {
   let spy: ReturnType<typeof jest.spyOn>;
+  let warnSpy: ReturnType<typeof jest.spyOn>;
 
   beforeEach(() => {
     spy = jest.spyOn(mcpClientManager, "callTool");
+    warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
   });
 
   afterEach(() => {
     spy.mockRestore();
+    warnSpy.mockRestore();
   });
 
   it("surfaces the inner ProblemDetails on the chained error path (no double-wrap)", async () => {
@@ -139,6 +142,12 @@ describe("chainCms", () => {
     const sc = JSON.parse(getResultText(result.errorResult as any));
     expect(sc.detail).toContain("get-document-public-access");
     expect(sc.detail).toContain("-32602");
+
+    // #203 review: the reason must reach the Workers logs, not just the
+    // result text, so telemetry can see thrown chained-tool failures.
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("get-document-public-access"));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("-32602"));
   });
 
   it("returns ok with extracted data on the success path", async () => {

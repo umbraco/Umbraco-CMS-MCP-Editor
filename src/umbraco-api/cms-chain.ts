@@ -74,6 +74,7 @@ export async function chainCms<TName extends CmsToolsName>(
     // underlying client, not a resolved isError result — normalize it to the same
     // { ok: false, errorResult } contract so callers never need a try/catch here.
     const message = error instanceof Error ? error.message : String(error);
+    console.warn(`Chained CMS tool "${toolName}" failed: ${message}`);
     return {
       ok: false,
       errorResult: createToolResultError({
