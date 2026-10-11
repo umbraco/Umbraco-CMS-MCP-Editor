@@ -223,6 +223,10 @@ describe("edit-element-block", () => {
     const problem = JSON.parse(text);
     expect(problem.savedFields).toEqual([fixture.blockPropertyAlias]);
     expect(problem.failedFields).toEqual(["notAPropertyOnThisBlockType"]);
+    // Elements are not routable/publishable the same way documents are —
+    // unlike edit-block's partial-failure payload, this one carries neither.
+    expect(problem).not.toHaveProperty("validation");
+    expect(problem).not.toHaveProperty("previewUrl");
 
     // The valid alias's value was still persisted, despite the overall error.
     expect(await readBlockValue(fixture, extra)).toBe(validValue);

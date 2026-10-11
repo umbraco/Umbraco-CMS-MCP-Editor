@@ -9,6 +9,7 @@
 import { describe, it, expect } from "@jest/globals";
 import { createToolResultError } from "@umbraco-cms/mcp-server-sdk";
 import {
+  blockPropertyAliasSchema,
   classifyBlockUpdateResults,
   collectBlockProperties,
   enrichBlockNotFoundError,
@@ -367,8 +368,11 @@ describe("classifyBlockUpdateResults", () => {
     const result = classifyBlockUpdateResults(
       [{ success: true, message: "Updated 1 properties", updatedCount: 1 }],
       2,
+      [],
+      2, // expectedEntryCount: 2 blocks were requested, only 1 entry came back
     );
     expect(result.outcome).toBe("partial");
+    expect(result.unresolvedBlockCount).toBe(1);
   });
 
   it("classifies an empty or missing results array as failed", () => {
@@ -395,14 +399,57 @@ describe("classifyBlockUpdateResults", () => {
     expect(result.failedFields).toEqual(["bad"]);
   });
 
-  it("does not mistake one alias for a substring of another when splitting fields", () => {
+  it("does not mistake a saved alias for a substring of a different, failed alias's quoted mention", () => {
+    // The dangerous direction: the FAILING alias ("subtitle") textually
+    // contains the SAVED alias ("title") as a substring. A naive
+    // `failureText.includes(alias)` with no quote boundary would wrongly
+    // match "title" inside "...'subtitle'..." and misreport it as failed.
+    // Quote-anchoring (`'${alias}'`) avoids this because no quote character
+    // sits directly before "title" within "subtitle".
     const result = classifyBlockUpdateResults(
-      [{ success: true, message: "Updated 1 properties", updatedCount: 1, errors: ["Property 'title' does not exist on Element Type"] }],
+      [{ success: true, message: "Updated 1 properties", updatedCount: 1, errors: ["Property 'subtitle' does not exist on Element Type"] }],
       2,
-      ["subtitle", "title"],
+      ["title", "subtitle"],
     );
-    expect(result.savedFields).toEqual(["subtitle"]);
-    expect(result.failedFields).toEqual(["title"]);
+    expect(result.savedFields).toEqual(["title"]);
+    expect(result.failedFields).toEqual(["subtitle"]);
+  });
+
+  it("zeroes out savedFields when a block-level entry never reached the per-property loop, even if another block resolved cleanly", () => {
+    // Upstream's "Block with contentKey 'x' not found in contentData" entry
+    // carries no updatedCount/addedCount/errors/warnings at all, so no
+    // requested alias is ever named as failed for it — without
+    // unresolvedBlockCount, every alias would default into savedFields even
+    // though this block was never written to.
+    const result = classifyBlockUpdateResults(
+      [
+        { success: true, message: "Updated 1 properties", updatedCount: 1 },
+        { success: false, message: "Block with contentKey 'missing-key' not found in contentData" },
+      ],
+      2,
+      ["title"],
+      2,
+    );
+    expect(result.outcome).toBe("partial");
+    expect(result.unresolvedBlockCount).toBe(1);
+    expect(result.savedFields).toEqual([]);
+    expect(result.detail).toContain("not found in contentData");
+  });
+
+  it("zeroes out savedFields when the chained tool returns fewer entries than blocks were requested, even with aliases passed", () => {
+    // The entry that DID come back is fully clean (no errors/warnings), so
+    // the alias-matching logic alone would put every requested alias in
+    // savedFields. The missing second block's entry was never attempted, so
+    // that would overclaim.
+    const result = classifyBlockUpdateResults(
+      [{ success: true, message: "Updated 1 properties", updatedCount: 1 }],
+      2,
+      ["title"],
+      2,
+    );
+    expect(result.outcome).toBe("partial");
+    expect(result.unresolvedBlockCount).toBe(1);
+    expect(result.savedFields).toEqual([]);
   });
 
   it("returns empty savedFields/failedFields when no requestedAliases are passed", () => {
@@ -412,5 +459,27 @@ describe("classifyBlockUpdateResults", () => {
     );
     expect(result.savedFields).toEqual([]);
     expect(result.failedFields).toEqual([]);
+  });
+});
+
+describe("blockPropertyAliasSchema", () => {
+  it("accepts ordinary camelCase and underscore-prefixed aliases", () => {
+    expect(blockPropertyAliasSchema.safeParse("title").success).toBe(true);
+    expect(blockPropertyAliasSchema.safeParse("mainContent").success).toBe(true);
+    expect(blockPropertyAliasSchema.safeParse("_notARealPropertyAliasOnThisElementType").success).toBe(true);
+  });
+
+  it("rejects a quote character, which would let a crafted alias forge a collision in classifyBlockUpdateResults' matching", () => {
+    // e.g. alias `a', 'foo` would make upstream emit `Property 'a', 'foo' does
+    // not exist...`, whose text contains the literal substring `'foo'` and so
+    // would wrongly flag an unrelated, successfully-saved "foo" alias as failed.
+    expect(blockPropertyAliasSchema.safeParse("a', 'foo").success).toBe(false);
+    expect(blockPropertyAliasSchema.safeParse("has'quote").success).toBe(false);
+  });
+
+  it("rejects other characters a real Umbraco property alias can't contain", () => {
+    expect(blockPropertyAliasSchema.safeParse("has space").success).toBe(false);
+    expect(blockPropertyAliasSchema.safeParse("has.dot").success).toBe(false);
+    expect(blockPropertyAliasSchema.safeParse("").success).toBe(false);
   });
 });

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { classifyBlockUpdateResults, enrichBlockNotFoundError, findSettingsKey, isRteWithBlocks } from "../../helpers/block-inspector.js";
+import { blockPropertyAliasSchema, classifyBlockUpdateResults, enrichBlockNotFoundError, findSettingsKey, isRteWithBlocks } from "../../helpers/block-inspector.js";
 import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 import { validateDocumentState, validationResultSchema } from "../../helpers/validate-document.js";
 
@@ -10,7 +10,7 @@ const inputSchema = {
   propertyAlias: z.string().describe("The document property alias containing the blocks (e.g. 'mainContent'). Use inspect-blocks to find this."),
   contentKey: z.string().uuid().describe("The unique key of the block to edit. Use inspect-blocks to find this."),
   values: z.array(z.object({
-    alias: z.string().describe("The property alias within the block"),
+    alias: blockPropertyAliasSchema.describe("The property alias within the block"),
     value: z.any().describe("The new value for the property"),
   })).describe("Properties to update within the block"),
   blockType: z.enum(["content", "settings"]).optional().describe("Whether to update the block's content or its settings. Defaults to 'content'."),
@@ -102,7 +102,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         "update-block-property returned no per-block result — cannot confirm the write succeeded.",
       );
     }
-    const classification = classifyBlockUpdateResults(results, fieldNames.length, fieldNames);
+    const classification = classifyBlockUpdateResults(results, fieldNames.length, fieldNames, 1);
     if (classification.outcome === "failed") {
       return createToolResultError(
         `Block update failed: ${classification.detail || updateResult.data.message || "no detail returned"}`,
@@ -113,7 +113,10 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         message: `Block update partially failed: ${classification.processedCount} of ${fieldNames.length} field(s) saved — ${classification.detail}`,
         savedFields: classification.savedFields,
         failedFields: classification.failedFields,
-        note: "savedFields were written to the document and must not be retried.",
+        ...(classification.savedFields.length > 0
+          ? { note: "savedFields were written to the document and must not be retried." }
+          : {}),
+        ...(classification.warnings.length ? { warnings: classification.warnings } : {}),
         validation: await validateDocumentState(id),
         previewUrl: await fetchPreviewUrl(id),
       });

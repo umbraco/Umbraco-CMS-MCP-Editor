@@ -206,8 +206,8 @@ describe("bulk-set-block-property", () => {
     expect(data.successCount).toBe(0);
     // A partial write still changed the document — validation/previewUrl are
     // worth returning even though the row is marked failed.
-    expect(data.results[0].validation).toBeDefined();
-    expect(data.results[0].previewUrl).toBeDefined();
+    expect(typeof data.results[0].validation?.valid).toBe("boolean");
+    expect(data.results[0].previewUrl?.url).toEqual(expect.any(String));
 
     const inspectResult = await inspectBlocksTool.handler(
       { id: f.pageId, propertyAlias: f.propertyAlias },

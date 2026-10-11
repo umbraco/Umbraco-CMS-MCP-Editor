@@ -8,6 +8,7 @@ import {
   type BulkItemDetail,
 } from "../../helpers/bulk-handler.js";
 import {
+  blockPropertyAliasSchema,
   classifyBlockUpdateResults,
   enrichBlockNotFoundError,
   type WalkableValue,
@@ -20,7 +21,7 @@ const inputSchema = {
   contentTypeKey: z.string().uuid().describe("The block element type key to target. Use inspect-blocks to find this."),
   propertyAlias: z.string().describe("The document property alias containing the blocks (e.g. 'contentRows'). Use inspect-blocks to find this."),
   values: z.array(z.object({
-    alias: z.string().describe("The property alias within the block"),
+    alias: blockPropertyAliasSchema.describe("The property alias within the block"),
     value: z.any().describe("The new value for the property"),
   })).min(1).describe("Properties to update on every matching block"),
   culture: z.string().nullable().optional().describe("Culture code if the document property is variant"),
@@ -263,7 +264,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
           });
           stopped = true;
         } else {
-          const classification = classifyBlockUpdateResults(blockResults, blocks.length * values.length, fieldNames);
+          const classification = classifyBlockUpdateResults(blockResults, blocks.length * values.length, fieldNames, blocks.length);
           if (classification.outcome === "clean") {
             totalBlocksUpdated += blocks.length;
             results.push({
@@ -288,10 +289,16 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
               error: classification.outcome === "failed"
                 ? `Block update failed: ${classification.detail}`
                 : {
-                  message: `Block update partially failed: ${classification.processedCount} of ${totalProperties} propert${totalProperties === 1 ? "y" : "ies"} saved, across ${classification.updatedEntryCount} of ${blockResults.length} block(s) — ${classification.detail}`,
+                  message: `Block update partially failed: ${classification.processedCount} of ${totalProperties} propert${totalProperties === 1 ? "y" : "ies"} saved, across ${classification.updatedEntryCount} of ${blockResults.length} block(s)`
+                    + (classification.unresolvedBlockCount > 0
+                      ? ` (${classification.unresolvedBlockCount} matched block(s) could not be located — likely changed concurrently; rerun this tool to retarget them)`
+                      : "")
+                    + ` — ${classification.detail}`,
                   savedFields: classification.savedFields,
                   failedFields: classification.failedFields,
-                  note: "savedFields were written to the document and must not be retried.",
+                  ...(classification.savedFields.length > 0
+                    ? { note: "savedFields were written to the document and must not be retried." }
+                    : {}),
                 },
               ...(classification.warnings.length ? { warnings: classification.warnings } : {}),
             });

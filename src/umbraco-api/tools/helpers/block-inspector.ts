@@ -271,6 +271,27 @@ function withSettingsKeys(blocks: InspectedBlock[], container: unknown): Inspect
   });
 }
 
+/**
+ * Schema for a property alias inside a block-update `values[]` entry
+ * (`edit-block`, `edit-element-block`, `bulk-set-block-property`).
+ *
+ * Restricted to identifier characters — real Umbraco property aliases are
+ * camelCase identifiers and never contain a quote. `classifyBlockUpdateResults`
+ * tells a saved alias from a failed one by searching the chained tool's
+ * free-text error/warning messages for the alias wrapped in single quotes
+ * (`'alias'`); an alias allowed to contain its own quote could be crafted so
+ * its quoted form embeds a *different*, legitimately-saved alias's quoted
+ * form as a substring (e.g. alias `a', 'foo` makes upstream emit `Property
+ * 'a', 'foo' does not exist...`, which contains the literal substring
+ * `'foo'`), misclassifying that other alias as failed. Rejecting the
+ * characters that make the escape possible closes it at the source rather
+ * than trying to out-parse arbitrary free text.
+ */
+export const blockPropertyAliasSchema = z.string().regex(
+  /^[A-Za-z_][A-Za-z0-9_]*$/,
+  "Property alias must be a valid identifier (letters, digits, underscore; not starting with a digit)",
+);
+
 /** A single per-block/per-update result entry, as returned by the chained
  * `update-block-property` / `update-element-block-property` tools. */
 export interface BlockUpdateResultEntry {
@@ -300,11 +321,24 @@ export interface BlockUpdateClassification {
   warnings: string[];
   /** Requested aliases that were NOT named in any error/warning — i.e. they
    * were written and must not be retried. Empty when `requestedAliases` isn't
-   * passed. */
+   * passed, or when `unresolvedBlockCount` is non-zero (see below). */
   savedFields: string[];
   /** Requested aliases named in at least one error or warning message. Empty
    * when `requestedAliases` isn't passed. */
   failedFields: string[];
+  /** Count of block-level entries that can't be matched against a requested
+   * alias at all: a result entry that failed before ever reaching the
+   * per-property loop (e.g. "Block with contentKey 'x' not found in
+   * contentData" — no `updatedCount`/`addedCount`/`errors`/`warnings`), PLUS
+   * any block the caller expected a result for that the chained tool didn't
+   * even return an entry for (see `expectedEntryCount`). A caller matching
+   * multiple blocks (bulk-set-block-property) can have some blocks resolve
+   * cleanly and others go missing entirely (e.g. a stale key from a
+   * concurrent edit) in the same call; when that happens, `savedFields`
+   * can't promise every requested alias was written to every matched block,
+   * so it's left empty rather than overclaiming "nothing here needs
+   * retrying". */
+  unresolvedBlockCount: number;
 }
 
 /**
@@ -332,12 +366,23 @@ export interface BlockUpdateClassification {
  * block property update — is just the alias; these tools never pass a
  * per-property culture/segment), so matching the quoted alias against the
  * combined error+warning text reliably tells saved aliases from failed ones
- * without a second chained call.
+ * without a second chained call — *except* for a block-level entry that never
+ * reached the per-property loop at all, or an expected block the chained
+ * tool returned no entry for whatsoever (see `unresolvedBlockCount`'s doc
+ * comment): neither carries an alias-naming error or a count. `savedFields`
+ * is left empty whenever one of those is present, rather than reporting
+ * every requested alias as saved when one or more matched blocks were never
+ * actually written to. Pass `expectedEntryCount` — how many block-level
+ * result entries the caller expects back (1 for a single-block update; the
+ * number of matched blocks for a bulk update applying the same properties to
+ * several) — to detect the "chained tool returned fewer entries than
+ * expected" case; it defaults to 1, the single-block case.
  */
 export function classifyBlockUpdateResults(
   results: ReadonlyArray<BlockUpdateResultEntry> | undefined,
   requestedCount: number,
   requestedAliases: ReadonlyArray<string> = [],
+  expectedEntryCount: number = 1,
 ): BlockUpdateClassification {
   const list = results ?? [];
   const processedCount = list.reduce((sum, r) => sum + (r.updatedCount ?? 0) + (r.addedCount ?? 0), 0);
@@ -345,12 +390,19 @@ export function classifyBlockUpdateResults(
   const errors = list.flatMap((r) => r.errors ?? []);
   const warnings = list.flatMap((r) => r.warnings ?? []);
   const failureText = [...errors, ...warnings].join("; ");
-  const detail = failureText
+  const unresolvedEntries = list.filter(
+    (r) => (r.updatedCount ?? 0) + (r.addedCount ?? 0) === 0 && !(r.errors?.length) && !(r.warnings?.length),
+  );
+  const missingEntryCount = Math.max(0, expectedEntryCount - list.length);
+  const unresolvedBlockCount = unresolvedEntries.length + missingEntryCount;
+  const detail = [...errors, ...warnings, ...unresolvedEntries.map((r) => r.message).filter(Boolean)].join("; ")
     || list.map((r) => r.message).filter(Boolean).join("; ")
     || "no detail returned";
   const outcome: BlockUpdateOutcome =
     processedCount === 0 ? "failed" : processedCount < requestedCount ? "partial" : "clean";
   const failedFields = requestedAliases.filter((alias) => failureText.includes(`'${alias}'`));
-  const savedFields = requestedAliases.filter((alias) => !failedFields.includes(alias));
-  return { outcome, processedCount, updatedEntryCount, detail, warnings, savedFields, failedFields };
+  const savedFields = unresolvedBlockCount > 0
+    ? []
+    : requestedAliases.filter((alias) => !failedFields.includes(alias));
+  return { outcome, processedCount, updatedEntryCount, detail, warnings, savedFields, failedFields, unresolvedBlockCount };
 }
