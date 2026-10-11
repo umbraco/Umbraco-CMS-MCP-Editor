@@ -156,13 +156,19 @@ export function collectBlockProperties(
 /**
  * Enrich a "Blocks not found" error from `update-block-property` /
  * `update-element-block-property` with each available block's
- * `contentTypeKey`, cross-referenced from the already-fetched entity's blocks
- * (`collectBlockProperties`). The chained tool's `availableBlocks` extension
- * only lists `{key, type, path}` — no element-type information — so the model
- * can't tell which key is which kind of block without an extra lookup. Both
- * `edit-block` and `bulk-set-block-property` already have the document fetched
- * (and thus its block containers) by the time they see this error, so this is
- * a free enrichment rather than a new chained call.
+ * `contentTypeKey`, cross-referenced from the already-fetched document's raw
+ * property values for the targeted property. The chained tool's
+ * `availableBlocks` extension only lists `{key, type, path}` — no
+ * element-type information — so the model can't tell which key is which kind
+ * of block without an extra lookup. `edit-block` and `bulk-set-block-property`
+ * already have the document fetched by the time they see this error, so this
+ * is a free enrichment rather than a new chained call.
+ *
+ * The lookup walks both `contentData` and `settingsData`, and recurses into
+ * nested blocks, because the chained tool's own discovery does the same —
+ * `availableBlocks` can include settings entries and blocks nested inside
+ * another block's properties, which a contentData-only lookup would report as
+ * `contentTypeKey: null`.
  *
  * Returns the error result unchanged when it isn't this specific shape (no
  * `availableBlocks` array in its ProblemDetails) — e.g. "Property not found",
@@ -170,22 +176,44 @@ export function collectBlockProperties(
  */
 export function enrichBlockNotFoundError(
   errorResult: ReturnType<typeof createToolResultError>,
-  containers: InspectedBlockContainer[],
+  values: ReadonlyArray<WalkableValue>,
+  propertyAlias: string,
+  options: { noteSettingsKeys?: boolean } = {},
 ): ReturnType<typeof createToolResultError> {
   const problem = extractInnerProblemDetails(errorResult as Record<string, unknown>);
   const availableBlocks = problem.availableBlocks;
   if (!Array.isArray(availableBlocks)) return errorResult;
 
-  const typeByKey = new Map(
-    containers.flatMap((c) => c.blocks).map((b) => [b.contentKey, b.contentTypeKey]),
-  );
+  const typeByKey = new Map<string, string>();
+  for (const v of values) {
+    if (v.alias !== propertyAlias) continue;
+    const value = v.value as { blocks?: unknown } | undefined;
+    const container = isRteWithBlocks(value) ? value!.blocks : value;
+    collectContentTypeKeysByBlockKey(container, typeByKey);
+  }
+
   const enrichedBlocks = availableBlocks.map((b) =>
     b && typeof b === "object" && typeof (b as { key?: unknown }).key === "string"
       ? { ...b, contentTypeKey: typeByKey.get((b as { key: string }).key) ?? null }
       : b,
   );
 
-  return createToolResultError({ ...problem, availableBlocks: enrichedBlocks });
+  const truncated = enrichedBlocks.length > MAX_ENRICHED_BLOCKS;
+  const cappedBlocks = truncated ? enrichedBlocks.slice(0, MAX_ENRICHED_BLOCKS) : enrichedBlocks;
+
+  const notes: string[] = [];
+  if (truncated) {
+    notes.push(`Showing the first ${MAX_ENRICHED_BLOCKS} of ${enrichedBlocks.length} available blocks — use inspect-blocks for the full list.`);
+  }
+  if (options.noteSettingsKeys) {
+    notes.push(`Entries with type "settings" are a block's settings key — pass one as contentKey only together with blockType: "settings"; use the matching "content" entry's key to edit the block itself.`);
+  }
+
+  return createToolResultError({
+    ...problem,
+    availableBlocks: cappedBlocks,
+    ...(notes.length ? { note: notes.join(" ") } : {}),
+  });
 }
 
 /** Attach each block's paired settings key, where the layout wires one up. */
@@ -195,3 +223,69 @@ function withSettingsKeys(blocks: InspectedBlock[], container: unknown): Inspect
     return settingsKey ? { ...block, settingsKey } : block;
   });
 }
+
+/** A single block's per-block outcome from `update-block-property` / `update-element-block-property`. */
+export interface BlockUpdateResultEntry {
+  success: boolean;
+  message: string;
+  updatedCount?: number;
+  addedCount?: number;
+  warnings?: string[];
+  errors?: string[];
+}
+
+/**
+ * Split a chained block-update call's `results[]` into the entries that got
+ * nothing written versus everything else, and flatten the errors/warnings
+ * across all entries. Umbraco sets `success: totalProcessed > 0 ||
+ * errors.length === 0`, so `success` is only ever `false` when NOTHING on
+ * that entry was processed — an entry with `success: true` can still carry
+ * `errors` (some of its properties were valid and saved, one wasn't), so
+ * callers must not treat "no hard failures" as "nothing went wrong": check
+ * `errors.length` too.
+ */
+export function splitBlockUpdateResults(results: ReadonlyArray<BlockUpdateResultEntry> | undefined | null): {
+  hardFailed: BlockUpdateResultEntry[];
+  errors: string[];
+  warnings: string[];
+} {
+  const list = results ?? [];
+  return {
+    hardFailed: list.filter((r) => r.success !== true),
+    errors: list.flatMap((r) => r.errors ?? []),
+    warnings: list.flatMap((r) => r.warnings ?? []),
+  };
+}
+
+/**
+ * Recursively collect every block's `contentKey -> contentTypeKey` pairing
+ * across a block-bearing value's full structure: its own `contentData` AND
+ * `settingsData`, plus any block nested inside a block's own property values
+ * (Umbraco's nested-blocks feature — a block's property can itself be a
+ * BlockList/BlockGrid value). This mirrors the chained CMS tool's own block
+ * discovery, which is what "Blocks not found"'s `availableBlocks` extension
+ * lists — so the enrichment below can label every block it lists, not just
+ * top-level content blocks.
+ */
+function collectContentTypeKeysByBlockKey(container: unknown, out: Map<string, string> = new Map()): Map<string, string> {
+  if (!container || typeof container !== "object") return out;
+  const c = container as { contentData?: unknown[]; settingsData?: unknown[] };
+  for (const block of [...(c.contentData ?? []), ...(c.settingsData ?? [])]) {
+    if (!block || typeof block !== "object") continue;
+    const b = block as { key?: unknown; contentTypeKey?: unknown; values?: unknown };
+    if (typeof b.key === "string" && typeof b.contentTypeKey === "string") {
+      out.set(b.key, b.contentTypeKey);
+    }
+    if (Array.isArray(b.values)) {
+      for (const prop of b.values as Array<{ value?: unknown }>) {
+        const value = prop?.value;
+        const nested = isRteWithBlocks(value) ? (value as { blocks: unknown }).blocks : isBlockListOrGridValue(value) ? value : undefined;
+        if (nested) collectContentTypeKeysByBlockKey(nested, out);
+      }
+    }
+  }
+  return out;
+}
+
+/** Cap on the number of blocks `enrichBlockNotFoundError` lists, to bound the response on a property with many blocks. */
+const MAX_ENRICHED_BLOCKS = 50;

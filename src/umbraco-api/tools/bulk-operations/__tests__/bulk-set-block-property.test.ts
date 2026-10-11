@@ -168,6 +168,49 @@ describe("bulk-set-block-property", () => {
     expect(data.successCount).toBe(0);
   }, 60000);
 
+  it("reports a partial failure, not a success, when one alias is valid and another isn't", async () => {
+    // Umbraco sets success: totalProcessed > 0 || errors.length === 0, so a
+    // block with one valid alias and one invalid one still comes back with
+    // success: true on that block's results[] entry — pre-fix this was
+    // reported as a full success (blocksUpdated: blocks.length, no error).
+    expect(blockFixture).not.toBeNull();
+    const f = blockFixture!;
+
+    const result = await callTool(bulkSetBlockPropertyTool, {
+      ids: [f.pageId],
+      contentTypeKey: f.elementTypeId,
+      propertyAlias: f.propertyAlias,
+      values: [
+        { alias: f.blockPropertyAlias, value: "_bulk partial write valid value" },
+        { alias: "_notARealPropertyAliasOnThisElementType", value: "_should not apply" },
+      ],
+      culture: undefined,
+      segment: undefined,
+    }, extra);
+
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    expect(data.results).toHaveLength(1);
+    // Not a clean success — the row reports the partial failure.
+    expect(data.results[0].success).toBe(false);
+    // But the block WAS touched (the valid alias was saved), so it isn't 0.
+    expect(data.results[0].blocksUpdated).toBe(1);
+    expect(data.results[0].error).toContain("partially failed");
+    expect(data.results[0].error).toContain("_notARealPropertyAliasOnThisElementType");
+
+    // Round-trip: the valid alias's value really was saved.
+    const inspectResult = await inspectBlocksTool.handler(
+      { id: f.pageId, propertyAlias: f.propertyAlias },
+      extra,
+    );
+    const inspectData = getStructuredContent(inspectResult) as any;
+    const block = (inspectData?.blockProperties ?? [])
+      .flatMap((bp: any) => bp.blocks ?? [])
+      .find((b: any) => b.contentKey === f.seededBlockKey);
+    const updatedProp = (block?.properties ?? []).find((p: any) => p.alias === f.blockPropertyAlias);
+    expect(updatedProp?.value).toBe("_bulk partial write valid value");
+  }, 60000);
+
   it("skips subsequent pages after a per-block failure on an earlier page", async () => {
     expect(blockFixture).not.toBeNull();
     const f = blockFixture!;

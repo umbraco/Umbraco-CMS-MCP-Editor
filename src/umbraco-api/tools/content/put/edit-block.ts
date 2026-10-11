@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { collectBlockProperties, enrichBlockNotFoundError, findSettingsKey, isRteWithBlocks } from "../../helpers/block-inspector.js";
+import { enrichBlockNotFoundError, findSettingsKey, isRteWithBlocks, splitBlockUpdateResults } from "../../helpers/block-inspector.js";
 import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 import { validateDocumentState, validationResultSchema } from "../../helpers/validate-document.js";
 
@@ -26,6 +26,7 @@ const outputSchema = z.object({
   updatedFields: z.array(z.string()),
   previewUrl: previewUrlSchema,
   validation: validationResultSchema,
+  warnings: z.array(z.string()).optional(),
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
@@ -78,28 +79,33 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     if (!updateResult.ok) {
       return enrichBlockNotFoundError(
         updateResult.errorResult,
-        collectBlockProperties(docResult.data.values ?? [], propertyAlias),
+        docResult.data.values ?? [],
+        propertyAlias,
+        { noteSettingsKeys: true },
       );
     }
 
     // `update-block-property`'s top-level `success` is always true once the
-    // call itself completes — per-block outcomes live only in `results[]`
-    // (e.g. a property alias not on the block's element type produces a
-    // `results` entry with its own `success: false`). Check that instead of
-    // the top-level flag, or a failed write is reported as saved — see
-    // edit-element-block.ts for the same pattern. Don't trust the chained
-    // tool's declared shape: a missing/empty `results` array is treated as a
-    // failure too, and any entry whose `success` isn't literally `true`
-    // counts as failed (not just an explicit `false`).
+    // call itself completes — per-block outcomes live only in `results[]`.
+    // Don't trust the chained tool's declared shape: a missing/empty
+    // `results` array is treated as a failure too. edit-element-block.ts uses
+    // the simpler `(results ?? []).filter(r => r.success === false)`, which
+    // misses a block that only *partly* wrote — Umbraco sets
+    // `success: totalProcessed > 0 || errors.length === 0`, so a block with
+    // one valid alias and one invalid one comes back `success: true` with
+    // `errors` filled. `splitBlockUpdateResults` separates "nothing was
+    // written" (every entry has `success !== true`) from "something was
+    // written, but with errors" (a partial write), so the two are reported
+    // differently below instead of both being read as a full success.
     const results = updateResult.data.results;
     if (!results || results.length === 0) {
       return createToolResultError(
         "update-block-property returned no per-block result — cannot confirm the write succeeded.",
       );
     }
-    const failed = results.filter((r) => r.success !== true);
-    if (failed.length > 0) {
-      const detail = failed
+    const { hardFailed, errors, warnings } = splitBlockUpdateResults(results);
+    if (hardFailed.length === results.length) {
+      const detail = hardFailed
         .flatMap((r) => (r.errors?.length ? r.errors : [r.message]))
         .join("; ");
       return createToolResultError(
@@ -109,7 +115,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     const validation = await validateDocumentState(id);
     const target = resolvedBlockType === "settings" ? "settings" : "content";
-    const baseMessage = `Updated ${fieldNames.length} field(s) in block ${target} on "${pageName}" (saved, not published)`;
+    const baseMessage = errors.length > 0
+      ? `Updated block ${target} on "${pageName}" (saved, not published) — but ${errors.length} field(s) failed: ${errors.join("; ")}`
+      : `Updated ${fieldNames.length} field(s) in block ${target} on "${pageName}" (saved, not published)`;
     const message = validation.valid
       ? baseMessage
       : `${baseMessage} — but ${validation.errors.length} validation error(s) must be resolved before this page can be published`;
@@ -122,6 +130,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       updatedFields: fieldNames,
       previewUrl: await fetchPreviewUrl(id),
       validation,
+      ...(warnings.length ? { warnings } : {}),
     });
   },
 };

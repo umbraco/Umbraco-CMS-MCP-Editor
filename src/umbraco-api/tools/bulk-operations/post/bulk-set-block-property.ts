@@ -7,11 +7,7 @@ import {
   SKIPPED_SENTINEL,
   type BulkItemDetail,
 } from "../../helpers/bulk-handler.js";
-import {
-  collectBlockProperties,
-  enrichBlockNotFoundError,
-  type InspectedBlockContainer,
-} from "../../helpers/block-inspector.js";
+import { enrichBlockNotFoundError, splitBlockUpdateResults } from "../../helpers/block-inspector.js";
 import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 import { validateDocumentState, validationResultSchema, type ValidationResult } from "../../helpers/validate-document.js";
 
@@ -36,6 +32,7 @@ const outputSchema = z.object({
     blocksUpdated: z.number(),
     previousVersionId: z.string().optional(),
     error: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
+    warnings: z.array(z.string()).optional(),
     previewUrl: previewUrlSchema.optional(),
     validation: validationResultSchema.optional(),
   })),
@@ -108,7 +105,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     const items: BulkItemDetail[] = [];
     const pageBlocks = new Map<string, BlockMatch[]>();
-    const blockContainersByItem = new Map<string, InspectedBlockContainer[]>();
+    const docValuesByItem = new Map<string, Array<{ alias: string; editorAlias?: string | null; value?: unknown }>>();
 
     for (const id of ids) {
       const docResult = await chainCms("get-document-by-id", { id });
@@ -128,7 +125,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       // chained tool (stale contentKey from a change between this fetch and the
       // update below) can list contentTypeKey for each available block without
       // a second lookup.
-      blockContainersByItem.set(id, collectBlockProperties(doc.values ?? [], propertyAlias));
+      docValuesByItem.set(id, doc.values ?? []);
     }
 
     if (items.length === 0) {
@@ -170,6 +167,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       blocksUpdated: number;
       previousVersionId?: string;
       error?: unknown;
+      warnings?: string[];
       previewUrl?: { url: string; requiresBackofficeAuth: true } | null;
       validation?: ValidationResult;
     }> = [];
@@ -223,7 +221,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       if (!updateResult.ok) {
         const enriched = enrichBlockNotFoundError(
           updateResult.errorResult,
-          blockContainersByItem.get(item.id) ?? [],
+          docValuesByItem.get(item.id) ?? [],
+          propertyAlias,
         );
         results.push({
           id: item.id,
@@ -236,14 +235,17 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         stopped = true;
       } else {
         // `update-block-property`'s top-level `success` is always true once the
-        // call itself completes — per-block outcomes live only in `results[]`
-        // (e.g. an alias that doesn't exist on this block's element type).
-        // Check that instead of `updateResult.ok` alone, or a failed write is
-        // reported as `blocksUpdated: blocks.length` — see edit-element-block.ts
-        // for the same pattern. Don't trust the chained tool's declared shape:
-        // a missing/empty `results` array is treated as a failure too, and any
-        // entry whose `success` isn't literally `true` counts as failed (not
-        // just an explicit `false`).
+        // call itself completes — per-block outcomes live only in `results[]`.
+        // Don't trust the chained tool's declared shape: a missing/empty
+        // `results` array is treated as a failure too. edit-element-block.ts
+        // uses the simpler `(results ?? []).filter(r => r.success === false)`,
+        // which misses a block that only *partly* wrote — Umbraco sets
+        // `success: totalProcessed > 0 || errors.length === 0`, so a block with
+        // one valid alias and one invalid one comes back `success: true` with
+        // `errors` filled. `splitBlockUpdateResults` separates entries that
+        // wrote nothing (`hardFailed`) from entries that wrote something but
+        // still carry errors (a partial write), so a page with only partial
+        // writes isn't reported as a clean success.
         const blockResults = updateResult.data.results;
         if (!blockResults || blockResults.length === 0) {
           results.push({
@@ -256,9 +258,10 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
           });
           stopped = true;
         } else {
-          const failed = blockResults.filter((r) => r.success !== true);
-          if (failed.length > 0) {
-            const detail = failed
+          const { hardFailed, errors, warnings } = splitBlockUpdateResults(blockResults);
+          const warningsField = warnings.length ? { warnings } : {};
+          if (hardFailed.length === blockResults.length) {
+            const detail = hardFailed
               .flatMap((r) => (r.errors?.length ? r.errors : [r.message]))
               .join("; ");
             results.push({
@@ -270,6 +273,23 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
               error: `Block update failed: ${detail || updateResult.data.message || "no detail returned"}`,
             });
             stopped = true;
+          } else if (hardFailed.length > 0 || errors.length > 0) {
+            // Some blocks on this page wrote nothing, or wrote only some of
+            // their properties — the page was modified, but not fully, so
+            // this is reported as a failure (with the count of blocks that
+            // did get something written) rather than a silent success.
+            const succeededBlocks = blocks.length - hardFailed.length;
+            totalBlocksUpdated += succeededBlocks;
+            results.push({
+              id: item.id,
+              name: item.name,
+              success: false,
+              blocksUpdated: succeededBlocks,
+              previousVersionId: item.currentVersionId || undefined,
+              error: `Block update partially failed: ${errors.length ? errors.join("; ") : hardFailed.map((r) => r.message).join("; ")}`,
+              ...warningsField,
+            });
+            stopped = true;
           } else {
             totalBlocksUpdated += blocks.length;
             results.push({
@@ -278,16 +298,18 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
               success: true,
               blocksUpdated: blocks.length,
               previousVersionId: item.currentVersionId || undefined,
+              ...warningsField,
             });
           }
         }
       }
     }
 
-    // Decorate succeeded rows with validation outcome + preview URL. Sequential
-    // to avoid hammering the backoffice at the 10-item cap.
+    // Decorate rows that wrote something (full or partial success) with
+    // validation outcome + preview URL. Sequential to avoid hammering the
+    // backoffice at the 10-item cap.
     for (const row of results) {
-      if (!row.success || row.blocksUpdated === 0) continue;
+      if (row.blocksUpdated === 0) continue;
       row.validation = await validateDocumentState(row.id);
       row.previewUrl = await fetchPreviewUrl(row.id);
     }
