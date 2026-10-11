@@ -77,7 +77,7 @@ describe("create-page", () => {
     const data = getStructuredContent(result) as any;
     lastCreatedId = data.id;
 
-    const verifyResult = await getPageTool.handler({ id: data.id }, extra);
+    const verifyResult = await callTool(getPageTool, { id: data.id }, extra);
     const verifyData = getStructuredContent(verifyResult) as any;
     const compositionValue = verifyData.values?.find((v: any) => v.alias === fixture.compositionPropertyAlias);
     expect(compositionValue?.value).toBe("Composition-inherited value");

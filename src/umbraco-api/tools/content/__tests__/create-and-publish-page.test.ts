@@ -23,6 +23,7 @@ import { callTool } from "../../../../testing/call-tool-with-validation.js";
 import { expectPublished } from "../../../../testing/state-assertions.js";
 import { getOrCreateCompositionDoctypeFixture } from "./helpers/composition-doctype-fixture.js";
 import createAndPublishPageTool from "../post/create-and-publish-page.js";
+import getPageTool from "../get/get-page.js";
 
 const TEST_PAGE_NAME = "_Test Create And Publish Page";
 const TEST_VALUES = [{ alias: "title", value: "Created And Published Title" }];
@@ -108,6 +109,11 @@ describe("create-and-publish-page", () => {
     lastCreatedId = data.id;
 
     await expectPublished(data.id, extra);
+
+    const verifyResult = await callTool(getPageTool, { id: data.id }, extra);
+    const verifyData = getStructuredContent(verifyResult) as any;
+    const compositionValue = verifyData.values?.find((v: any) => v.alias === fixture.compositionPropertyAlias);
+    expect(compositionValue?.value).toBe("Composition-inherited value");
   }, 30000);
 
   it("fails before calling Umbraco when a value's alias isn't a property on the document type", async () => {

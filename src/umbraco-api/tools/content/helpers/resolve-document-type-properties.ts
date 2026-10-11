@@ -62,13 +62,17 @@ export async function resolveDocumentTypeProperties(
     .map((c) => c.document?.id ?? c.documentType?.id ?? c.id)
     .filter((cid): cid is string => typeof cid === "string");
   if (compositionIds.length > 0) {
-    const compositions = await Promise.all(
-      compositionIds.map(async (cid) => {
-        const r = await chainCms("get-document-type-by-id", { id: cid });
-        return r.ok ? (r.data as RawDocType) : null;
-      }),
+    const compositionResults = await Promise.all(
+      compositionIds.map((cid) => chainCms("get-document-type-by-id", { id: cid })),
     );
-    for (const comp of compositions) {
+    // A failed composition fetch must not be mistaken for "this composition has no
+    // properties" — that would surface downstream as a misleading "isn't a property on
+    // this document type" error, blaming the caller's alias for what is actually a
+    // failed upstream lookup.
+    const failed = compositionResults.find((r) => !r.ok);
+    if (failed && !failed.ok) return { ok: false, errorResult: failed.errorResult };
+    for (const r of compositionResults) {
+      const comp = r.ok ? (r.data as RawDocType) : undefined;
       if (comp && Array.isArray(comp.properties)) addProperties(comp.properties);
     }
   }
