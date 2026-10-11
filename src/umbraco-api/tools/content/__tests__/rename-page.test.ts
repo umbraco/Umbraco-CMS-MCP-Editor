@@ -24,6 +24,7 @@ import {
 } from "./setup.js";
 import renamePageTool from "../put/rename-page.js";
 import { mcpClientManager } from "../../../mcp-client.js";
+import { setServerRef } from "@umbraco-cms/mcp-server-sdk";
 
 const TEST_PAGE_NAME = "_Test Rename Page";
 const TEST_RENAMED = "_Test Renamed Page";
@@ -123,6 +124,33 @@ describe("rename-page", () => {
     const verify = await mcpClientManager.callTool("cms", "get-document-by-id", { id: doc.getId() });
     const verified = extractChainedResult(verify) as any;
     expect(verified.variants?.[0]?.name).toBe(TEST_PAGE_NAME);
+  }, 60000);
+
+  it("should rename without error when the client does not support elicitation", async () => {
+    // Hosts like ChatGPT advertise no elicitation capability and gate tool
+    // calls with their own approval UI — the tool must not throw (#187).
+    const doc = await new ContentBuilder()
+      .withName(TEST_PAGE_NAME)
+      .withDocumentType(testDocumentTypeId)
+      .withParent(testPageId)
+      .create();
+    lastCreatedId = doc.getId();
+
+    setServerRef({ getClientCapabilities: () => ({}), elicitInput: elicitation.mock } as any);
+    try {
+      const result = await renamePageTool.handler(
+        { id: doc.getId(), name: TEST_RENAMED, culture: undefined },
+        extra,
+      );
+      expect(result.isError).toBeFalsy();
+      expect(elicitation.mock).not.toHaveBeenCalled();
+    } finally {
+      setServerRef({ elicitInput: elicitation.mock } as any);
+    }
+
+    const verify = await mcpClientManager.callTool("cms", "get-document-by-id", { id: doc.getId() });
+    const verified = extractChainedResult(verify) as any;
+    expect(verified.variants?.[0]?.name).toBe(TEST_RENAMED);
   }, 60000);
 
   it("should error for a non-existent page", async () => {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
-import { chainCms } from "../../../cms-chain.js";
+import { chainCms, extractInnerProblemDetails } from "../../../cms-chain.js";
 import { fetchPublishedUrls, publishedUrlsSchema } from "../../helpers/preview-url.js";
 import { verifyDocumentPublished } from "../../helpers/verify-published.js";
 
@@ -195,7 +195,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       // only the publish didn't" — the opposite of what happened.
       if (!updateAndPublishResult.ok) {
         const rolledBack = `No changes were saved to "${pageName}" — save-and-publish is a single atomic operation, so the field updates were rolled back along with the publish.`;
-        const problem = updateAndPublishResult.errorResult.structuredContent;
+        const problem = extractInnerProblemDetails(updateAndPublishResult.errorResult as Record<string, unknown>);
         return createToolResultError({
           ...problem,
           status: typeof problem?.status === "number" ? problem.status : 500,
