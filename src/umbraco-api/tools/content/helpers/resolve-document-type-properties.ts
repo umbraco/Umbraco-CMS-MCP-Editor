@@ -9,10 +9,10 @@
  *
  * This walks a document type's compositions and merges their properties with
  * its own (own properties win on alias collision), returning the full set an
- * editor can actually set on a page of this type. Shared by
- * `resolve-editor-aliases.ts` (create-page / create-and-publish-page /
- * create-element's editorAlias resolution) — see Umbraco-CMS-MCP-Editor#201,
- * #208.
+ * editor can actually set on a page of this type. One level of composition
+ * only — a composition's own compositions aren't walked. Used by
+ * `resolve-editor-aliases.ts`, currently wired into `create-element.ts` only
+ * (Umbraco-CMS-MCP-Editor#208).
  */
 
 import type { GetDocumentTypeByIdOutput } from "@umbraco-cms/mcp-dev/tool-types";

@@ -1,21 +1,26 @@
 /**
- * editorAlias Resolution for create-page / create-and-publish-page / create-element
+ * editorAlias Resolution for create-element (Umbraco-CMS-MCP-Editor#208)
  *
- * `create-document`/`create-and-publish-document`/`create-element` require an
- * `editorAlias` on every value, resolved from the document (or element) type's
- * property -> its data type's editor alias. The caller (an LLM) only supplies
- * the property alias.
+ * `create-document`/`create-and-publish-document`/`create-element` all require
+ * an `editorAlias` on every value, resolved from the document (or element)
+ * type's property -> its data type's editor alias. The caller (an LLM) only
+ * supplies the property alias.
  *
  * Properties inherited through compositions aren't in a document type's own
- * `properties` array, so a value for one of those used to find nothing in a
- * properties-only map, silently fall back to `editorAlias: ""`, and get
- * rejected by Umbraco with an opaque 400 (Umbraco-CMS-MCP-Editor#201, #208). A
- * genuinely wrong or typo'd alias hid behind that same fallback.
+ * `properties` array, so a value for one of those finds nothing in a
+ * properties-only map, silently falls back to `editorAlias: ""`, and gets
+ * rejected by Umbraco with an opaque 400. A genuinely wrong or typo'd alias
+ * hides behind that same fallback.
  *
  * This resolves every value's editorAlias against the FULL set of own +
  * composition-inherited properties (via resolve-document-type-properties.ts)
  * and fails fast — before any call reaches Umbraco — naming every alias that
  * isn't a property on the document/element type at all.
+ *
+ * Currently wired into `create-element.ts` only (#208). `create-page.ts` /
+ * `create-and-publish-page.ts` have the identical bug (#201) but are fixed
+ * separately in #207 — as of this file, they still use their own inline,
+ * composition-blind resolution.
  */
 
 import { createToolResultError } from "@umbraco-cms/mcp-server-sdk";
