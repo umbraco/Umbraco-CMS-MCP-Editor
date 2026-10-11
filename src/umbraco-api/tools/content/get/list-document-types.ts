@@ -3,6 +3,8 @@ import { withStandardDecorators, createToolResult, createToolResultError, ToolDe
 import { chainCms } from "../../../cms-chain.js";
 import { hasSettingsAccess } from "../../helpers/settings-access.js";
 
+type ErrorResult = ReturnType<typeof createToolResultError>;
+
 
 const inputSchema = {
   take: z.number().optional().default(50).describe("Number of results to return"),
@@ -39,8 +41,7 @@ interface DocTypeDetails {
 
 type TreeWalkResult =
   | { ok: true; nodes: DocTypeNode[] }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  | { ok: false; errorResult: any };
+  | { ok: false; errorResult: ErrorResult };
 
 /**
  * Walk the doc-type tree, descending into folders, and return only actual document types.
@@ -88,8 +89,7 @@ async function collectDocumentTypeIds(): Promise<TreeWalkResult> {
 
 type ResolveDetailsResult =
   | { ok: true; details: DocTypeDetails[] }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  | { ok: false; errorResult: any };
+  | { ok: false; errorResult: ErrorResult };
 
 /**
  * Resolve the actual aliases by fetching each doc type by id. The tree-walk

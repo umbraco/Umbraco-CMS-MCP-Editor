@@ -9,8 +9,12 @@
  * returns a successful but empty/truncated list. Tools use this flag to
  * refuse up front with a clear 403 instead.
  *
- * The result is fetched once via `get-user-current` and cached for the
- * process lifetime; group/section membership changes need a server restart.
+ * A successful result is fetched once via `get-user-current` and cached for
+ * the process lifetime; group/section membership changes need a server
+ * restart. A failed `get-user-current` call (network blip, chained CMS
+ * momentarily unavailable, etc.) is never cached — that call fails closed
+ * (returns `false`), but the next call retries `get-user-current` fresh
+ * rather than being stuck on a transient failure forever.
  *
  * Modeled directly on `hasSensitiveDataAccess()` in
  * `../member/sensitive-data-access.ts`.
@@ -24,7 +28,8 @@ let cachedAccess: boolean | undefined;
 export async function hasSettingsAccess(): Promise<boolean> {
   if (cachedAccess !== undefined) return cachedAccess;
   const result = await chainCms("get-user-current", {});
-  cachedAccess = result.ok ? (result.data.allowedSections?.includes(sections.settings) ?? false) : false;
+  if (!result.ok) return false; // don't cache a transient failure — retry next call
+  cachedAccess = result.data.allowedSections?.includes(sections.settings) ?? false;
   return cachedAccess;
 }
 

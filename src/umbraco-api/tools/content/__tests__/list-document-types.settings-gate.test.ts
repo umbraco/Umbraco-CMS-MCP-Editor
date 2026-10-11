@@ -112,4 +112,117 @@ describe("list-document-types — Settings access gate and error propagation", (
     const data = JSON.parse(getResultText(result as never));
     expect(data.title).toBe("Forbidden");
   });
+
+  it("surfaces a Forbidden from a nested folder's children as an error, not a silently truncated list", async () => {
+    const FOLDER_ID = "33333333-3333-3333-3333-333333333333";
+    mockChainCms.mockImplementation(async (toolName: string, args: unknown) => {
+      if (toolName === "get-user-current") {
+        return { ok: true, data: { allowedSections: [sections.settings] } };
+      }
+      if (toolName === "get-document-type-root") {
+        return {
+          ok: true,
+          data: {
+            items: [{ id: FOLDER_ID, name: "A Folder", isFolder: true, hasChildren: true }],
+            nextCursor: null,
+          },
+        };
+      }
+      if (toolName === "get-document-type-children") {
+        expect((args as { parentId?: string }).parentId).toBe(FOLDER_ID);
+        return {
+          ok: false,
+          errorResult: {
+            isError: true,
+            content: [{ type: "text", text: JSON.stringify({ status: 403, title: "Forbidden", detail: "no access" }) }],
+          },
+        };
+      }
+      throw new Error(`Unexpected chained call: ${toolName}`);
+    });
+
+    const result = await listDocumentTypesTool.handler({}, extra as never);
+
+    expect(result.isError).toBeTruthy();
+    const data = JSON.parse(getResultText(result as never));
+    expect(data.title).toBe("Forbidden");
+  });
+
+  it("surfaces a Forbidden from resolving a later item's details, even when an earlier item succeeds", async () => {
+    const FIRST_ID = "11111111-1111-1111-1111-111111111111";
+    const SECOND_ID = "22222222-2222-2222-2222-222222222222";
+    mockChainCms.mockImplementation(async (toolName: string, args: unknown) => {
+      if (toolName === "get-user-current") {
+        return { ok: true, data: { allowedSections: [sections.settings] } };
+      }
+      if (toolName === "get-document-type-root") {
+        return {
+          ok: true,
+          data: {
+            items: [
+              { id: FIRST_ID, name: "First Type", isFolder: false, hasChildren: false },
+              { id: SECOND_ID, name: "Second Type", isFolder: false, hasChildren: false },
+            ],
+            nextCursor: null,
+          },
+        };
+      }
+      if (toolName === "get-document-type-by-id") {
+        const id = (args as { id?: string }).id;
+        if (id === FIRST_ID) {
+          return { ok: true, data: { id: FIRST_ID, alias: "firstType", name: "First Type" } };
+        }
+        if (id === SECOND_ID) {
+          return {
+            ok: false,
+            errorResult: {
+              isError: true,
+              content: [{ type: "text", text: JSON.stringify({ status: 403, title: "Forbidden", detail: "no access" }) }],
+            },
+          };
+        }
+      }
+      throw new Error(`Unexpected chained call: ${toolName} ${JSON.stringify(args)}`);
+    });
+
+    const result = await listDocumentTypesTool.handler({}, extra as never);
+
+    expect(result.isError).toBeTruthy();
+    const data = JSON.parse(getResultText(result as never));
+    expect(data.title).toBe("Forbidden");
+  });
+
+  it("does not permanently cache a transient get-user-current failure (retries on the next call)", async () => {
+    let userCurrentCalls = 0;
+    mockChainCms.mockImplementation(async (toolName: string) => {
+      if (toolName === "get-user-current") {
+        userCurrentCalls += 1;
+        if (userCurrentCalls === 1) {
+          return {
+            ok: false,
+            errorResult: {
+              isError: true,
+              content: [{ type: "text", text: JSON.stringify({ status: 500, title: "Internal Server Error", detail: "transient" }) }],
+            },
+          };
+        }
+        return { ok: true, data: { allowedSections: [sections.settings] } };
+      }
+      if (toolName === "get-document-type-root") {
+        return { ok: true, data: { items: [], nextCursor: null } };
+      }
+      throw new Error(`Unexpected chained call: ${toolName}`);
+    });
+
+    const first = await listDocumentTypesTool.handler({}, extra as never);
+    expect(first.isError).toBeTruthy();
+    const firstData = JSON.parse(getResultText(first as never));
+    expect(firstData.status).toBe(403);
+    expect(firstData.title).toContain("Settings");
+
+    const second = await listDocumentTypesTool.handler({}, extra as never);
+    expect(second.isError).toBeFalsy();
+
+    expect(userCurrentCalls).toBe(2);
+  });
 });
