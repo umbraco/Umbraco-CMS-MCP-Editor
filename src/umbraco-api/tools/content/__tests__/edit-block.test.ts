@@ -156,4 +156,52 @@ describe("edit-block", () => {
       await ContentTestHelper.cleanupById(freshPageId);
     }
   }, 90000);
+
+  it("errors with the available blocks' keys and contentTypeKeys when contentKey is not found", async () => {
+    expect(settingsFixture).not.toBeNull();
+    const f = settingsFixture!;
+    const badContentKey = "99999999-9999-4999-8999-999999999999";
+
+    const result = await callTool(editBlockTool, {
+      id: f.pageId,
+      propertyAlias: f.propertyAlias,
+      contentKey: badContentKey,
+      values: [{ alias: f.blockPropertyAlias, value: "_should not apply" }],
+      blockType: undefined,
+      culture: undefined,
+      segment: undefined,
+    }, extra);
+
+    expect(result.isError).toBe(true);
+    const problem = JSON.parse(result.content[0].text);
+    expect(problem.title).toBe("Blocks not found");
+    expect(Array.isArray(problem.availableBlocks)).toBe(true);
+    const seededEntry = problem.availableBlocks.find((b: any) => b.key === f.seededBlockKey);
+    expect(seededEntry).toBeDefined();
+    // The enrichment is the point of this test: availableBlocks now carries the
+    // block's contentTypeKey alongside its key, so the model can tell blocks of
+    // different element types apart without an extra lookup.
+    expect(seededEntry.contentTypeKey).toBe(f.elementTypeId);
+  }, 60000);
+
+  it("surfaces a per-block property-alias failure as a real error, not a reported success", async () => {
+    expect(settingsFixture).not.toBeNull();
+    const f = settingsFixture!;
+
+    // Valid on the document in general, but not a property of this block's
+    // element type — this is the case the pre-fix bug swallowed as a success.
+    const result = await callTool(editBlockTool, {
+      id: f.pageId,
+      propertyAlias: f.propertyAlias,
+      contentKey: f.seededBlockKey,
+      values: [{ alias: "_notARealPropertyAliasOnThisElementType", value: "_should not apply" }],
+      blockType: undefined,
+      culture: undefined,
+      segment: undefined,
+    }, extra);
+
+    expect(result.isError).toBe(true);
+    const text = result.content[0].text as string;
+    expect(text).toContain("Block update failed");
+  }, 60000);
 });

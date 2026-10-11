@@ -9,8 +9,10 @@ import {
   expectElicitationCancel,
   FAKE_CONTENT_TYPE_KEY,
 } from "./setup.js";
+import { callTool } from "../../../../testing/call-tool-with-validation.js";
 import bulkSetBlockPropertyTool from "../post/bulk-set-block-property.js";
 import inspectBlocksTool from "../../content/get/inspect-blocks.js";
+import { createBlockListFixture, type BlockListFixture } from "../../content/__tests__/helpers/block-fixture.js";
 
 const elicitation = createElicitation();
 
@@ -19,14 +21,17 @@ describe("bulk-set-block-property", () => {
 
   const extra = createMockRequestHandlerExtra();
   let firstRootPageId: string;
+  let blockFixture: BlockListFixture | null = null;
 
   beforeAll(async () => {
     const state = await initBulkOperationsTestState(extra);
     firstRootPageId = state.firstRootPageId;
+    blockFixture = await createBlockListFixture(extra, "_Test bulk-set-block-property fixture");
   }, 60000);
 
   afterAll(async () => {
     elicitation.cleanup();
+    if (blockFixture) await blockFixture.cleanup();
   });
 
   beforeEach(() => {
@@ -134,4 +139,31 @@ describe("bulk-set-block-property", () => {
     const data = getStructuredContent(result) as any;
     expect(data?.message?.includes("Cancelled") || result.isError).toBe(true);
   }, 30000);
+
+  it("marks a page's row as failed when a property alias is valid on the document but not on the block's element type", async () => {
+    // Pre-fix, update-block-property's top-level success===true was the only
+    // thing checked, so this per-block failure was reported as
+    // blocksUpdated: blocks.length instead of a real error.
+    expect(blockFixture).not.toBeNull();
+    const f = blockFixture!;
+
+    const result = await callTool(bulkSetBlockPropertyTool, {
+      ids: [f.pageId],
+      contentTypeKey: f.elementTypeId,
+      propertyAlias: f.propertyAlias,
+      values: [{ alias: "_notARealPropertyAliasOnThisElementType", value: "_should not apply" }],
+      culture: undefined,
+      segment: undefined,
+    }, extra);
+
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    expect(data.results).toHaveLength(1);
+    expect(data.results[0].success).toBe(false);
+    expect(data.results[0].blocksUpdated).toBe(0);
+    expect(typeof data.results[0].error).toBe("string");
+    expect(data.results[0].error).toContain("Block update failed");
+    expect(data.failureCount).toBe(1);
+    expect(data.successCount).toBe(0);
+  }, 60000);
 });

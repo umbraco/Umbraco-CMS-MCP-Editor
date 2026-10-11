@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { findSettingsKey, isRteWithBlocks } from "../../helpers/block-inspector.js";
+import { collectBlockProperties, enrichBlockNotFoundError, findSettingsKey, isRteWithBlocks } from "../../helpers/block-inspector.js";
 import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 import { validateDocumentState, validationResultSchema } from "../../helpers/validate-document.js";
 
@@ -75,7 +75,28 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         properties: propsTuple,
       }],
     });
-    if (!updateResult.ok) return updateResult.errorResult;
+    if (!updateResult.ok) {
+      return enrichBlockNotFoundError(
+        updateResult.errorResult,
+        collectBlockProperties(docResult.data.values ?? [], propertyAlias),
+      );
+    }
+
+    // `update-block-property`'s top-level `success` is always true once the
+    // call itself completes — per-block outcomes live only in `results[]`
+    // (unknown contentKey, property alias not on the block's element type, …
+    // each produce a `results` entry with its own `success: false`). Check
+    // that instead of the top-level flag, or a failed write is reported as
+    // saved — see edit-element-block.ts for the same pattern.
+    const failed = (updateResult.data.results ?? []).filter((r) => r.success === false);
+    if (failed.length > 0) {
+      const detail = failed
+        .flatMap((r) => (r.errors?.length ? r.errors : [r.message]))
+        .join("; ");
+      return createToolResultError(
+        `Block update failed: ${detail || updateResult.data.message || "no detail returned"}`,
+      );
+    }
 
     const validation = await validateDocumentState(id);
     const target = resolvedBlockType === "settings" ? "settings" : "content";

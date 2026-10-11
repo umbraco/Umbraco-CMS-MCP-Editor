@@ -13,6 +13,8 @@
  */
 
 import { z } from "zod";
+import { createToolResultError } from "@umbraco-cms/mcp-server-sdk";
+import { extractInnerProblemDetails } from "../../cms-chain.js";
 import { isBlockListOrGridValue, isRteWithBlocks } from "./block-builder.js";
 
 export { isBlockListOrGridValue, isRteWithBlocks };
@@ -149,6 +151,41 @@ export function collectBlockProperties(
         blocks: withSettingsKeys(extractBlocks(container.contentData!), container),
       };
     });
+}
+
+/**
+ * Enrich a "Blocks not found" error from `update-block-property` /
+ * `update-element-block-property` with each available block's
+ * `contentTypeKey`, cross-referenced from the already-fetched entity's blocks
+ * (`collectBlockProperties`). The chained tool's `availableBlocks` extension
+ * only lists `{key, type, path}` — no element-type information — so the model
+ * can't tell which key is which kind of block without an extra lookup. Both
+ * `edit-block` and `bulk-set-block-property` already have the document fetched
+ * (and thus its block containers) by the time they see this error, so this is
+ * a free enrichment rather than a new chained call.
+ *
+ * Returns the error result unchanged when it isn't this specific shape (no
+ * `availableBlocks` array in its ProblemDetails) — e.g. "Property not found",
+ * which is left as-is per the issue's scope.
+ */
+export function enrichBlockNotFoundError(
+  errorResult: ReturnType<typeof createToolResultError>,
+  containers: InspectedBlockContainer[],
+): ReturnType<typeof createToolResultError> {
+  const problem = extractInnerProblemDetails(errorResult as Record<string, unknown>);
+  const availableBlocks = problem.availableBlocks;
+  if (!Array.isArray(availableBlocks)) return errorResult;
+
+  const typeByKey = new Map(
+    containers.flatMap((c) => c.blocks).map((b) => [b.contentKey, b.contentTypeKey]),
+  );
+  const enrichedBlocks = availableBlocks.map((b) =>
+    b && typeof b === "object" && typeof (b as { key?: unknown }).key === "string"
+      ? { ...b, contentTypeKey: typeByKey.get((b as { key: string }).key) ?? null }
+      : b,
+  );
+
+  return createToolResultError({ ...problem, availableBlocks: enrichedBlocks });
 }
 
 /** Attach each block's paired settings key, where the layout wires one up. */

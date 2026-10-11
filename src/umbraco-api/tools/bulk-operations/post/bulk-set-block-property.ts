@@ -7,6 +7,11 @@ import {
   SKIPPED_SENTINEL,
   type BulkItemDetail,
 } from "../../helpers/bulk-handler.js";
+import {
+  collectBlockProperties,
+  enrichBlockNotFoundError,
+  type InspectedBlockContainer,
+} from "../../helpers/block-inspector.js";
 import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 import { validateDocumentState, validationResultSchema, type ValidationResult } from "../../helpers/validate-document.js";
 
@@ -103,6 +108,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     const items: BulkItemDetail[] = [];
     const pageBlocks = new Map<string, BlockMatch[]>();
+    const blockContainersByItem = new Map<string, InspectedBlockContainer[]>();
 
     for (const id of ids) {
       const docResult = await chainCms("get-document-by-id", { id });
@@ -118,6 +124,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
       items.push({ id, name, currentVersionId });
       pageBlocks.set(id, findMatchingBlocks(doc, propertyAlias, contentTypeKey));
+      // Kept for enrichBlockNotFoundError — a "Blocks not found" error from the
+      // chained tool (stale contentKey from a change between this fetch and the
+      // update below) can list contentTypeKey for each available block without
+      // a second lookup.
+      blockContainersByItem.set(id, collectBlockProperties(doc.values ?? [], propertyAlias));
     }
 
     if (items.length === 0) {
@@ -210,24 +221,50 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
 
       if (!updateResult.ok) {
+        const enriched = enrichBlockNotFoundError(
+          updateResult.errorResult,
+          blockContainersByItem.get(item.id) ?? [],
+        );
         results.push({
           id: item.id,
           name: item.name,
           success: false,
           blocksUpdated: 0,
           previousVersionId: item.currentVersionId || undefined,
-          error: parseBulkError(updateResult.errorResult),
+          error: parseBulkError(enriched),
         });
         stopped = true;
       } else {
-        totalBlocksUpdated += blocks.length;
-        results.push({
-          id: item.id,
-          name: item.name,
-          success: true,
-          blocksUpdated: blocks.length,
-          previousVersionId: item.currentVersionId || undefined,
-        });
+        // `update-block-property`'s top-level `success` is always true once the
+        // call itself completes — per-block outcomes live only in `results[]`
+        // (e.g. a property alias valid on the document but not on this block's
+        // element type). Check that instead of `updateResult.ok` alone, or a
+        // failed write is reported as `blocksUpdated: blocks.length` — see
+        // edit-element-block.ts for the same pattern.
+        const failed = (updateResult.data.results ?? []).filter((r) => r.success === false);
+        if (failed.length > 0) {
+          const detail = failed
+            .flatMap((r) => (r.errors?.length ? r.errors : [r.message]))
+            .join("; ");
+          results.push({
+            id: item.id,
+            name: item.name,
+            success: false,
+            blocksUpdated: 0,
+            previousVersionId: item.currentVersionId || undefined,
+            error: `Block update failed: ${detail || updateResult.data.message || "no detail returned"}`,
+          });
+          stopped = true;
+        } else {
+          totalBlocksUpdated += blocks.length;
+          results.push({
+            id: item.id,
+            name: item.name,
+            success: true,
+            blocksUpdated: blocks.length,
+            previousVersionId: item.currentVersionId || undefined,
+          });
+        }
       }
     }
 
