@@ -1,0 +1,21 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`add-rte-block appends a new block tag to the rich text markup and registers the block content 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "contentKey": "<block-content-key>",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "message": "Added a new block to "_Test add-rte-block fixture" rich text (saved, not published)",
+    "name": "_Test add-rte-block fixture",
+    "previewUrl": {
+      "requiresBackofficeAuth": true,
+      "url": "<preview-url>",
+    },
+    "validation": {
+      "errors": [],
+      "valid": true,
+    },
+  },
+}
+`;
