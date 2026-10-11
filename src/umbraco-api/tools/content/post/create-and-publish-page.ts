@@ -24,7 +24,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "create-and-publish-page",
-  description: "Create a new content page and publish it — mirrors clicking 'Save and publish' (instead of 'Save') on the create screen in the Umbraco backoffice. This is a single atomic operation when the connected Umbraco instance supports it (17.6+), otherwise a two-call create-then-publish sequence is used. Call list-document-types first to find a valid documentTypeId. Use this as a starting point: pass `name`, `documentTypeId`, optional `parentId`, and at most a small number of simple initial values. If the document type requires properties this doesn't set, or if the values fail validation, the whole operation fails and no page is created — use create-page followed by save-and-publish instead when you need to build up content across multiple calls before publishing.",
+  description: "Create a new content page and publish it — mirrors clicking 'Save and publish' (instead of 'Save') on the create screen in the Umbraco backoffice. This is a single atomic operation when the connected Umbraco instance supports it (17.6+); otherwise a two-call create-then-publish sequence is used. Call list-document-types first to find a valid documentTypeId. Use this as a starting point: pass `name`, `documentTypeId`, optional `parentId`, and at most a small number of simple initial values. Required-property validation runs at publish time, not create time: on the atomic path a validation failure leaves no page behind, but on the fallback path the draft can already have been created before publish fails, leaving an unpublished draft. Either way, check the response `message` before retrying — don't retry blindly, or you may pile up duplicate drafts. Use create-page followed by save-and-publish instead when you need to build up content across multiple calls before publishing.",
   inputSchema,
   outputSchema,
   slices: ["create", "publish"],
@@ -63,9 +63,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // fall back to create-document followed by publish-document. This tool
     // only does invariant creation today, so the fallback publishes with a
     // null culture to match.
-    const availability = await isCmsToolAvailable("create-and-publish-document");
-    if (!availability.ok) return availability.errorResult;
-    if (availability.available) {
+    if (await isCmsToolAvailable("create-and-publish-document")) {
       const createResult = await chainCms("create-and-publish-document", {
         documentTypeId,
         name,

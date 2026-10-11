@@ -90,7 +90,10 @@ describe("create-and-publish-page", () => {
   it("falls back to create-document + publish-document when create-and-publish-document isn't available", async () => {
     // Only listTools is mocked — create-document and publish-document still
     // run for real against the running Umbraco, exercising the actual
-    // fallback sequence end to end.
+    // fallback sequence end to end. callTool is also spied (pass-through to
+    // the real implementation) purely to record which tool names were
+    // invoked, so the test can prove the fallback path — not just the atomic
+    // one — actually ran.
     const listToolsSpy = jest.spyOn(mcpClientManager, "listTools");
     listToolsSpy.mockImplementationOnce(async () => ({
       tools: [
@@ -100,6 +103,14 @@ describe("create-and-publish-page", () => {
         { name: "publish-document" },
       ],
     }));
+
+    const originalCallTool = mcpClientManager.callTool.bind(mcpClientManager);
+    const calledToolNames: string[] = [];
+    const callToolSpy = jest.spyOn(mcpClientManager, "callTool");
+    callToolSpy.mockImplementation(async (server: string, toolName: string, args: Record<string, unknown>) => {
+      calledToolNames.push(toolName);
+      return originalCallTool(server, toolName, args);
+    });
 
     try {
       const result = await callTool(
@@ -119,8 +130,15 @@ describe("create-and-publish-page", () => {
       lastCreatedId = data.id;
 
       expect(data.message).toBe(`Created and published "${TEST_PAGE_NAME_FALLBACK}"`);
+
+      // Prove the fallback sequence actually ran, not the atomic tool.
+      expect(calledToolNames).not.toContain("create-and-publish-document");
+      expect(calledToolNames).toContain("create-document");
+      expect(calledToolNames).toContain("publish-document");
+
       await expectPublished(data.id, extra);
     } finally {
+      callToolSpy.mockRestore();
       listToolsSpy.mockRestore();
     }
   }, 30000);

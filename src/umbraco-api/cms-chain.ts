@@ -53,24 +53,21 @@ function extractInnerProblemDetails(result: Record<string, unknown>): Record<str
  * today, and once the upstream gating issue is fixed the answer becomes a
  * per-site constant rather than a process-wide one, so caching it now would
  * just be a stale-cache bug waiting to happen.
+ *
+ * If the availability check itself can't be completed (e.g. `listTools`
+ * throws), we can't tell one way or the other — treat the tool as available
+ * rather than blocking the call on a probe failure. The subsequent
+ * `chainCms(toolName, ...)` call has its own try/catch and will surface the
+ * real underlying failure (e.g. "tool not found", or whatever the actual
+ * connectivity problem is) through its normal `{ ok: false, errorResult }`
+ * contract, which is more specific than anything this probe could report.
  */
-export async function isCmsToolAvailable(
-  toolName: CmsToolsName,
-): Promise<{ ok: true; available: boolean } | { ok: false; errorResult: ReturnType<typeof createToolResultError> }> {
+export async function isCmsToolAvailable(toolName: CmsToolsName): Promise<boolean> {
   try {
     const { tools } = await mcpClientManager.listTools("cms");
-    return { ok: true, available: (tools ?? []).some((t) => t.name === toolName) };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return {
-      ok: false,
-      errorResult: createToolResultError({
-        type: "Error",
-        title: "Chained tool availability check failed",
-        status: 500,
-        detail: `Could not determine whether chained CMS tool "${toolName}" is available: ${message}`,
-      }),
-    };
+    return (tools ?? []).some((t) => t.name === toolName);
+  } catch {
+    return true;
   }
 }
 

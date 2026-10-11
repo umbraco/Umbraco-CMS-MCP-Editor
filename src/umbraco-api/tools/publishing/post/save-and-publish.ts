@@ -128,9 +128,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       // version — see cms-tool-types-augment.d.ts). When it isn't available,
       // fall back to the same two-call update-then-publish pattern used
       // elsewhere in this branch, feeding the merged values into the update call.
-      const availability = await isCmsToolAvailable("update-and-publish-document");
-      if (!availability.ok) return availability.errorResult;
-      if (availability.available) {
+      if (await isCmsToolAvailable("update-and-publish-document")) {
         const updateAndPublishResult = await chainCms("update-and-publish-document", {
           id,
           data: {
