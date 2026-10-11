@@ -9,6 +9,7 @@
 import { describe, it, expect } from "@jest/globals";
 import { createToolResultError } from "@umbraco-cms/mcp-server-sdk";
 import {
+  classifyBlockUpdateResults,
   collectBlockProperties,
   enrichBlockNotFoundError,
   extractBlocks,
@@ -171,14 +172,11 @@ describe("collectBlockProperties", () => {
 });
 
 describe("enrichBlockNotFoundError", () => {
-  const SETTINGS_ELEMENT_TYPE_KEY = "dddddddd-4444-4444-8444-444444444444";
-  const NESTED_CONTENT_KEY = "eeeeeeee-5555-4555-8555-555555555555";
-  const NESTED_ELEMENT_TYPE_KEY = "ffffffff-6666-4666-8666-666666666666";
+  const SETTINGS_TYPE_KEY = "dddddddd-5555-4555-8555-555555555555";
+  const NESTED_CONTENT_KEY = "eeeeeeee-6666-4666-8666-666666666666";
+  const NESTED_TYPE_KEY = "ffffffff-7777-4777-8777-777777777777";
 
-  const docValues = [
-    { alias: "title", editorAlias: "Umbraco.TextBox", value: "not a block" },
-    { alias: "mainContent", editorAlias: "Umbraco.BlockList", value: blockListValue() },
-  ];
+  const values = [{ alias: "mainContent", value: blockListValue({ contentKey: CONTENT_KEY }) }];
 
   function blocksNotFoundError(availableBlocks: unknown[]) {
     return createToolResultError({
@@ -192,12 +190,12 @@ describe("enrichBlockNotFoundError", () => {
   it("returns the error unchanged when it isn't the \"Blocks not found\" shape", () => {
     // No `availableBlocks` array at all — e.g. a plain "Property not found" error.
     const errorResult = createToolResultError({ type: "Error", title: "Property not found", status: 404 });
-    expect(enrichBlockNotFoundError(errorResult, docValues, "mainContent")).toBe(errorResult);
+    expect(enrichBlockNotFoundError(errorResult, values)).toBe(errorResult);
   });
 
   it("sets contentTypeKey to null when an availableBlocks entry's key matches no known block", () => {
     const errorResult = blocksNotFoundError([{ key: "unknown-key", type: "content", path: "x" }]);
-    const result = enrichBlockNotFoundError(errorResult, docValues, "mainContent");
+    const result = enrichBlockNotFoundError(errorResult, values);
     const problem = JSON.parse(result.content[0].text as string);
     expect(problem.availableBlocks).toEqual([
       { key: "unknown-key", type: "content", path: "x", contentTypeKey: null },
@@ -209,101 +207,181 @@ describe("enrichBlockNotFoundError", () => {
     // `typeof (b as {key}).key === "string"` guard should leave these as-is.
     const malformed = ["a string entry", 42, null, { type: "content" }, { key: 123 }];
     const errorResult = blocksNotFoundError(malformed);
-    const result = enrichBlockNotFoundError(errorResult, docValues, "mainContent");
+    const result = enrichBlockNotFoundError(errorResult, values);
     const problem = JSON.parse(result.content[0].text as string);
     expect(problem.availableBlocks).toEqual(malformed);
   });
 
   it("merges the matching block's contentTypeKey on the happy path", () => {
     const errorResult = blocksNotFoundError([{ key: CONTENT_KEY, type: "content", path: "mainContent" }]);
-    const result = enrichBlockNotFoundError(errorResult, docValues, "mainContent");
+    const result = enrichBlockNotFoundError(errorResult, values, { propertyAlias: "mainContent" });
     const problem = JSON.parse(result.content[0].text as string);
     expect(problem.availableBlocks).toEqual([
       { key: CONTENT_KEY, type: "content", path: "mainContent", contentTypeKey: ELEMENT_TYPE_KEY },
     ]);
   });
 
-  it("only looks at the targeted property, ignoring blocks on a differently-named one", () => {
-    const errorResult = blocksNotFoundError([{ key: CONTENT_KEY, type: "content", path: "mainContent" }]);
-    const result = enrichBlockNotFoundError(errorResult, docValues, "sidebar");
-    const problem = JSON.parse(result.content[0].text as string);
-    expect(problem.availableBlocks).toEqual([
-      { key: CONTENT_KEY, type: "content", path: "mainContent", contentTypeKey: null },
-    ]);
-  });
-
-  it("labels a settings entry's contentTypeKey, not just content blocks", () => {
-    const valueWithSettings = {
+  it("resolves a settings entry's contentTypeKey from settingsData", () => {
+    const withSettings = [{
       alias: "mainContent",
-      editorAlias: "Umbraco.BlockList",
       value: {
         contentData: [blockEntry()],
-        settingsData: [{ key: SETTINGS_KEY, contentTypeKey: SETTINGS_ELEMENT_TYPE_KEY, values: [] }],
+        settingsData: [{ key: SETTINGS_KEY, contentTypeKey: SETTINGS_TYPE_KEY, values: [] }],
         layout: { "Umbraco.BlockList": [{ contentKey: CONTENT_KEY, settingsKey: SETTINGS_KEY }] },
         expose: [{ contentKey: CONTENT_KEY, culture: null, segment: null }],
       },
-    };
-    const errorResult = blocksNotFoundError([
-      { key: CONTENT_KEY, type: "content", path: "mainContent" },
-      { key: SETTINGS_KEY, type: "settings", path: "mainContent" },
-    ]);
-    const result = enrichBlockNotFoundError(errorResult, [valueWithSettings], "mainContent");
+    }];
+    const errorResult = blocksNotFoundError([{ key: SETTINGS_KEY, type: "settings", path: "mainContent" }]);
+    const result = enrichBlockNotFoundError(errorResult, withSettings, { propertyAlias: "mainContent" });
     const problem = JSON.parse(result.content[0].text as string);
     expect(problem.availableBlocks).toEqual([
-      { key: CONTENT_KEY, type: "content", path: "mainContent", contentTypeKey: ELEMENT_TYPE_KEY },
-      { key: SETTINGS_KEY, type: "settings", path: "mainContent", contentTypeKey: SETTINGS_ELEMENT_TYPE_KEY },
+      { key: SETTINGS_KEY, type: "settings", path: "mainContent", contentTypeKey: SETTINGS_TYPE_KEY },
     ]);
   });
 
-  it("labels a block nested inside another block's own property value", () => {
-    const valueWithNested = {
+  it("resolves a block-in-block's contentTypeKey by walking nested block values", () => {
+    const withNestedBlock = [{
       alias: "mainContent",
-      editorAlias: "Umbraco.BlockList",
       value: {
         contentData: [{
           key: CONTENT_KEY,
           contentTypeKey: ELEMENT_TYPE_KEY,
-          values: [
-            { alias: "title", value: "Hello" },
-            {
-              alias: "nestedBlocks",
-              value: {
-                contentData: [{ key: NESTED_CONTENT_KEY, contentTypeKey: NESTED_ELEMENT_TYPE_KEY, values: [] }],
-                settingsData: [],
-                layout: { "Umbraco.BlockList": [{ contentKey: NESTED_CONTENT_KEY }] },
-                expose: [],
-              },
+          values: [{
+            alias: "innerBlocks",
+            value: {
+              contentData: [{ key: NESTED_CONTENT_KEY, contentTypeKey: NESTED_TYPE_KEY, values: [] }],
+              settingsData: [],
+              layout: { "Umbraco.BlockList": [{ contentKey: NESTED_CONTENT_KEY }] },
+              expose: [],
             },
-          ],
+          }],
         }],
         settingsData: [],
         layout: { "Umbraco.BlockList": [{ contentKey: CONTENT_KEY }] },
         expose: [{ contentKey: CONTENT_KEY, culture: null, segment: null }],
       },
-    };
-    const errorResult = blocksNotFoundError([
-      { key: NESTED_CONTENT_KEY, type: "content", path: "mainContent.contentData[0].values[1](nestedBlocks)" },
-    ]);
-    const result = enrichBlockNotFoundError(errorResult, [valueWithNested], "mainContent");
+    }];
+    const errorResult = blocksNotFoundError([{ key: NESTED_CONTENT_KEY, type: "content", path: "mainContent" }]);
+    const result = enrichBlockNotFoundError(errorResult, withNestedBlock, { propertyAlias: "mainContent" });
     const problem = JSON.parse(result.content[0].text as string);
-    expect(problem.availableBlocks[0].contentTypeKey).toBe(NESTED_ELEMENT_TYPE_KEY);
+    expect(problem.availableBlocks).toEqual([
+      { key: NESTED_CONTENT_KEY, type: "content", path: "mainContent", contentTypeKey: NESTED_TYPE_KEY },
+    ]);
   });
 
-  it("adds a note that settings keys aren't valid contentKey input when requested", () => {
-    const errorResult = blocksNotFoundError([{ key: CONTENT_KEY, type: "content", path: "mainContent" }]);
-    const withoutNote = enrichBlockNotFoundError(errorResult, docValues, "mainContent");
-    expect(JSON.parse(withoutNote.content[0].text as string).note).toBeUndefined();
-
-    const withNote = enrichBlockNotFoundError(errorResult, docValues, "mainContent", { noteSettingsKeys: true });
-    expect(JSON.parse(withNote.content[0].text as string).note).toMatch(/settings/i);
-  });
-
-  it("caps the enriched list and notes the truncation when there are many blocks", () => {
-    const manyBlocks = Array.from({ length: 60 }, (_, i) => ({ key: `block-${i}`, type: "content", path: "mainContent" }));
-    const errorResult = blocksNotFoundError(manyBlocks);
-    const result = enrichBlockNotFoundError(errorResult, docValues, "mainContent");
+  it("caps the enriched list and notes how many entries were omitted", () => {
+    const many = Array.from({ length: 60 }, (_, i) => ({ key: `k${i}`, type: "content", path: "x" }));
+    const errorResult = blocksNotFoundError(many);
+    const result = enrichBlockNotFoundError(errorResult, values);
     const problem = JSON.parse(result.content[0].text as string);
     expect(problem.availableBlocks).toHaveLength(50);
-    expect(problem.note).toMatch(/first 50 of 60/);
+    expect(problem.availableBlocksNote).toContain("50 of 60");
+  });
+
+  it("passes through an optional note", () => {
+    const errorResult = blocksNotFoundError([{ key: CONTENT_KEY, type: "content", path: "mainContent" }]);
+    const result = enrichBlockNotFoundError(errorResult, values, { propertyAlias: "mainContent", note: "test note" });
+    const problem = JSON.parse(result.content[0].text as string);
+    expect(problem.note).toBe("test note");
+  });
+
+  it("stops recursing past the block-in-block depth cap rather than walking indefinitely", () => {
+    // Builds a block nested inside a block nested inside a block, 26 levels
+    // deep — well past MAX_BLOCK_WALK_DEPTH (20) — to pin that the walk bails
+    // out rather than resolving arbitrarily deep nesting (or, on a malicious
+    // document, spending unbounded CPU on it).
+    function buildChain(level: number): unknown {
+      const inner = level < 25 ? buildChain(level + 1) : null;
+      return {
+        contentData: [{
+          key: `chain-${level}`,
+          contentTypeKey: `type-${level}`,
+          values: inner ? [{ alias: "innerBlocks", value: inner }] : [],
+        }],
+        settingsData: [],
+        layout: { "Umbraco.BlockList": [{ contentKey: `chain-${level}` }] },
+        expose: [],
+      };
+    }
+    const chainValues = [{ alias: "mainContent", value: buildChain(0) }];
+    const errorResult = blocksNotFoundError([
+      { key: "chain-20", type: "content", path: "mainContent" },
+      { key: "chain-21", type: "content", path: "mainContent" },
+    ]);
+    const result = enrichBlockNotFoundError(errorResult, chainValues, { propertyAlias: "mainContent" });
+    const problem = JSON.parse(result.content[0].text as string);
+    const byKey = Object.fromEntries(problem.availableBlocks.map((b: any) => [b.key, b.contentTypeKey]));
+    expect(byKey["chain-20"]).toBe("type-20");
+    expect(byKey["chain-21"]).toBeNull();
+  });
+});
+
+describe("classifyBlockUpdateResults", () => {
+  it("classifies a fully successful result as clean", () => {
+    const result = classifyBlockUpdateResults(
+      [{ success: true, message: "Updated 2 properties", updatedCount: 2 }],
+      2,
+    );
+    expect(result.outcome).toBe("clean");
+    expect(result.processedCount).toBe(2);
+    expect(result.updatedEntryCount).toBe(1);
+  });
+
+  it("classifies a result with one valid and one invalid alias as partial, not clean", () => {
+    // Upstream's `success: totalProcessed > 0 || errors.length === 0` means
+    // this result still reads `success: true` despite the populated `errors`.
+    const result = classifyBlockUpdateResults(
+      [{ success: true, message: "Updated 1 properties", updatedCount: 1, errors: ["Property 'bad' does not exist on Element Type"] }],
+      2,
+    );
+    expect(result.outcome).toBe("partial");
+    expect(result.processedCount).toBe(1);
+    expect(result.detail).toContain("does not exist on Element Type");
+  });
+
+  it("classifies success: true with no errors but nothing processed as failed, not a false clean success", () => {
+    // The gap upstream's formula leaves open: totalProcessed === 0 and
+    // errors.length === 0 still yields success: true (e.g. an alias that only
+    // produced a warnings entry because the element type couldn't be resolved).
+    const result = classifyBlockUpdateResults(
+      [{ success: true, message: "No properties were processed", warnings: ["Property 'x' not found in block (could not validate against Element Type)"] }],
+      1,
+    );
+    expect(result.outcome).toBe("failed");
+    expect(result.processedCount).toBe(0);
+    expect(result.detail).toContain("could not validate");
+  });
+
+  it("classifies an explicit success: false result as failed", () => {
+    const result = classifyBlockUpdateResults(
+      [{ success: false, message: "Block with contentKey 'x' not found" }],
+      1,
+    );
+    expect(result.outcome).toBe("failed");
+  });
+
+  it("treats fewer result entries than requested as partial, even when every returned entry is clean", () => {
+    // If the chained tool ever returns fewer results than blocks were asked
+    // for, processedCount can't reach requestedCount, so this isn't silently
+    // read as a full success.
+    const result = classifyBlockUpdateResults(
+      [{ success: true, message: "Updated 1 properties", updatedCount: 1 }],
+      2,
+    );
+    expect(result.outcome).toBe("partial");
+  });
+
+  it("classifies an empty or missing results array as failed", () => {
+    expect(classifyBlockUpdateResults([], 1).outcome).toBe("failed");
+    expect(classifyBlockUpdateResults(undefined, 1).outcome).toBe("failed");
+  });
+
+  it("collects warnings across every result even on a clean outcome", () => {
+    const result = classifyBlockUpdateResults(
+      [{ success: true, message: "Updated 1 properties", updatedCount: 1, warnings: ["some warning"] }],
+      1,
+    );
+    expect(result.outcome).toBe("clean");
+    expect(result.warnings).toEqual(["some warning"]);
   });
 });

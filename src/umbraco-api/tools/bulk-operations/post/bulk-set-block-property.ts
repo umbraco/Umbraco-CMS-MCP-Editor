@@ -7,7 +7,11 @@ import {
   SKIPPED_SENTINEL,
   type BulkItemDetail,
 } from "../../helpers/bulk-handler.js";
-import { enrichBlockNotFoundError, splitBlockUpdateResults } from "../../helpers/block-inspector.js";
+import {
+  classifyBlockUpdateResults,
+  enrichBlockNotFoundError,
+  type WalkableValue,
+} from "../../helpers/block-inspector.js";
 import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 import { validateDocumentState, validationResultSchema, type ValidationResult } from "../../helpers/validate-document.js";
 
@@ -32,9 +36,9 @@ const outputSchema = z.object({
     blocksUpdated: z.number(),
     previousVersionId: z.string().optional(),
     error: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
-    warnings: z.array(z.string()).optional(),
     previewUrl: previewUrlSchema.optional(),
     validation: validationResultSchema.optional(),
+    warnings: z.array(z.string()).optional(),
   })),
   successCount: z.number(),
   failureCount: z.number(),
@@ -105,7 +109,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     const items: BulkItemDetail[] = [];
     const pageBlocks = new Map<string, BlockMatch[]>();
-    const docValuesByItem = new Map<string, Array<{ alias: string; editorAlias?: string | null; value?: unknown }>>();
+    const docValuesByItem = new Map<string, WalkableValue[]>();
 
     for (const id of ids) {
       const docResult = await chainCms("get-document-by-id", { id });
@@ -167,9 +171,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       blocksUpdated: number;
       previousVersionId?: string;
       error?: unknown;
-      warnings?: string[];
       previewUrl?: { url: string; requiresBackofficeAuth: true } | null;
       validation?: ValidationResult;
+      warnings?: string[];
     }> = [];
     let stopped = false;
     let totalBlocksUpdated = 0;
@@ -222,7 +226,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         const enriched = enrichBlockNotFoundError(
           updateResult.errorResult,
           docValuesByItem.get(item.id) ?? [],
-          propertyAlias,
+          { propertyAlias },
         );
         results.push({
           id: item.id,
@@ -235,17 +239,19 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         stopped = true;
       } else {
         // `update-block-property`'s top-level `success` is always true once the
-        // call itself completes — per-block outcomes live only in `results[]`.
-        // Don't trust the chained tool's declared shape: a missing/empty
-        // `results` array is treated as a failure too. edit-element-block.ts
-        // uses the simpler `(results ?? []).filter(r => r.success === false)`,
-        // which misses a block that only *partly* wrote — Umbraco sets
-        // `success: totalProcessed > 0 || errors.length === 0`, so a block with
-        // one valid alias and one invalid one comes back `success: true` with
-        // `errors` filled. `splitBlockUpdateResults` separates entries that
-        // wrote nothing (`hardFailed`) from entries that wrote something but
-        // still carry errors (a partial write), so a page with only partial
-        // writes isn't reported as a clean success.
+        // call itself completes, and even a per-block result's own `success`
+        // flag can't be trusted alone: upstream sets it to
+        // `totalProcessed > 0 || errors.length === 0`, so a block with one
+        // valid alias and one invalid one still reads `success: true` with
+        // `errors` populated, and a block where nothing was written and no
+        // error was recorded either reads `success: true, errors: []`.
+        // Comparing how many properties were actually written across every
+        // matched block against how many were requested (`blocks.length *
+        // values.length`) is the only check that catches both — see
+        // `classifyBlockUpdateResults`'s own doc comment for the full case
+        // list. `edit-element-block.ts` still uses the simpler
+        // `success === false` check; if it's ever seen to hit the same gap,
+        // the fix is to switch it to this helper too.
         const blockResults = updateResult.data.results;
         if (!blockResults || blockResults.length === 0) {
           results.push({
@@ -258,39 +264,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
           });
           stopped = true;
         } else {
-          const { hardFailed, errors, warnings } = splitBlockUpdateResults(blockResults);
-          const warningsField = warnings.length ? { warnings } : {};
-          if (hardFailed.length === blockResults.length) {
-            const detail = hardFailed
-              .flatMap((r) => (r.errors?.length ? r.errors : [r.message]))
-              .join("; ");
-            results.push({
-              id: item.id,
-              name: item.name,
-              success: false,
-              blocksUpdated: 0,
-              previousVersionId: item.currentVersionId || undefined,
-              error: `Block update failed: ${detail || updateResult.data.message || "no detail returned"}`,
-            });
-            stopped = true;
-          } else if (hardFailed.length > 0 || errors.length > 0) {
-            // Some blocks on this page wrote nothing, or wrote only some of
-            // their properties — the page was modified, but not fully, so
-            // this is reported as a failure (with the count of blocks that
-            // did get something written) rather than a silent success.
-            const succeededBlocks = blocks.length - hardFailed.length;
-            totalBlocksUpdated += succeededBlocks;
-            results.push({
-              id: item.id,
-              name: item.name,
-              success: false,
-              blocksUpdated: succeededBlocks,
-              previousVersionId: item.currentVersionId || undefined,
-              error: `Block update partially failed: ${errors.length ? errors.join("; ") : hardFailed.map((r) => r.message).join("; ")}`,
-              ...warningsField,
-            });
-            stopped = true;
-          } else {
+          const classification = classifyBlockUpdateResults(blockResults, blocks.length * values.length);
+          if (classification.outcome === "clean") {
             totalBlocksUpdated += blocks.length;
             results.push({
               id: item.id,
@@ -298,18 +273,33 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
               success: true,
               blocksUpdated: blocks.length,
               previousVersionId: item.currentVersionId || undefined,
-              ...warningsField,
+              ...(classification.warnings.length ? { warnings: classification.warnings } : {}),
             });
+          } else {
+            // Blocks that wrote at least one property did save something, even
+            // though this page's overall row is marked failed — count them.
+            totalBlocksUpdated += classification.updatedEntryCount;
+            results.push({
+              id: item.id,
+              name: item.name,
+              success: false,
+              blocksUpdated: classification.updatedEntryCount,
+              previousVersionId: item.currentVersionId || undefined,
+              error: classification.outcome === "failed"
+                ? `Block update failed: ${classification.detail}`
+                : `Block update partially failed: ${classification.processedCount} of ${blocks.length * values.length} propert${blocks.length * values.length === 1 ? "y" : "ies"} saved, across ${classification.updatedEntryCount} of ${blockResults.length} block(s) — ${classification.detail}`,
+              ...(classification.warnings.length ? { warnings: classification.warnings } : {}),
+            });
+            stopped = true;
           }
         }
       }
     }
 
-    // Decorate rows that wrote something (full or partial success) with
-    // validation outcome + preview URL. Sequential to avoid hammering the
-    // backoffice at the 10-item cap.
+    // Decorate succeeded rows with validation outcome + preview URL. Sequential
+    // to avoid hammering the backoffice at the 10-item cap.
     for (const row of results) {
-      if (row.blocksUpdated === 0) continue;
+      if (!row.success || row.blocksUpdated === 0) continue;
       row.validation = await validateDocumentState(row.id);
       row.previewUrl = await fetchPreviewUrl(row.id);
     }

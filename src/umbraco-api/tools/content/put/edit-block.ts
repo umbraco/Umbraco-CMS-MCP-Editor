@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { enrichBlockNotFoundError, findSettingsKey, isRteWithBlocks, splitBlockUpdateResults } from "../../helpers/block-inspector.js";
+import { classifyBlockUpdateResults, enrichBlockNotFoundError, findSettingsKey, isRteWithBlocks } from "../../helpers/block-inspector.js";
 import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 import { validateDocumentState, validationResultSchema } from "../../helpers/validate-document.js";
 
@@ -77,47 +77,48 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       }],
     });
     if (!updateResult.ok) {
-      return enrichBlockNotFoundError(
-        updateResult.errorResult,
-        docResult.data.values ?? [],
+      return enrichBlockNotFoundError(updateResult.errorResult, docResult.data.values ?? [], {
         propertyAlias,
-        { noteSettingsKeys: true },
-      );
+        note: "A block's settingsKey (reported by inspect-blocks) is not a valid contentKey — pass the block's contentKey together with blockType: \"settings\" to edit its settings instead.",
+      });
     }
 
     // `update-block-property`'s top-level `success` is always true once the
-    // call itself completes — per-block outcomes live only in `results[]`.
-    // Don't trust the chained tool's declared shape: a missing/empty
-    // `results` array is treated as a failure too. edit-element-block.ts uses
-    // the simpler `(results ?? []).filter(r => r.success === false)`, which
-    // misses a block that only *partly* wrote — Umbraco sets
-    // `success: totalProcessed > 0 || errors.length === 0`, so a block with
-    // one valid alias and one invalid one comes back `success: true` with
-    // `errors` filled. `splitBlockUpdateResults` separates "nothing was
-    // written" (every entry has `success !== true`) from "something was
-    // written, but with errors" (a partial write), so the two are reported
-    // differently below instead of both being read as a full success.
+    // call itself completes, and even a per-block result's own `success` flag
+    // can't be trusted alone: upstream sets it to
+    // `totalProcessed > 0 || errors.length === 0`, so a block with one valid
+    // alias and one invalid one still reads `success: true` with `errors`
+    // populated, and a block where nothing was written and no error was
+    // recorded either (e.g. an alias that only produced a `warnings` entry)
+    // reads `success: true, errors: []`. Comparing how many properties were
+    // actually written (`updatedCount`/`addedCount`) against how many were
+    // requested is the only check that catches both — see
+    // `classifyBlockUpdateResults`'s own doc comment for the full case list.
+    // `edit-element-block.ts` still uses the simpler `success === false`
+    // check; if it's ever seen to hit the same gap, the fix is to switch it
+    // to this helper too.
     const results = updateResult.data.results;
     if (!results || results.length === 0) {
       return createToolResultError(
         "update-block-property returned no per-block result — cannot confirm the write succeeded.",
       );
     }
-    const { hardFailed, errors, warnings } = splitBlockUpdateResults(results);
-    if (hardFailed.length === results.length) {
-      const detail = hardFailed
-        .flatMap((r) => (r.errors?.length ? r.errors : [r.message]))
-        .join("; ");
+    const classification = classifyBlockUpdateResults(results, fieldNames.length);
+    if (classification.outcome === "failed") {
       return createToolResultError(
-        `Block update failed: ${detail || updateResult.data.message || "no detail returned"}`,
+        `Block update failed: ${classification.detail || updateResult.data.message || "no detail returned"}`,
+      );
+    }
+    if (classification.outcome === "partial") {
+      return createToolResultError(
+        `Block update partially failed: ${classification.processedCount} of ${fieldNames.length} field(s) saved — ${classification.detail}`,
       );
     }
 
+    const warnings = classification.warnings;
     const validation = await validateDocumentState(id);
     const target = resolvedBlockType === "settings" ? "settings" : "content";
-    const baseMessage = errors.length > 0
-      ? `Updated block ${target} on "${pageName}" (saved, not published) — but ${errors.length} field(s) failed: ${errors.join("; ")}`
-      : `Updated ${fieldNames.length} field(s) in block ${target} on "${pageName}" (saved, not published)`;
+    const baseMessage = `Updated ${fieldNames.length} field(s) in block ${target} on "${pageName}" (saved, not published)`;
     const message = validation.valid
       ? baseMessage
       : `${baseMessage} — but ${validation.errors.length} validation error(s) must be resolved before this page can be published`;
