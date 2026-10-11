@@ -26,6 +26,7 @@ import createAndPublishPageTool from "../post/create-and-publish-page.js";
 
 const TEST_PAGE_NAME = "_Test Create And Publish Page";
 const TEST_PAGE_NAME_FALLBACK = "_Test Create And Publish Page Fallback";
+const TEST_PAGE_NAME_FALLBACK_PUBLISH_FAILS = "_Test Create And Publish Page Fallback Publish Fails";
 const TEST_VALUES = [{ alias: "title", value: "Created And Published Title" }];
 
 describe("create-and-publish-page", () => {
@@ -120,6 +121,66 @@ describe("create-and-publish-page", () => {
       expect(data.message).toBe(`Created and published "${TEST_PAGE_NAME_FALLBACK}"`);
       await expectPublished(data.id, extra);
     } finally {
+      listToolsSpy.mockRestore();
+    }
+  }, 30000);
+
+  it("reports the draft id with a publish-failed message when publish-document fails after a successful fallback create", async () => {
+    const listToolsSpy = jest.spyOn(mcpClientManager, "listTools");
+    listToolsSpy.mockImplementationOnce(async () => ({
+      tools: [
+        { name: "get-document-type-by-id" },
+        { name: "get-data-types-by-id-array" },
+        { name: "create-document" },
+        { name: "publish-document" },
+      ],
+    }));
+
+    // get-document-type-by-id, get-data-types-by-id-array and create-document
+    // run for real; only publish-document is intercepted to simulate a
+    // failure after a successful create, so capture the real implementation
+    // before spying.
+    const originalCallTool = mcpClientManager.callTool.bind(mcpClientManager);
+    const callToolSpy = jest.spyOn(mcpClientManager, "callTool");
+    callToolSpy.mockImplementation(async (server: string, toolName: string, args: Record<string, unknown>) => {
+      if (toolName === "publish-document") {
+        const problemDetails = {
+          type: "Error",
+          title: "Publish failed",
+          status: 500,
+          detail: "Simulated publish failure",
+        };
+        return {
+          isError: true,
+          structuredContent: problemDetails,
+          content: [{ type: "text" as const, text: JSON.stringify(problemDetails) }],
+        };
+      }
+      return originalCallTool(server, toolName, args);
+    });
+
+    try {
+      const result = await callTool(
+        createAndPublishPageTool,
+        {
+          name: TEST_PAGE_NAME_FALLBACK_PUBLISH_FAILS,
+          documentTypeId: testDocumentTypeId,
+          parentId: testPageId,
+          values: TEST_VALUES,
+        },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+
+      const data = getStructuredContent(result) as any;
+      lastCreatedId = data.id;
+
+      expect(data.id).toBeTruthy();
+      expect(data.message).toContain(`Created "${TEST_PAGE_NAME_FALLBACK_PUBLISH_FAILS}" as a draft but publish failed`);
+      expect(data.publishedUrls).toEqual([]);
+    } finally {
+      callToolSpy.mockRestore();
       listToolsSpy.mockRestore();
     }
   }, 30000);

@@ -54,9 +54,24 @@ function extractInnerProblemDetails(result: Record<string, unknown>): Record<str
  * per-site constant rather than a process-wide one, so caching it now would
  * just be a stale-cache bug waiting to happen.
  */
-export async function isCmsToolAvailable(toolName: CmsToolsName): Promise<boolean> {
-  const { tools } = await mcpClientManager.listTools("cms");
-  return tools.some((t) => t.name === toolName);
+export async function isCmsToolAvailable(
+  toolName: CmsToolsName,
+): Promise<{ ok: true; available: boolean } | { ok: false; errorResult: ReturnType<typeof createToolResultError> }> {
+  try {
+    const { tools } = await mcpClientManager.listTools("cms");
+    return { ok: true, available: (tools ?? []).some((t) => t.name === toolName) };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      ok: false,
+      errorResult: createToolResultError({
+        type: "Error",
+        title: "Chained tool availability check failed",
+        status: 500,
+        detail: `Could not determine whether chained CMS tool "${toolName}" is available: ${message}`,
+      }),
+    };
+  }
 }
 
 export async function chainCms<TName extends CmsToolsName>(

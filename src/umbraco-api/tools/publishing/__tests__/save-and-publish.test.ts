@@ -26,6 +26,7 @@ import { mcpClientManager } from "../../../mcp-client.js";
 const TEST_PAGE_NAME_WITH_VALUES = "_Test Save Publish With Values";
 const TEST_PAGE_NAME_NO_VALUES = "_Test Save Publish No Values";
 const TEST_PAGE_NAME_FALLBACK = "_Test Save Publish Fallback";
+const TEST_PAGE_NAME_FALLBACK_PUBLISH_FAILS = "_Test Save Publish Fallback Publish Fails";
 
 describe("save-and-publish", () => {
   setupTestEnvironment();
@@ -130,6 +131,67 @@ describe("save-and-publish", () => {
 
       await expectPublished(doc.getId(), extra);
     } finally {
+      listToolsSpy.mockRestore();
+    }
+  }, 60000);
+
+  it("reports saved:true, published:false when publish-document fails after a successful fallback update", async () => {
+    const doc = await new ContentBuilder()
+      .withName(TEST_PAGE_NAME_FALLBACK_PUBLISH_FAILS)
+      .withDocumentType(testDocumentTypeId)
+      .withParent(testParentId)
+      .create();
+    lastCreatedId = doc.getId();
+
+    const listToolsSpy = jest.spyOn(mcpClientManager, "listTools");
+    listToolsSpy.mockImplementationOnce(async () => ({
+      tools: [
+        { name: "get-document-by-id" },
+        { name: "update-document" },
+        { name: "publish-document" },
+      ],
+    }));
+
+    // get-document-by-id and update-document run for real; only
+    // publish-document is intercepted to simulate a failure after a
+    // successful save, so capture the real implementation before spying.
+    const originalCallTool = mcpClientManager.callTool.bind(mcpClientManager);
+    const callToolSpy = jest.spyOn(mcpClientManager, "callTool");
+    callToolSpy.mockImplementation(async (server: string, toolName: string, args: Record<string, unknown>) => {
+      if (toolName === "publish-document") {
+        const problemDetails = {
+          type: "Error",
+          title: "Publish failed",
+          status: 500,
+          detail: "Simulated publish failure",
+        };
+        return {
+          isError: true,
+          structuredContent: problemDetails,
+          content: [{ type: "text" as const, text: JSON.stringify(problemDetails) }],
+        };
+      }
+      return originalCallTool(server, toolName, args);
+    });
+
+    try {
+      const result = await callTool(
+        saveAndPublishTool,
+        {
+          id: doc.getId(),
+          values: [{ alias: "title", value: "Save And Publish Fallback Publish Fails Title" }],
+          includeDescendants: false,
+        },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      expect(data.saved).toBe(true);
+      expect(data.published).toBe(false);
+      expect(data.message).toContain("but publish failed");
+    } finally {
+      callToolSpy.mockRestore();
       listToolsSpy.mockRestore();
     }
   }, 60000);

@@ -44,7 +44,7 @@ function mergeValues(existing: DocumentValue[], updates: DocumentValue[]): Docum
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "save-and-publish",
-  description: "Save property changes and publish a content page in one atomic operation — mirrors the 'Save and publish' button in the Umbraco backoffice. If `values` is provided the changes are saved first; then the page is published. Optionally publish descendants. Call get-page or get-document-type first to discover valid property aliases.",
+  description: "Save property changes and publish a content page — mirrors the 'Save and publish' button in the Umbraco backoffice. If `values` is provided the changes are saved first; then the page is published. This is a single atomic operation when the connected Umbraco instance supports it (17.6+), otherwise a two-call save-then-publish sequence is used. Optionally publish descendants. Call get-page or get-document-type first to discover valid property aliases.",
   inputSchema,
   outputSchema,
   slices: ["publish", "update"],
@@ -126,9 +126,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       // update-and-publish-document is only registered on Umbraco 17.6+ (gated
       // at runtime by the chained CMS server against the connected instance's
       // version — see cms-tool-types-augment.d.ts). When it isn't available,
-      // fall back to the same two-call sequence the no-values path already
-      // uses below, feeding the merged values into the update call.
-      if (await isCmsToolAvailable("update-and-publish-document")) {
+      // fall back to the same two-call update-then-publish pattern used
+      // elsewhere in this branch, feeding the merged values into the update call.
+      const availability = await isCmsToolAvailable("update-and-publish-document");
+      if (!availability.ok) return availability.errorResult;
+      if (availability.available) {
         const updateAndPublishResult = await chainCms("update-and-publish-document", {
           id,
           data: {

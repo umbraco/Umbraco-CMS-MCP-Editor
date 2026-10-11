@@ -141,7 +141,7 @@ describe("isCmsToolAvailable", () => {
     spy.mockRestore();
   });
 
-  it("returns true when the tool is in the chained server's tool list", async () => {
+  it("returns ok: true, available: true when the tool is in the chained server's tool list", async () => {
     spy.mockResolvedValueOnce({
       tools: [
         { name: "get-document-by-id" },
@@ -151,16 +151,29 @@ describe("isCmsToolAvailable", () => {
 
     const result = await isCmsToolAvailable("update-and-publish-document" as any);
 
-    expect(result).toBe(true);
+    expect(result).toEqual({ ok: true, available: true });
   });
 
-  it("returns false when the tool is absent from the chained server's tool list", async () => {
+  it("returns ok: true, available: false when the tool is absent from the chained server's tool list", async () => {
     spy.mockResolvedValueOnce({
       tools: [{ name: "get-document-by-id" }],
     } as any);
 
     const result = await isCmsToolAvailable("update-and-publish-document" as any);
 
-    expect(result).toBe(false);
+    expect(result).toEqual({ ok: true, available: false });
+  });
+
+  it("normalizes a thrown error from listTools to { ok: false, errorResult } instead of propagating", async () => {
+    spy.mockRejectedValueOnce(new Error("MCP error -32000: connection not established"));
+
+    const result = await isCmsToolAvailable("update-and-publish-document" as any);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected error result");
+    expect(result.errorResult.isError).toBe(true);
+    const sc = result.errorResult.structuredContent as any;
+    expect(sc.detail).toContain("update-and-publish-document");
+    expect(sc.detail).toContain("connection not established");
   });
 });
