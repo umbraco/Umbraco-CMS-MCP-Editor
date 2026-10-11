@@ -3,6 +3,7 @@ import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
+  getResultText,
   initMemberTestState,
   createElicitation,
   TEST_MEMBER_UPDATED_NAME,
@@ -118,7 +119,11 @@ describe("update-member", () => {
     // returns 403 with an explanatory message rather than silently failing.
     // Once the API user is granted access, this test should assert success.
     expect(result.isError).toBeTruthy();
-    const data = (result as any).structuredContent;
+    // beta.43 of @umbraco-cms/mcp-server-sdk stopped setting structuredContent
+    // on error results (intentional — see cms-chain.ts's
+    // extractInnerProblemDetails doc comment); the ProblemDetails is now
+    // only in content[0].text.
+    const data = JSON.parse(getResultText(result as any));
     expect(data.status).toBe(403);
     expect(data.title).toContain("Sensitive Data");
   }, 30000);

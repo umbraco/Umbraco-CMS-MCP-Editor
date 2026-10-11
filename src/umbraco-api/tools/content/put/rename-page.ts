@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, confirmAction } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import type { GetDocumentByIdOutput } from "@umbraco-cms/mcp-dev/tool-types";
 import { chainCms } from "../../../cms-chain.js";
 import { buildPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
@@ -62,10 +62,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     }
 
     const cultureLabel = targetCulture ? ` (${targetCulture})` : "";
-    const confirmed = await confirmAction(
+    const confirmed = await requestApproval(
       extra,
-      `Rename page${cultureLabel} from "${previousName}" to "${name}"? The page URL segment may change when you next publish.`,
-      { title: "Confirm rename" }
+      `Rename page${cultureLabel} from "${previousName}" to "${name}"? The page URL segment may change when you next publish.`
     );
     if (!confirmed) {
       return createToolResult({

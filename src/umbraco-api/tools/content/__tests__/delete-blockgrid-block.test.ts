@@ -12,11 +12,11 @@ import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
+  createSnapshotResult,
   createElicitation,
   ContentBuilder,
   ContentTestHelper,
   extractChainedResult,
-  initContentTestState,
 } from "./setup.js";
 import { mcpClientManager } from "../../../mcp-client.js";
 import { callTool } from "../../../../testing/call-tool-with-validation.js";
@@ -50,7 +50,6 @@ describe("delete-block — BlockGrid", () => {
 
     if (nestedFixture) {
       const f = nestedFixture;
-      const state = await initContentTestState(extra);
 
       const nestedGridValue = {
         contentData: [
@@ -79,7 +78,6 @@ describe("delete-block — BlockGrid", () => {
       const page = await new ContentBuilder()
         .withName("_Test delete-block BlockGrid nested-area page")
         .withDocumentType(f.donorDocTypeId)
-        .withParent(state.testPageId)
         .withValue(f.propertyAlias, nestedGridValue)
         .create();
       nestedPageId = page.getId();
@@ -98,8 +96,8 @@ describe("delete-block — BlockGrid", () => {
   }, 60000);
 
   it("deletes a top-level block and removes it from layout and contentData", async () => {
-    if (!topLevelFixture) return;
-    const f = topLevelFixture;
+    expect(topLevelFixture).not.toBeNull();
+    const f = topLevelFixture!;
 
     const result = await callTool(deleteBlockTool, {
       id: f.pageId,
@@ -110,6 +108,7 @@ describe("delete-block — BlockGrid", () => {
     }, extra);
     expect(result.isError).toBeFalsy();
     expect((getStructuredContent(result) as any).contentKey).toBe(SEEDED_BLOCK_KEY);
+    expect(createSnapshotResult(result, f.pageId)).toMatchSnapshot();
 
     const propValue = await getPropValue(f.pageId, f.propertyAlias);
     const contentData: any[] = propValue?.contentData ?? [];
@@ -120,11 +119,13 @@ describe("delete-block — BlockGrid", () => {
   }, 60000);
 
   it("deletes a nested-area block, leaving the parent intact", async () => {
-    if (!nestedFixture || !nestedPageId) return;
-    const f = nestedFixture;
+    expect(nestedFixture).not.toBeNull();
+    expect(nestedPageId).toBeTruthy();
+    const f = nestedFixture!;
+    const pageId = nestedPageId!;
 
     const result = await callTool(deleteBlockTool, {
-      id: nestedPageId,
+      id: pageId,
       propertyAlias: f.propertyAlias,
       contentKey: NESTED_CHILD_KEY,
       culture: undefined,
@@ -133,7 +134,7 @@ describe("delete-block — BlockGrid", () => {
     expect(result.isError).toBeFalsy();
     expect((getStructuredContent(result) as any).contentKey).toBe(NESTED_CHILD_KEY);
 
-    const propValue = await getPropValue(nestedPageId, f.propertyAlias);
+    const propValue = await getPropValue(pageId, f.propertyAlias);
     const contentData: any[] = propValue?.contentData ?? [];
     const layout: any[] = propValue?.layout?.["Umbraco.BlockGrid"] ?? [];
 
