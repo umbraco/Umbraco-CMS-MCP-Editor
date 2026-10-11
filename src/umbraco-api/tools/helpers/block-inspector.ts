@@ -298,6 +298,13 @@ export interface BlockUpdateClassification {
   /** Warnings across every result, for passing through to the caller even on
    * an otherwise-clean outcome. */
   warnings: string[];
+  /** Requested aliases that were NOT named in any error/warning — i.e. they
+   * were written and must not be retried. Empty when `requestedAliases` isn't
+   * passed. */
+  savedFields: string[];
+  /** Requested aliases named in at least one error or warning message. Empty
+   * when `requestedAliases` isn't passed. */
+  failedFields: string[];
 }
 
 /**
@@ -317,20 +324,33 @@ export interface BlockUpdateClassification {
  * fewer result entries than blocks were requested, which silently lowers
  * `processedCount` below `requestedCount` the same way a per-property failure
  * would.
+ *
+ * Pass `requestedAliases` (the property aliases the caller asked to write) to
+ * also split them into `savedFields`/`failedFields`. Upstream's error/warning
+ * messages always wrap the alias in quotes verbatim (`Property 'alias' does
+ * not exist on Element Type`, via its own `getPropertyKey`, which — for a
+ * block property update — is just the alias; these tools never pass a
+ * per-property culture/segment), so matching the quoted alias against the
+ * combined error+warning text reliably tells saved aliases from failed ones
+ * without a second chained call.
  */
 export function classifyBlockUpdateResults(
   results: ReadonlyArray<BlockUpdateResultEntry> | undefined,
   requestedCount: number,
+  requestedAliases: ReadonlyArray<string> = [],
 ): BlockUpdateClassification {
   const list = results ?? [];
   const processedCount = list.reduce((sum, r) => sum + (r.updatedCount ?? 0) + (r.addedCount ?? 0), 0);
   const updatedEntryCount = list.filter((r) => (r.updatedCount ?? 0) + (r.addedCount ?? 0) > 0).length;
   const errors = list.flatMap((r) => r.errors ?? []);
   const warnings = list.flatMap((r) => r.warnings ?? []);
-  const detail = [...errors, ...warnings].join("; ")
+  const failureText = [...errors, ...warnings].join("; ");
+  const detail = failureText
     || list.map((r) => r.message).filter(Boolean).join("; ")
     || "no detail returned";
   const outcome: BlockUpdateOutcome =
     processedCount === 0 ? "failed" : processedCount < requestedCount ? "partial" : "clean";
-  return { outcome, processedCount, updatedEntryCount, detail, warnings };
+  const failedFields = requestedAliases.filter((alias) => failureText.includes(`'${alias}'`));
+  const savedFields = requestedAliases.filter((alias) => !failedFields.includes(alias));
+  return { outcome, processedCount, updatedEntryCount, detail, warnings, savedFields, failedFields };
 }

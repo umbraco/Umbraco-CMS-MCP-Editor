@@ -281,6 +281,14 @@ describe("edit-block", () => {
     expect(text).toContain("partially failed");
     expect(text).toContain("1 of 2 field(s) saved");
 
+    const problem = JSON.parse(text);
+    expect(problem.savedFields).toEqual([f.blockPropertyAlias]);
+    expect(problem.failedFields).toEqual(["_notARealPropertyAliasOnThisElementType"]);
+    // A partial write still changed the document — validation/previewUrl are
+    // worth returning even on this error path.
+    expect(problem.validation).toBeDefined();
+    expect(problem.previewUrl).toBeDefined();
+
     // The valid alias's value was still persisted, despite the overall error.
     const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: f.pageId });
     const doc = extractChainedResult(docResult);

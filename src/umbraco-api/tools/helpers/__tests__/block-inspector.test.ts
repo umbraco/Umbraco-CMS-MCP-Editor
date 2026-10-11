@@ -384,4 +384,33 @@ describe("classifyBlockUpdateResults", () => {
     expect(result.outcome).toBe("clean");
     expect(result.warnings).toEqual(["some warning"]);
   });
+
+  it("splits requested aliases into savedFields/failedFields by matching the quoted alias in errors", () => {
+    const result = classifyBlockUpdateResults(
+      [{ success: true, message: "Updated 1 properties", updatedCount: 1, errors: ["Property 'bad' does not exist on Element Type"] }],
+      2,
+      ["good", "bad"],
+    );
+    expect(result.savedFields).toEqual(["good"]);
+    expect(result.failedFields).toEqual(["bad"]);
+  });
+
+  it("does not mistake one alias for a substring of another when splitting fields", () => {
+    const result = classifyBlockUpdateResults(
+      [{ success: true, message: "Updated 1 properties", updatedCount: 1, errors: ["Property 'title' does not exist on Element Type"] }],
+      2,
+      ["subtitle", "title"],
+    );
+    expect(result.savedFields).toEqual(["subtitle"]);
+    expect(result.failedFields).toEqual(["title"]);
+  });
+
+  it("returns empty savedFields/failedFields when no requestedAliases are passed", () => {
+    const result = classifyBlockUpdateResults(
+      [{ success: true, message: "Updated 1 properties", updatedCount: 1, errors: ["Property 'bad' does not exist on Element Type"] }],
+      2,
+    );
+    expect(result.savedFields).toEqual([]);
+    expect(result.failedFields).toEqual([]);
+  });
 });

@@ -249,9 +249,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         // matched block against how many were requested (`blocks.length *
         // values.length`) is the only check that catches both — see
         // `classifyBlockUpdateResults`'s own doc comment for the full case
-        // list. `edit-element-block.ts` still uses the simpler
-        // `success === false` check; if it's ever seen to hit the same gap,
-        // the fix is to switch it to this helper too.
+        // list. `edit-block.ts` and `edit-element-block.ts` use the same
+        // helper, for the same reason.
         const blockResults = updateResult.data.results;
         if (!blockResults || blockResults.length === 0) {
           results.push({
@@ -264,7 +263,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
           });
           stopped = true;
         } else {
-          const classification = classifyBlockUpdateResults(blockResults, blocks.length * values.length);
+          const classification = classifyBlockUpdateResults(blockResults, blocks.length * values.length, fieldNames);
           if (classification.outcome === "clean") {
             totalBlocksUpdated += blocks.length;
             results.push({
@@ -279,6 +278,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
             // Blocks that wrote at least one property did save something, even
             // though this page's overall row is marked failed — count them.
             totalBlocksUpdated += classification.updatedEntryCount;
+            const totalProperties = blocks.length * values.length;
             results.push({
               id: item.id,
               name: item.name,
@@ -287,7 +287,12 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
               previousVersionId: item.currentVersionId || undefined,
               error: classification.outcome === "failed"
                 ? `Block update failed: ${classification.detail}`
-                : `Block update partially failed: ${classification.processedCount} of ${blocks.length * values.length} propert${blocks.length * values.length === 1 ? "y" : "ies"} saved, across ${classification.updatedEntryCount} of ${blockResults.length} block(s) — ${classification.detail}`,
+                : {
+                  message: `Block update partially failed: ${classification.processedCount} of ${totalProperties} propert${totalProperties === 1 ? "y" : "ies"} saved, across ${classification.updatedEntryCount} of ${blockResults.length} block(s) — ${classification.detail}`,
+                  savedFields: classification.savedFields,
+                  failedFields: classification.failedFields,
+                  note: "savedFields were written to the document and must not be retried.",
+                },
               ...(classification.warnings.length ? { warnings: classification.warnings } : {}),
             });
             stopped = true;
@@ -296,10 +301,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       }
     }
 
-    // Decorate succeeded rows with validation outcome + preview URL. Sequential
-    // to avoid hammering the backoffice at the 10-item cap.
+    // Decorate rows that actually changed the document — including a partial
+    // write, which still saved the valid alias — with validation outcome +
+    // preview URL. Sequential to avoid hammering the backoffice at the 10-item cap.
     for (const row of results) {
-      if (!row.success || row.blocksUpdated === 0) continue;
+      if (row.blocksUpdated === 0) continue;
       row.validation = await validateDocumentState(row.id);
       row.previewUrl = await fetchPreviewUrl(row.id);
     }

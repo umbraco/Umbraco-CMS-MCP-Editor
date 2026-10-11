@@ -195,14 +195,19 @@ describe("bulk-set-block-property", () => {
     const data = getStructuredContent(result) as any;
     expect(data.results).toHaveLength(1);
     expect(data.results[0].success).toBe(false);
-    expect(typeof data.results[0].error).toBe("string");
-    expect(data.results[0].error).toContain("partially failed");
+    expect(data.results[0].error.message).toContain("partially failed");
+    expect(data.results[0].error.savedFields).toEqual([f.blockPropertyAlias]);
+    expect(data.results[0].error.failedFields).toEqual(["_notARealPropertyAliasOnThisElementType"]);
     // The one matched block did get the valid alias saved — it should count
     // toward blocksUpdated, not report 0 just because the row overall failed.
     expect(data.results[0].blocksUpdated).toBe(1);
     expect(data.totalBlocksUpdated).toBe(1);
     expect(data.failureCount).toBe(1);
     expect(data.successCount).toBe(0);
+    // A partial write still changed the document — validation/previewUrl are
+    // worth returning even though the row is marked failed.
+    expect(data.results[0].validation).toBeDefined();
+    expect(data.results[0].previewUrl).toBeDefined();
 
     const inspectResult = await inspectBlocksTool.handler(
       { id: f.pageId, propertyAlias: f.propertyAlias },
@@ -275,7 +280,9 @@ describe("bulk-set-block-property", () => {
       const data = getStructuredContent(result) as any;
       expect(data.results).toHaveLength(1);
       expect(data.results[0].success).toBe(false);
-      expect(data.results[0].error).toContain("partially failed");
+      expect(data.results[0].error.message).toContain("partially failed");
+      expect(data.results[0].error.savedFields).toEqual([f.blockPropertyAlias]);
+      expect(data.results[0].error.failedFields).toEqual(["_notARealPropertyAliasOnThisElementType"]);
       // Both matched blocks got the valid alias saved, even though the
       // invalid alias failed on both — blocksUpdated should reflect both.
       expect(data.results[0].blocksUpdated).toBe(2);

@@ -94,25 +94,29 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // actually written (`updatedCount`/`addedCount`) against how many were
     // requested is the only check that catches both — see
     // `classifyBlockUpdateResults`'s own doc comment for the full case list.
-    // `edit-element-block.ts` still uses the simpler `success === false`
-    // check; if it's ever seen to hit the same gap, the fix is to switch it
-    // to this helper too.
+    // `edit-element-block.ts` and `bulk-set-block-property.ts` use the same
+    // helper, for the same reason.
     const results = updateResult.data.results;
     if (!results || results.length === 0) {
       return createToolResultError(
         "update-block-property returned no per-block result — cannot confirm the write succeeded.",
       );
     }
-    const classification = classifyBlockUpdateResults(results, fieldNames.length);
+    const classification = classifyBlockUpdateResults(results, fieldNames.length, fieldNames);
     if (classification.outcome === "failed") {
       return createToolResultError(
         `Block update failed: ${classification.detail || updateResult.data.message || "no detail returned"}`,
       );
     }
     if (classification.outcome === "partial") {
-      return createToolResultError(
-        `Block update partially failed: ${classification.processedCount} of ${fieldNames.length} field(s) saved — ${classification.detail}`,
-      );
+      return createToolResultError({
+        message: `Block update partially failed: ${classification.processedCount} of ${fieldNames.length} field(s) saved — ${classification.detail}`,
+        savedFields: classification.savedFields,
+        failedFields: classification.failedFields,
+        note: "savedFields were written to the document and must not be retried.",
+        validation: await validateDocumentState(id),
+        previewUrl: await fetchPreviewUrl(id),
+      });
     }
 
     const warnings = classification.warnings;

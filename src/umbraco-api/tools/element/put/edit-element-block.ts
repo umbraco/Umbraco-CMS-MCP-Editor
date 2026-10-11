@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { findSettingsKey, isRteWithBlocks } from "../../helpers/block-inspector.js";
+import { classifyBlockUpdateResults, findSettingsKey, isRteWithBlocks } from "../../helpers/block-inspector.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the Library element containing the block"),
@@ -80,22 +80,39 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     if (!updateResult.ok) return updateResult.errorResult;
 
     // `update-element-block-property`'s top-level `success` is always true once
-    // the call itself completes — per-block outcomes live only in `results[]`
-    // (unknown contentKey, property alias not on the block's element type, …
-    // each produce a `results` entry with its own `success: false`). Check that
-    // instead of the top-level flag, or a failed write is reported as saved.
-    const failed = (updateResult.data.results ?? []).filter((r) => r.success === false);
-    if (failed.length > 0) {
-      const detail = failed
-        .flatMap((r) => (r.errors?.length ? r.errors : [r.message]))
-        .join("; ");
+    // the call itself completes, and even a per-block result's own `success`
+    // flag can't be trusted alone: upstream sets it to
+    // `totalProcessed > 0 || errors.length === 0`, so a block with one valid
+    // alias and one invalid one still reads `success: true` with `errors`
+    // populated, and a block where nothing was written and no error was
+    // recorded either (e.g. an alias that only produced a `warnings` entry)
+    // reads `success: true, errors: []`. Comparing how many properties were
+    // actually written (`updatedCount`/`addedCount`) against how many were
+    // requested is the only check that catches both — see
+    // `classifyBlockUpdateResults`'s own doc comment for the full case list.
+    const results = updateResult.data.results;
+    if (!results || results.length === 0) {
       return createToolResultError(
-        `Block update failed: ${detail || updateResult.data.message || "no detail returned"}`,
+        "update-element-block-property returned no per-block result — cannot confirm the write succeeded.",
       );
+    }
+    const classification = classifyBlockUpdateResults(results, fieldNames.length, fieldNames);
+    if (classification.outcome === "failed") {
+      return createToolResultError(
+        `Block update failed: ${classification.detail || updateResult.data.message || "no detail returned"}`,
+      );
+    }
+    if (classification.outcome === "partial") {
+      return createToolResultError({
+        message: `Block update partially failed: ${classification.processedCount} of ${fieldNames.length} field(s) saved — ${classification.detail}`,
+        savedFields: classification.savedFields,
+        failedFields: classification.failedFields,
+        note: "savedFields were written to the element and must not be retried.",
+      });
     }
 
     const target = resolvedBlockType === "settings" ? "settings" : "content";
-    const warnings = (updateResult.data.results ?? []).flatMap((r) => r.warnings ?? []);
+    const warnings = classification.warnings;
     return createToolResult({
       message: `Updated ${fieldNames.length} field(s) in block ${target} on element "${elementName}" (saved, not published)`,
       id,
