@@ -188,8 +188,8 @@ describe("edit-block", () => {
     expect(settingsFixture).not.toBeNull();
     const f = settingsFixture!;
 
-    // Valid on the document in general, but not a property of this block's
-    // element type — this is the case the pre-fix bug swallowed as a success.
+    // An alias that doesn't exist on this block's element type — this is the
+    // case the pre-fix bug swallowed as a success.
     const result = await callTool(editBlockTool, {
       id: f.pageId,
       propertyAlias: f.propertyAlias,

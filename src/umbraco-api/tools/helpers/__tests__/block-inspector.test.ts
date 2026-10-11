@@ -7,12 +7,15 @@
  */
 
 import { describe, it, expect } from "@jest/globals";
+import { createToolResultError } from "@umbraco-cms/mcp-server-sdk";
 import {
   collectBlockProperties,
+  enrichBlockNotFoundError,
   extractBlocks,
   findSettingsKey,
   isBlockListOrGridValue,
   isRteWithBlocks,
+  type InspectedBlockContainer,
 } from "../block-inspector.js";
 
 const CONTENT_KEY = "aaaaaaaa-1111-4111-8111-111111111111";
@@ -165,5 +168,57 @@ describe("collectBlockProperties", () => {
     expect(collectBlockProperties(values, "sidebar")).toHaveLength(1);
     expect(collectBlockProperties(values, "sidebar")[0].propertyAlias).toBe("sidebar");
     expect(collectBlockProperties(values, "nope")).toEqual([]);
+  });
+});
+
+describe("enrichBlockNotFoundError", () => {
+  const containers: InspectedBlockContainer[] = [
+    {
+      propertyAlias: "mainContent",
+      blocks: [{ contentKey: CONTENT_KEY, contentTypeKey: ELEMENT_TYPE_KEY, properties: [] }],
+    },
+  ];
+
+  function blocksNotFoundError(availableBlocks: unknown[]) {
+    return createToolResultError({
+      type: "Error",
+      title: "Blocks not found",
+      status: 404,
+      availableBlocks,
+    });
+  }
+
+  it("returns the error unchanged when it isn't the \"Blocks not found\" shape", () => {
+    // No `availableBlocks` array at all — e.g. a plain "Property not found" error.
+    const errorResult = createToolResultError({ type: "Error", title: "Property not found", status: 404 });
+    expect(enrichBlockNotFoundError(errorResult, containers)).toBe(errorResult);
+  });
+
+  it("sets contentTypeKey to null when an availableBlocks entry's key matches no known block", () => {
+    const errorResult = blocksNotFoundError([{ key: "unknown-key", type: "content", path: "x" }]);
+    const result = enrichBlockNotFoundError(errorResult, containers);
+    const problem = JSON.parse(result.content[0].text as string);
+    expect(problem.availableBlocks).toEqual([
+      { key: "unknown-key", type: "content", path: "x", contentTypeKey: null },
+    ]);
+  });
+
+  it("passes a malformed availableBlocks entry through unchanged", () => {
+    // Not an object, or an object missing a string `key` — the function's own
+    // `typeof (b as {key}).key === "string"` guard should leave these as-is.
+    const malformed = ["a string entry", 42, null, { type: "content" }, { key: 123 }];
+    const errorResult = blocksNotFoundError(malformed);
+    const result = enrichBlockNotFoundError(errorResult, containers);
+    const problem = JSON.parse(result.content[0].text as string);
+    expect(problem.availableBlocks).toEqual(malformed);
+  });
+
+  it("merges the matching block's contentTypeKey on the happy path", () => {
+    const errorResult = blocksNotFoundError([{ key: CONTENT_KEY, type: "content", path: "mainContent" }]);
+    const result = enrichBlockNotFoundError(errorResult, containers);
+    const problem = JSON.parse(result.content[0].text as string);
+    expect(problem.availableBlocks).toEqual([
+      { key: CONTENT_KEY, type: "content", path: "mainContent", contentTypeKey: ELEMENT_TYPE_KEY },
+    ]);
   });
 });

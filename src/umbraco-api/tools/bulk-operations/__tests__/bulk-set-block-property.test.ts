@@ -13,6 +13,7 @@ import { callTool } from "../../../../testing/call-tool-with-validation.js";
 import bulkSetBlockPropertyTool from "../post/bulk-set-block-property.js";
 import inspectBlocksTool from "../../content/get/inspect-blocks.js";
 import { createBlockListFixture, type BlockListFixture } from "../../content/__tests__/helpers/block-fixture.js";
+import { SKIPPED_SENTINEL } from "../../helpers/bulk-handler.js";
 
 const elicitation = createElicitation();
 
@@ -140,7 +141,7 @@ describe("bulk-set-block-property", () => {
     expect(data?.message?.includes("Cancelled") || result.isError).toBe(true);
   }, 30000);
 
-  it("marks a page's row as failed when a property alias is valid on the document but not on the block's element type", async () => {
+  it("marks a page's row as failed when a property alias doesn't exist on the block's element type", async () => {
     // Pre-fix, update-block-property's top-level success===true was the only
     // thing checked, so this per-block failure was reported as
     // blocksUpdated: blocks.length instead of a real error.
@@ -164,6 +165,39 @@ describe("bulk-set-block-property", () => {
     expect(typeof data.results[0].error).toBe("string");
     expect(data.results[0].error).toContain("Block update failed");
     expect(data.failureCount).toBe(1);
+    expect(data.successCount).toBe(0);
+  }, 60000);
+
+  it("skips subsequent pages after a per-block failure on an earlier page", async () => {
+    expect(blockFixture).not.toBeNull();
+    const f = blockFixture!;
+
+    const result = await callTool(bulkSetBlockPropertyTool, {
+      ids: [f.pageId, firstRootPageId],
+      contentTypeKey: f.elementTypeId,
+      propertyAlias: f.propertyAlias,
+      values: [{ alias: "_notARealPropertyAliasOnThisElementType", value: "_should not apply" }],
+      culture: undefined,
+      segment: undefined,
+    }, extra);
+
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    expect(data.results).toHaveLength(2);
+
+    // First page: the real per-block failure (same as the single-ID case above).
+    expect(data.results[0].success).toBe(false);
+    expect(data.results[0].blocksUpdated).toBe(0);
+    expect(data.results[0].error).toContain("Block update failed");
+
+    // Second page: never attempted — fail-fast skips it regardless of whether
+    // it has any matching blocks of its own.
+    expect(data.results[1].success).toBe(false);
+    expect(data.results[1].blocksUpdated).toBe(0);
+    expect(data.results[1].error).toBe(SKIPPED_SENTINEL);
+
+    expect(data.failureCount).toBe(1);
+    expect(data.skippedCount).toBe(1);
     expect(data.successCount).toBe(0);
   }, 60000);
 });

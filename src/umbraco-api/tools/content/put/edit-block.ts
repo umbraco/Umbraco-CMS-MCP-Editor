@@ -84,11 +84,20 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     // `update-block-property`'s top-level `success` is always true once the
     // call itself completes — per-block outcomes live only in `results[]`
-    // (unknown contentKey, property alias not on the block's element type, …
-    // each produce a `results` entry with its own `success: false`). Check
-    // that instead of the top-level flag, or a failed write is reported as
-    // saved — see edit-element-block.ts for the same pattern.
-    const failed = (updateResult.data.results ?? []).filter((r) => r.success === false);
+    // (e.g. a property alias not on the block's element type produces a
+    // `results` entry with its own `success: false`). Check that instead of
+    // the top-level flag, or a failed write is reported as saved — see
+    // edit-element-block.ts for the same pattern. Don't trust the chained
+    // tool's declared shape: a missing/empty `results` array is treated as a
+    // failure too, and any entry whose `success` isn't literally `true`
+    // counts as failed (not just an explicit `false`).
+    const results = updateResult.data.results;
+    if (!results || results.length === 0) {
+      return createToolResultError(
+        "update-block-property returned no per-block result — cannot confirm the write succeeded.",
+      );
+    }
+    const failed = results.filter((r) => r.success !== true);
     if (failed.length > 0) {
       const detail = failed
         .flatMap((r) => (r.errors?.length ? r.errors : [r.message]))
