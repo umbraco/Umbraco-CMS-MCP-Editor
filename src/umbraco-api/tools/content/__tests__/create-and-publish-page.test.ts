@@ -22,6 +22,7 @@ import {
 import { callTool } from "../../../../testing/call-tool-with-validation.js";
 import { expectPublished } from "../../../../testing/state-assertions.js";
 import createAndPublishPageTool from "../post/create-and-publish-page.js";
+import getPageTool from "../get/get-page.js";
 import { CompositionDoctypeFixture } from "./helpers/composition-doctype-fixture.js";
 
 const TEST_PAGE_NAME = "_Test Create And Publish Page";
@@ -117,6 +118,12 @@ describe("create-and-publish-page", () => {
       expect(typeof data.id).toBe("string");
 
       await expectPublished(data.id, extra);
+
+      // Confirm the composition-inherited value was actually stored, not just accepted.
+      const verifyResult = await callTool(getPageTool, { id: data.id }, extra);
+      const verifyData = getStructuredContent(verifyResult) as any;
+      const storedValue = verifyData.values.find((v: any) => v.alias === propertyAlias);
+      expect(storedValue?.value).toBe("Composed SEO Title");
     }, 30000);
 
     it("fails before calling Umbraco for an alias that is not a property on the document type at all", async () => {
@@ -132,6 +139,9 @@ describe("create-and-publish-page", () => {
 
       expect(result.isError).toBeTruthy();
       expect(JSON.stringify(result)).toContain("thisAliasDoesNotExistAnywhere");
+      // Assert on our own pre-flight message, not just "isError" + the alias —
+      // a real Umbraco 400 for the same request would also satisfy those.
+      expect(JSON.stringify(result)).toContain("not a property on this document type, own or inherited via composition");
 
       // No page should have been created — searching for it should find nothing.
       const found = await ContentTestHelper.findDocument("_Test Create And Publish Page Bogus Alias");

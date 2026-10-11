@@ -34,7 +34,10 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // The doc type itself often has no direct properties — they're inherited
     // via compositions. resolveDocumentTypeProperties walks compositions and
     // merges their properties so the returned list reflects everything an
-    // editor can actually set on the page.
+    // editor can actually set on the page. A composition that fails to load
+    // (failedCompositionIds) is skipped rather than failing this read — same
+    // as before the walk started tracking failures explicitly (#200 will add
+    // a warning for this case; out of scope here).
     const result = await resolveDocumentTypeProperties(id);
     if (!result.ok) return result.errorResult;
     const { documentType: data, properties } = result;

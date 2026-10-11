@@ -86,6 +86,12 @@ describe("create-page", () => {
       const data = getStructuredContent(result) as any;
       lastCreatedId = data.id;
       expect(typeof data.id).toBe("string");
+
+      // Confirm the composition-inherited value was actually stored, not just accepted.
+      const verifyResult = await callTool(getPageTool, { id: data.id }, extra);
+      const verifyData = getStructuredContent(verifyResult) as any;
+      const storedValue = verifyData.values.find((v: any) => v.alias === propertyAlias);
+      expect(storedValue?.value).toBe("Composed SEO Title");
     }, 30000);
 
     it("fails before calling Umbraco for an alias that is not a property on the document type at all", async () => {
@@ -102,6 +108,9 @@ describe("create-page", () => {
 
       expect(result.isError).toBeTruthy();
       expect(JSON.stringify(result)).toContain("thisAliasDoesNotExistAnywhere");
+      // Assert on our own pre-flight message, not just "isError" + the alias —
+      // a real Umbraco 400 for the same request would also satisfy those.
+      expect(JSON.stringify(result)).toContain("not a property on this document type, own or inherited via composition");
 
       // No page should have been created — searching for it should find nothing.
       const found = await ContentTestHelper.findDocument("_Test Create Page Bogus Alias");

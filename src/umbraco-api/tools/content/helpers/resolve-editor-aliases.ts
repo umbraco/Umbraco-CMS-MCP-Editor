@@ -14,7 +14,11 @@
  * This resolves every value's editorAlias against the FULL set of own +
  * composition-inherited properties (via resolve-document-type-properties.ts)
  * and fails fast — before any call reaches Umbraco — naming every alias that
- * isn't a property on the document type at all.
+ * isn't a property on the document type at all, separately from an alias
+ * that IS a property but whose data type has no resolvable editorAlias. If a
+ * composition failed to load and an alias doesn't resolve, that alias might
+ * live on the composition we couldn't fetch — the error says so rather than
+ * wrongly calling it "not a property".
  */
 
 import { createToolResultError } from "@umbraco-cms/mcp-server-sdk";
@@ -74,16 +78,28 @@ export async function resolveEditorAliases(
     }
   }
 
+  const propertyAliases = new Set(
+    docTypeResult.properties.map((p) => p.alias).filter((alias): alias is string => typeof alias === "string"),
+  );
+
   const editorAliasByPropertyAlias = new Map<string, string>();
   for (const prop of docTypeResult.properties) {
     const editorAlias = prop.dataType?.id ? editorAliasByDataTypeId.get(prop.dataType.id) : undefined;
     if (prop.alias && editorAlias) editorAliasByPropertyAlias.set(prop.alias, editorAlias);
   }
 
-  const unresolved = new Set<string>();
+  // Two distinct failure modes get two distinct messages: an alias that isn't
+  // a property at all (typo, wrong document type) vs. one that IS a property
+  // but whose data type has no resolvable editorAlias (a server-side gap,
+  // not something the caller can fix by picking a different alias).
+  const notAProperty = new Set<string>();
+  const missingEditorAlias = new Set<string>();
   const resolved: ResolvedPageValue[] = values.map((v) => {
     const editorAlias = editorAliasByPropertyAlias.get(v.alias);
-    if (!editorAlias) unresolved.add(v.alias);
+    if (!editorAlias) {
+      if (propertyAliases.has(v.alias)) missingEditorAlias.add(v.alias);
+      else notAProperty.add(v.alias);
+    }
     return {
       alias: v.alias,
       value: v.value,
@@ -93,11 +109,35 @@ export async function resolveEditorAliases(
     };
   });
 
-  if (unresolved.size > 0) {
+  if (notAProperty.size > 0 || missingEditorAlias.size > 0) {
+    const messages: string[] = [];
+    if (notAProperty.size > 0) {
+      // A composition that failed to load might be exactly where one of
+      // these aliases lives — unlike get-document-type (a best-effort read),
+      // we can't let that slide here, since calling a real property "not a
+      // property" would be actively wrong, not just incomplete.
+      if (docTypeResult.failedCompositionIds.length > 0) {
+        const failures = docTypeResult.failedCompositionIds
+          .map((id, i) => `${id} (${docTypeResult.failedCompositionDetails[i]})`)
+          .join(", ");
+        messages.push(
+          `not found among the resolvable properties on this document type, own or inherited via composition: ${Array.from(notAProperty).join(", ")} — but ${docTypeResult.failedCompositionIds.length} composition(s) could not be loaded: ${failures}, so one of these aliases may actually be valid and just unverifiable right now. Resolve the composition failure(s) above and retry`,
+        );
+      } else {
+        messages.push(
+          `not a property on this document type, own or inherited via composition: ${Array.from(notAProperty).join(", ")}`,
+        );
+      }
+    }
+    if (missingEditorAlias.size > 0) {
+      messages.push(
+        `a property on this document type, but its data type has no resolvable editor alias: ${Array.from(missingEditorAlias).join(", ")}`,
+      );
+    }
     return {
       ok: false,
       errorResult: createToolResultError(
-        `The following value alias(es) are not a property on this document type, own or inherited via composition: ${Array.from(unresolved).join(", ")}. Call get-document-type to see the valid property aliases for this document type.`,
+        `The following value alias(es) could not be resolved — ${messages.join("; ")}. Call get-document-type to see the valid property aliases for this document type.`,
       ),
     };
   }
