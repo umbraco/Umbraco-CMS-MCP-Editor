@@ -4,10 +4,10 @@
  * Creates two throwaway document types — a "composition" building block with
  * one own property, and a "host" document type that composes it with NO
  * properties of its own — so tests can exercise a value for a property that
- * is only reachable through a composition. Built for Umbraco-CMS-MCP-Editor#208
- * (create-element resolves such a value's editorAlias to "" and gets an
- * opaque 400 from Umbraco without the composition walk); #201 is the same bug
- * in create-page/create-and-publish-page, fixed separately in #207.
+ * is only reachable through a composition (Umbraco-CMS-MCP-Editor#201 for
+ * create-page/create-and-publish-page, #208 for create-element: each used to
+ * resolve such a value's editorAlias to "" and get an opaque 400 from Umbraco).
+ * Pass `isElement` to provision element types instead of document types.
  *
  * Usage:
  *   const fixture = new CompositionDoctypeFixture();
