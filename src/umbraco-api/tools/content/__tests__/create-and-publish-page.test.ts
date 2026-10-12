@@ -9,7 +9,7 @@
  * - Valid credentials in .env file
  */
 
-import { describe, it, expect, beforeAll, afterEach } from "@jest/globals";
+import { describe, it, expect, beforeAll, afterEach, afterAll } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
@@ -22,6 +22,8 @@ import {
 import { callTool } from "../../../../testing/call-tool-with-validation.js";
 import { expectPublished } from "../../../../testing/state-assertions.js";
 import createAndPublishPageTool from "../post/create-and-publish-page.js";
+import getPageTool from "../get/get-page.js";
+import { CompositionDoctypeFixture } from "./helpers/composition-doctype-fixture.js";
 
 const TEST_PAGE_NAME = "_Test Create And Publish Page";
 const TEST_VALUES = [{ alias: "title", value: "Created And Published Title" }];
@@ -83,4 +85,67 @@ describe("create-and-publish-page", () => {
 
     expect(result.isError).toBeTruthy();
   }, 30000);
+
+  describe("composition-inherited properties (#201)", () => {
+    const fixture = new CompositionDoctypeFixture();
+    let hostDocTypeId: string;
+    let propertyAlias: string;
+
+    beforeAll(async () => {
+      const result = await fixture.create();
+      hostDocTypeId = result.hostDocTypeId;
+      propertyAlias = result.propertyAlias;
+    }, 30000);
+
+    afterAll(async () => {
+      await fixture.cleanup();
+    }, 30000);
+
+    it("resolves editorAlias for a value on a composition-inherited property, creates and publishes the page", async () => {
+      const result = await callTool(
+        createAndPublishPageTool,
+        {
+          name: "_Test Create And Publish Page Composition",
+          documentTypeId: hostDocTypeId,
+          values: [{ alias: propertyAlias, value: "Composed SEO Title" }],
+        },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      lastCreatedId = data.id;
+      expect(typeof data.id).toBe("string");
+
+      await expectPublished(data.id, extra);
+
+      // Confirm the composition-inherited value was actually stored, not just accepted.
+      const verifyResult = await callTool(getPageTool, { id: data.id }, extra);
+      const verifyData = getStructuredContent(verifyResult) as any;
+      const storedValue = verifyData.values.find((v: any) => v.alias === propertyAlias);
+      expect(storedValue?.value).toBe("Composed SEO Title");
+    }, 30000);
+
+    it("fails before calling Umbraco for an alias that is not a property on the document type at all", async () => {
+      const result = await callTool(
+        createAndPublishPageTool,
+        {
+          name: "_Test Create And Publish Page Bogus Alias",
+          documentTypeId: hostDocTypeId,
+          values: [{ alias: "thisAliasDoesNotExistAnywhere", value: "irrelevant" }],
+        },
+        extra,
+      );
+
+      expect(result.isError).toBeTruthy();
+      expect(JSON.stringify(result)).toContain("thisAliasDoesNotExistAnywhere");
+      // Assert on our own pre-flight message, not just "isError" + the alias —
+      // a real Umbraco 400 for the same request would also satisfy those.
+      expect(JSON.stringify(result)).toContain("not a property on this document type, own or inherited via composition");
+
+      // No page should have been created — searching for it should find nothing.
+      const found = await ContentTestHelper.findDocument("_Test Create And Publish Page Bogus Alias");
+      expect(found).toBeUndefined();
+    }, 30000);
+  });
 });
