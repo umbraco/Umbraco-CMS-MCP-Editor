@@ -24,13 +24,16 @@ import { mcpClientManager } from "../mcp-client.js";
 
 describe("chainCms", () => {
   let spy: ReturnType<typeof jest.spyOn>;
+  let warnSpy: ReturnType<typeof jest.spyOn>;
 
   beforeEach(() => {
     spy = jest.spyOn(mcpClientManager, "callTool");
+    warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
   });
 
   afterEach(() => {
     spy.mockRestore();
+    warnSpy.mockRestore();
   });
 
   it("surfaces the inner ProblemDetails on the chained error path (no double-wrap)", async () => {
@@ -139,6 +142,52 @@ describe("chainCms", () => {
     const sc = JSON.parse(getResultText(result.errorResult as any));
     expect(sc.detail).toContain("get-document-public-access");
     expect(sc.detail).toContain("-32602");
+
+    // #203 review: the reason must reach the Workers logs, not just the
+    // result text, so telemetry can see thrown chained-tool failures.
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("get-document-public-access"));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("-32602"));
+  });
+
+  it("trims a thrown 'Tool not found' message's tool list before logging or returning it", async () => {
+    // An in-process "Tool not found" error lists every available tool (370+
+    // names) after ". Available tools" — that list must not reach the model
+    // in `detail`, nor the Workers log via console.warn.
+    const availableTools = Array.from({ length: 400 }, (_, i) => `tool-${i}`).join(", ");
+    spy.mockRejectedValueOnce(
+      new Error(`Tool not found: bogus-tool. Available tools: ${availableTools}`),
+    );
+
+    const result = await chainCms("get-document-public-access" as any, { id: "00000000-0000-0000-0000-000000000000" } as any);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected error result");
+    const sc = JSON.parse(getResultText(result.errorResult as any));
+    expect(sc.detail).toContain("Tool not found: bogus-tool.");
+    expect(sc.detail).not.toContain("Available tools");
+    expect(sc.detail).not.toContain("tool-399");
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Tool not found: bogus-tool."));
+    expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("Available tools"));
+  });
+
+  it("leaves an unrelated thrown message untrimmed even if it coincidentally contains '. Available tools'", async () => {
+    // Guards against over-matching: truncation must require BOTH "Tool not
+    // found:" and ". Available tools" markers, not just the latter, so a
+    // future/unrelated error that happens to contain that phrase keeps its
+    // real content instead of being silently cut.
+    const message = "Upstream request failed. Available tools endpoint returned a 503.";
+    spy.mockRejectedValueOnce(new Error(message));
+
+    const result = await chainCms("get-document-public-access" as any, { id: "00000000-0000-0000-0000-000000000000" } as any);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected error result");
+    const sc = JSON.parse(getResultText(result.errorResult as any));
+    expect(sc.detail).toContain(message);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(message));
   });
 
   it("returns ok with extracted data on the success path", async () => {

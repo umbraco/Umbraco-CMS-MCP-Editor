@@ -61,6 +61,23 @@ export function extractInnerProblemDetails(result: Record<string, unknown>): Rec
   };
 }
 
+/**
+ * An in-process "Tool not found" error lists every available tool (370+ names)
+ * after ". Available tools", which is useless noise once it reaches the model
+ * (and the Workers log, via the `console.warn` in `chainCms` below) — keep
+ * only the leading sentence that names the missing tool. Gated on both
+ * markers being present (not just ". Available tools") so an unrelated
+ * thrown error that happens to contain that substring passes through
+ * untouched instead of silently losing its real content.
+ */
+function truncateAvailableTools(message: string): string {
+  const availableToolsIndex = message.indexOf(". Available tools");
+  if (availableToolsIndex === -1 || !message.includes("Tool not found:")) {
+    return message;
+  }
+  return message.slice(0, availableToolsIndex + 1);
+}
+
 export async function chainCms<TName extends CmsToolsName>(
   toolName: TName,
   args: CmsTools[TName]["input"],
@@ -73,7 +90,8 @@ export async function chainCms<TName extends CmsToolsName>(
     // its own schema check) surfaces as a thrown protocol-level McpError from the
     // underlying client, not a resolved isError result — normalize it to the same
     // { ok: false, errorResult } contract so callers never need a try/catch here.
-    const message = error instanceof Error ? error.message : String(error);
+    const message = truncateAvailableTools(error instanceof Error ? error.message : String(error));
+    console.warn(`Chained CMS tool "${toolName}" failed: ${message}`);
     return {
       ok: false,
       errorResult: createToolResultError({
