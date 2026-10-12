@@ -78,6 +78,36 @@ function truncateAvailableTools(message: string): string {
   return message.slice(0, availableToolsIndex + 1);
 }
 
+/**
+ * Check whether a chained CMS tool is currently registered on the connected
+ * Umbraco instance. Some CMS tools are gated at runtime by `isUmbracoAtLeast`
+ * checks the chained server makes against the live instance's reported
+ * version (e.g. `create-and-publish-document` / `update-and-publish-document`,
+ * only registered from Umbraco 17.6 — see `cms-tool-types-augment.d.ts`), so
+ * the same tool name can be callable against one site and "Tool not found"
+ * against another: below 17.6 the atomic tools never exist, so callers fall
+ * back to the two-call sequence. On hosted, mcp-dev 17.6.11+ gates per request
+ * on the connected site's version (Umbraco-CMS-MCP-Dev#538), so the answer can
+ * differ between sessions sharing an isolate. Checked fresh on every call,
+ * never cached: a module-level cache would apply one site's answer to another.
+ *
+ * If the availability check itself can't be completed (e.g. `listTools`
+ * throws), we can't tell one way or the other — treat the tool as available
+ * rather than blocking the call on a probe failure. The subsequent
+ * `chainCms(toolName, ...)` call has its own try/catch and will surface the
+ * real underlying failure (e.g. "tool not found", or whatever the actual
+ * connectivity problem is) through its normal `{ ok: false, errorResult }`
+ * contract, which is more specific than anything this probe could report.
+ */
+export async function isCmsToolAvailable(toolName: CmsToolsName): Promise<boolean> {
+  try {
+    const { tools } = await mcpClientManager.listTools("cms");
+    return (tools ?? []).some((t) => t.name === toolName);
+  } catch {
+    return true;
+  }
+}
+
 export async function chainCms<TName extends CmsToolsName>(
   toolName: TName,
   args: CmsTools[TName]["input"],
