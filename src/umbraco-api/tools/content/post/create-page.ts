@@ -3,6 +3,7 @@ import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbra
 import { chainCms } from "../../../cms-chain.js";
 import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 import { validateDocumentState, validationResultSchema } from "../../helpers/validate-document.js";
+import { resolveEditorAliases } from "../helpers/resolve-editor-aliases.js";
 
 const inputSchema = {
   name: z.string().describe("The name of the page to create"),
@@ -34,33 +35,16 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   handler: async ({ name, documentTypeId, parentId, values }) => {
     // CreateDocumentInput requires editorAlias on each value. The LLM only
     // supplies the property alias, so resolve editorAlias by looking up the
-    // document type's properties → their data types → editorAlias.
-    const editorAliasByPropertyAlias = new Map<string, string>();
-    if (values && values.length > 0) {
-      const docTypeResult = await chainCms("get-document-type-by-id", { id: documentTypeId });
-      if (!docTypeResult.ok) return docTypeResult.errorResult;
-      const dataTypeIds = Array.from(new Set(docTypeResult.data.properties.map(p => p.dataType.id)));
-      const dataTypesResult = await chainCms("get-data-types-by-id-array", { id: dataTypeIds });
-      if (!dataTypesResult.ok) return dataTypesResult.errorResult;
-      const editorAliasByDataTypeId = new Map(
-        dataTypesResult.data.items.map(dt => [dt.id, dt.editorAlias]),
-      );
-      for (const prop of docTypeResult.data.properties) {
-        const editorAlias = editorAliasByDataTypeId.get(prop.dataType.id);
-        if (editorAlias) editorAliasByPropertyAlias.set(prop.alias, editorAlias);
-      }
-    }
+    // document type's own + composition-inherited properties → their data
+    // types → editorAlias. Fails fast (before calling Umbraco) when an alias
+    // isn't a property on this document type at all — see #201.
+    const resolved = await resolveEditorAliases(documentTypeId, values);
+    if (!resolved.ok) return resolved.errorResult;
 
     const createResult = await chainCms("create-document", {
       documentTypeId,
       name,
-      values: (values ?? []).map(v => ({
-        alias: v.alias,
-        value: v.value,
-        culture: v.culture ?? null,
-        segment: v.segment ?? null,
-        editorAlias: editorAliasByPropertyAlias.get(v.alias) ?? "",
-      })),
+      values: resolved.values,
       ...(parentId ? { parentId } : {}),
     });
     if (!createResult.ok) return createResult.errorResult;
