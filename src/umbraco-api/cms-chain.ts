@@ -85,10 +85,11 @@ function truncateAvailableTools(message: string): string {
  * version (e.g. `create-and-publish-document` / `update-and-publish-document`,
  * only registered from Umbraco 17.6 — see `cms-tool-types-augment.d.ts`), so
  * the same tool name can be callable against one site and "Tool not found"
- * against another. Checked fresh on every call rather than memoized: cheap
- * today, and once the upstream gating issue is fixed the answer becomes a
- * per-site constant rather than a process-wide one, so caching it now would
- * just be a stale-cache bug waiting to happen.
+ * against another: below 17.6 the atomic tools never exist, so callers fall
+ * back to the two-call sequence. On hosted, mcp-dev 17.6.11+ gates per request
+ * on the connected site's version (Umbraco-CMS-MCP-Dev#538), so the answer can
+ * differ between sessions sharing an isolate. Checked fresh on every call,
+ * never cached: a module-level cache would apply one site's answer to another.
  *
  * If the availability check itself can't be completed (e.g. `listTools`
  * throws), we can't tell one way or the other — treat the tool as available
