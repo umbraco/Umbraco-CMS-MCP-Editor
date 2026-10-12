@@ -32,7 +32,7 @@
     "deploy:worker": "npx wrangler deploy"
   },
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.3.0"
   },
   "files": [
     "dist"
@@ -49,9 +49,9 @@
     "@cfworker/json-schema": "^4.1.1",
     "@cloudflare/workers-oauth-provider": "^0.2.3",
     "@modelcontextprotocol/sdk": "^1.25.1",
-    "@umbraco-cms/mcp-dev": "^18.1.8",
-    "@umbraco-cms/mcp-hosted": "^1.0.0-beta.45",
-    "@umbraco-cms/mcp-server-sdk": "^1.0.0-beta.45",
+    "@umbraco-cms/mcp-dev": "^18.1.9",
+    "@umbraco-cms/mcp-hosted": "^1.0.0-beta.46",
+    "@umbraco-cms/mcp-server-sdk": "^1.0.0-beta.46",
     "agents": "^0.6.0",
     "dotenv": "^16.5.0",
     "uuid": "^11.1.0",
