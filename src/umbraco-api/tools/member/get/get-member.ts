@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { hasSensitiveDataAccess } from "../sensitive-data-access.js";
+import { checkSensitiveDataAccess } from "../sensitive-data-access.js";
 import { memberTypeToString } from "../../member-reporting/get/member-type-helper.js";
 
 const inputSchema = {
@@ -40,7 +40,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const result = await chainCms("get-member", { id });
     if (!result.ok) return result.errorResult;
     const data = result.data;
-    const accessible = await hasSensitiveDataAccess();
+    // A failed check (transient chained-CMS failure) fails closed here too —
+    // this is a degraded-display fallback, not a hard gate, so there's no
+    // sharper error to propagate; see sensitive-data-access.ts.
+    const accessCheck = await checkSensitiveDataAccess();
+    const accessible = accessCheck.ok && accessCheck.hasAccess;
 
     return createToolResult({
       id: data.id ?? id,
