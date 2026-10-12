@@ -10,17 +10,22 @@ import { registerCmsChainedServer } from "../umbraco-api/cms-chained-server.js";
 const ATOMIC = ["create-and-publish-document", "update-and-publish-document"] as const;
 
 describe("chained CMS tools follow the request's Umbraco version (#197)", () => {
-  // The test setup swaps mcpClientManager.callTool for an in-process shim; this
-  // test needs the real in-process connection registered by worker.ts.
-  const shimmed = Object.prototype.hasOwnProperty.call(mcpClientManager, "callTool")
-    ? mcpClientManager.callTool
-    : undefined;
+  // The test setup replaces methods on the mcpClientManager instance with an
+  // in-process shim (src/testing/in-process-cms.ts). This test needs the real
+  // in-process connection worker.ts registers, so remove every instance
+  // override for its duration and put them back afterwards.
+  const shimmed = new Map<string, unknown>();
   beforeAll(() => {
-    if (shimmed) delete (mcpClientManager as { callTool?: unknown }).callTool;
+    for (const key of ["callTool", "listTools"] as const) {
+      if (Object.prototype.hasOwnProperty.call(mcpClientManager, key)) {
+        shimmed.set(key, (mcpClientManager as unknown as Record<string, unknown>)[key]);
+        delete (mcpClientManager as unknown as Record<string, unknown>)[key];
+      }
+    }
     registerCmsChainedServer();
   });
   afterAll(() => {
-    if (shimmed) mcpClientManager.callTool = shimmed;
+    for (const [key, fn] of shimmed) (mcpClientManager as unknown as Record<string, unknown>)[key] = fn;
   });
 
   const listedFor = (version: string) =>

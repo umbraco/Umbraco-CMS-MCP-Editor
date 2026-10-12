@@ -46,18 +46,21 @@ const SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>';
 const PAGE_ID = "11111111-1111-4111-8111-111111111111";
 
 describe("hosted session isolation (#210)", () => {
-  // The test setup swaps mcpClientManager.callTool for an in-process shim
-  // (src/testing/in-process-cms.ts). This test needs the real in-process
-  // connection worker.ts registers, so drop the instance override for its
-  // duration and put it back afterwards.
-  const shimmed = Object.prototype.hasOwnProperty.call(mcpClientManager, "callTool")
-    ? mcpClientManager.callTool
-    : undefined;
+  // The test setup replaces methods on the mcpClientManager instance with an
+  // in-process shim (src/testing/in-process-cms.ts). This test needs the real
+  // in-process connection worker.ts registers, so remove every instance
+  // override for its duration and put them back afterwards.
+  const shimmed = new Map<string, unknown>();
   beforeAll(() => {
-    if (shimmed) delete (mcpClientManager as { callTool?: unknown }).callTool;
+    for (const key of ["callTool", "listTools"] as const) {
+      if (Object.prototype.hasOwnProperty.call(mcpClientManager, key)) {
+        shimmed.set(key, (mcpClientManager as unknown as Record<string, unknown>)[key]);
+        delete (mcpClientManager as unknown as Record<string, unknown>)[key];
+      }
+    }
   });
   afterAll(() => {
-    if (shimmed) mcpClientManager.callTool = shimmed;
+    for (const [key, fn] of shimmed) (mcpClientManager as unknown as Record<string, unknown>)[key] = fn;
   });
 
   it("keeps every session's Umbraco requests on its own site and token", async () => {
