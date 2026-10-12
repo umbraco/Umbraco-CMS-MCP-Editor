@@ -33,8 +33,7 @@ import { umbracoCloudSiteRouting } from "@umbraco-cms/mcp-hosted/cloud";
 // Import tool collections and registries (shared with stdio mode via collections.ts)
 import { collections, allModes, allModeNames, allSliceNames } from "./collections.js";
 import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
-import { createPermissiveCodegenUser, setServerRef } from "@umbraco-cms/mcp-server-sdk";
-import { mcpClientManager } from "./umbraco-api/mcp-client.js";
+import { registerCmsChainedServer } from "./umbraco-api/cms-chained-server.js";
 import packageJson from "../package.json" with { type: "json" };
 
 // Import CMS collections for in-process chaining
@@ -43,7 +42,6 @@ import {
   allModes as cmsModes,
   allModeNames as cmsModeNames,
   allSliceNames as cmsSliceNames,
-  UmbracoManagementClient as CmsClient,
 } from "@umbraco-cms/mcp-dev/collections";
 
 // ============================================================================
@@ -107,34 +105,28 @@ export class UmbracoMcpAgent extends McpAgent<HostedMcpEnv, unknown, AuthProps> 
   server!: McpServer;
 
   async init() {
+    // The MCP session id goes on the init span so degraded starts can be
+    // traced back to their session. Telemetry only: `getSessionId()` throws
+    // when the Durable Object name carries no session id, and that must not
+    // stop the server from starting.
+    let sessionId: string | undefined;
+    try {
+      sessionId = this.getSessionId?.();
+    } catch (error) {
+      console.warn("[mcp-hosted] could not read MCP session id for telemetry:", error);
+      sessionId = undefined;
+    }
     this.server = await createPerRequestServer(
       serverOptions,
       this.env,
-      this.props!
+      this.props!,
+      sessionId,
     );
 
-    // Make the underlying Server available to tools that need elicitation.
-    setServerRef(this.server.server);
+    // No setServerRef here: the server ref for elicitation now comes from the
+    // per-request store that createPerRequestServer sets up (Umbraco-MCP-Base#384).
 
-    // Register the CMS as an in-process server on mcpClientManager so
-    // editor tools can call mcpClientManager.callTool("cms", ...).
-    // The clientFactory provides the CMS Orval client which uses the
-    // same fetch transport configured by createPerRequestServer.
-    mcpClientManager.registerServer({
-      transport: "in-process" as const,
-      name: "cms",
-      collections: cmsCollections,
-      modeRegistry: cmsModes,
-      allModeNames: cmsModeNames,
-      allSliceNames: cmsSliceNames,
-      proxyTools: false,
-      clientFactory: () => CmsClient.getClient(),
-      // Permission-complete mock user so every CMS tool's enabled() check passes
-      // and no tool is dropped when a new Umbraco major adds a section/permission
-      // family (e.g. Umbraco 18's Library / Elements domain). Real user auth is
-      // handled by the OAuth/token layer, not here.
-      user: createPermissiveCodegenUser(),
-    });
+    registerCmsChainedServer();
   }
 }
 
