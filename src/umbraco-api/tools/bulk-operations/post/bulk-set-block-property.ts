@@ -7,6 +7,12 @@ import {
   SKIPPED_SENTINEL,
   type BulkItemDetail,
 } from "../../helpers/bulk-handler.js";
+import {
+  blockPropertyAliasSchema,
+  classifyBlockUpdateResults,
+  enrichBlockNotFoundError,
+  type WalkableValue,
+} from "../../helpers/block-inspector.js";
 import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 import { validateDocumentState, validationResultSchema, type ValidationResult } from "../../helpers/validate-document.js";
 
@@ -15,7 +21,7 @@ const inputSchema = {
   contentTypeKey: z.string().uuid().describe("The block element type key to target. Use inspect-blocks to find this."),
   propertyAlias: z.string().describe("The document property alias containing the blocks (e.g. 'contentRows'). Use inspect-blocks to find this."),
   values: z.array(z.object({
-    alias: z.string().describe("The property alias within the block"),
+    alias: blockPropertyAliasSchema.describe("The property alias within the block"),
     value: z.any().describe("The new value for the property"),
   })).min(1).describe("Properties to update on every matching block"),
   culture: z.string().nullable().optional().describe("Culture code if the document property is variant"),
@@ -33,6 +39,7 @@ const outputSchema = z.object({
     error: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
     previewUrl: previewUrlSchema.optional(),
     validation: validationResultSchema.optional(),
+    warnings: z.array(z.string()).optional(),
   })),
   successCount: z.number(),
   failureCount: z.number(),
@@ -103,6 +110,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     const items: BulkItemDetail[] = [];
     const pageBlocks = new Map<string, BlockMatch[]>();
+    const docValuesByItem = new Map<string, WalkableValue[]>();
 
     for (const id of ids) {
       const docResult = await chainCms("get-document-by-id", { id });
@@ -118,6 +126,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
       items.push({ id, name, currentVersionId });
       pageBlocks.set(id, findMatchingBlocks(doc, propertyAlias, contentTypeKey));
+      // Kept for enrichBlockNotFoundError — a "Blocks not found" error from the
+      // chained tool (stale contentKey from a change between this fetch and the
+      // update below) can list contentTypeKey for each available block without
+      // a second lookup.
+      docValuesByItem.set(id, doc.values ?? []);
     }
 
     if (items.length === 0) {
@@ -161,6 +174,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       error?: unknown;
       previewUrl?: { url: string; requiresBackofficeAuth: true } | null;
       validation?: ValidationResult;
+      warnings?: string[];
     }> = [];
     let stopped = false;
     let totalBlocksUpdated = 0;
@@ -210,31 +224,95 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
 
       if (!updateResult.ok) {
+        const enriched = enrichBlockNotFoundError(
+          updateResult.errorResult,
+          docValuesByItem.get(item.id) ?? [],
+          { propertyAlias },
+        );
         results.push({
           id: item.id,
           name: item.name,
           success: false,
           blocksUpdated: 0,
           previousVersionId: item.currentVersionId || undefined,
-          error: parseBulkError(updateResult.errorResult),
+          error: parseBulkError(enriched),
         });
         stopped = true;
       } else {
-        totalBlocksUpdated += blocks.length;
-        results.push({
-          id: item.id,
-          name: item.name,
-          success: true,
-          blocksUpdated: blocks.length,
-          previousVersionId: item.currentVersionId || undefined,
-        });
+        // `update-block-property`'s top-level `success` is always true once the
+        // call itself completes, and even a per-block result's own `success`
+        // flag can't be trusted alone: upstream sets it to
+        // `totalProcessed > 0 || errors.length === 0`, so a block with one
+        // valid alias and one invalid one still reads `success: true` with
+        // `errors` populated, and a block where nothing was written and no
+        // error was recorded either reads `success: true, errors: []`.
+        // Comparing how many properties were actually written across every
+        // matched block against how many were requested (`blocks.length *
+        // values.length`) is the only check that catches both — see
+        // `classifyBlockUpdateResults`'s own doc comment for the full case
+        // list. `edit-block.ts` and `edit-element-block.ts` use the same
+        // helper, for the same reason.
+        const blockResults = updateResult.data.results;
+        if (!blockResults || blockResults.length === 0) {
+          results.push({
+            id: item.id,
+            name: item.name,
+            success: false,
+            blocksUpdated: 0,
+            previousVersionId: item.currentVersionId || undefined,
+            error: "update-block-property returned no per-block result — cannot confirm the write succeeded.",
+          });
+          stopped = true;
+        } else {
+          const classification = classifyBlockUpdateResults(blockResults, blocks.length * values.length, fieldNames, blocks.length);
+          if (classification.outcome === "clean") {
+            totalBlocksUpdated += blocks.length;
+            results.push({
+              id: item.id,
+              name: item.name,
+              success: true,
+              blocksUpdated: blocks.length,
+              previousVersionId: item.currentVersionId || undefined,
+              ...(classification.warnings.length ? { warnings: classification.warnings } : {}),
+            });
+          } else {
+            // Blocks that wrote at least one property did save something, even
+            // though this page's overall row is marked failed — count them.
+            totalBlocksUpdated += classification.updatedEntryCount;
+            const totalProperties = blocks.length * values.length;
+            results.push({
+              id: item.id,
+              name: item.name,
+              success: false,
+              blocksUpdated: classification.updatedEntryCount,
+              previousVersionId: item.currentVersionId || undefined,
+              error: classification.outcome === "failed"
+                ? `Block update failed: ${classification.detail}`
+                : {
+                  message: `Block update partially failed: ${classification.processedCount} of ${totalProperties} propert${totalProperties === 1 ? "y" : "ies"} saved, across ${classification.updatedEntryCount} of ${blockResults.length} block(s)`
+                    + (classification.unresolvedBlockCount > 0
+                      ? ` (${classification.unresolvedBlockCount} matched block(s) could not be located — likely changed concurrently; rerun this tool to retarget them)`
+                      : "")
+                    + ` — ${classification.detail}`,
+                  savedFields: classification.savedFields,
+                  failedFields: classification.failedFields,
+                  ...(classification.savedFields.length > 0
+                    ? { note: "savedFields were written to the document and must not be retried." }
+                    : {}),
+                },
+              ...(classification.warnings.length ? { warnings: classification.warnings } : {}),
+            });
+            stopped = true;
+          }
+        }
       }
     }
 
-    // Decorate succeeded rows with validation outcome + preview URL. Sequential
-    // to avoid hammering the backoffice at the 10-item cap.
+    // Decorate rows that actually changed the document — including a partial
+    // write, which still saved the valid alias — with validation outcome +
+    // preview URL. Sequential to avoid hammering the backoffice at the 10-item cap.
     for (const row of results) {
-      if (!row.success || row.blocksUpdated === 0) continue;
+      if (row.blocksUpdated === 0) continue;
       row.validation = await validateDocumentState(row.id);
       row.previewUrl = await fetchPreviewUrl(row.id);
     }

@@ -43,7 +43,7 @@ describe("edit-block", () => {
   beforeAll(async () => {
     const state = await initContentTestState(extra);
     testPageId = state.testPageId;
-    settingsFixture = await createBlockListFixture(extra, "_Test edit-block settings fixture", { seedSettings: true });
+    settingsFixture = await createBlockListFixture(extra, "_Test edit-block settings fixture", { seedSettings: true, seedNested: true });
   }, 120000);
 
   afterAll(async () => {
@@ -156,4 +156,145 @@ describe("edit-block", () => {
       await ContentTestHelper.cleanupById(freshPageId);
     }
   }, 90000);
+
+  it("errors with the available blocks' keys and contentTypeKeys when contentKey is not found", async () => {
+    expect(settingsFixture).not.toBeNull();
+    const f = settingsFixture!;
+    const badContentKey = "99999999-9999-4999-8999-999999999999";
+
+    const result = await callTool(editBlockTool, {
+      id: f.pageId,
+      propertyAlias: f.propertyAlias,
+      contentKey: badContentKey,
+      values: [{ alias: f.blockPropertyAlias, value: "_should not apply" }],
+      blockType: undefined,
+      culture: undefined,
+      segment: undefined,
+    }, extra);
+
+    expect(result.isError).toBe(true);
+    const problem = JSON.parse(result.content[0].text);
+    expect(problem.title).toBe("Blocks not found");
+    expect(Array.isArray(problem.availableBlocks)).toBe(true);
+    const seededEntry = problem.availableBlocks.find((b: any) => b.key === f.seededBlockKey);
+    expect(seededEntry).toBeDefined();
+    // The enrichment is the point of this test: availableBlocks now carries the
+    // block's contentTypeKey alongside its key, so the model can tell blocks of
+    // different element types apart without an extra lookup.
+    expect(seededEntry.contentTypeKey).toBe(f.elementTypeId);
+  }, 60000);
+
+  it("enriches a settings entry's contentTypeKey too, not just content blocks", async () => {
+    expect(settingsFixture?.seededSettingsKey).toBeTruthy();
+    expect(settingsFixture?.settings).toBeTruthy();
+    const f = settingsFixture!;
+    const badContentKey = "99999999-9999-4999-8999-999999999999";
+
+    const result = await callTool(editBlockTool, {
+      id: f.pageId,
+      propertyAlias: f.propertyAlias,
+      contentKey: badContentKey,
+      values: [{ alias: f.blockPropertyAlias, value: "_should not apply" }],
+      blockType: undefined,
+      culture: undefined,
+      segment: undefined,
+    }, extra);
+
+    expect(result.isError).toBe(true);
+    const problem = JSON.parse(result.content[0].text as string);
+    const settingsEntry = problem.availableBlocks.find((b: any) => b.key === f.seededSettingsKey);
+    expect(settingsEntry).toBeDefined();
+    expect(settingsEntry.contentTypeKey).toBe(f.settings!.settingsElementTypeId);
+    // A settings key isn't valid contentKey input for a content edit — the
+    // error should say so.
+    expect(problem.note).toMatch(/settings/i);
+  }, 60000);
+
+  it("enriches a block nested inside another block's own property value", async () => {
+    expect(settingsFixture?.seededNestedBlockKey).toBeTruthy();
+    const f = settingsFixture!;
+    const badContentKey = "99999999-9999-4999-8999-999999999999";
+
+    const result = await callTool(editBlockTool, {
+      id: f.pageId,
+      propertyAlias: f.propertyAlias,
+      contentKey: badContentKey,
+      values: [{ alias: f.blockPropertyAlias, value: "_should not apply" }],
+      blockType: undefined,
+      culture: undefined,
+      segment: undefined,
+    }, extra);
+
+    expect(result.isError).toBe(true);
+    const problem = JSON.parse(result.content[0].text as string);
+    const nestedEntry = problem.availableBlocks.find((b: any) => b.key === f.seededNestedBlockKey);
+    expect(nestedEntry).toBeDefined();
+    // The nested block reuses the same element type as the outer block.
+    expect(nestedEntry.contentTypeKey).toBe(f.elementTypeId);
+  }, 60000);
+
+  it("surfaces a per-block property-alias failure as a real error, not a reported success", async () => {
+    expect(settingsFixture).not.toBeNull();
+    const f = settingsFixture!;
+
+    // An alias that doesn't exist on this block's element type — this is the
+    // case the pre-fix bug swallowed as a success.
+    const result = await callTool(editBlockTool, {
+      id: f.pageId,
+      propertyAlias: f.propertyAlias,
+      contentKey: f.seededBlockKey,
+      values: [{ alias: "_notARealPropertyAliasOnThisElementType", value: "_should not apply" }],
+      blockType: undefined,
+      culture: undefined,
+      segment: undefined,
+    }, extra);
+
+    expect(result.isError).toBe(true);
+    const text = result.content[0].text as string;
+    expect(text).toContain("Block update failed");
+  }, 60000);
+
+  it("reports a partial failure — and still saves the valid alias — when only one of several aliases is invalid", async () => {
+    // Upstream `update-block-property` reports `success: true` on this result
+    // whenever at least one property saved, even if another alias in the same
+    // call failed — so a plain `success !== true` check misses this case and
+    // reports a full success while silently dropping the invalid alias's value.
+    expect(settingsFixture).not.toBeNull();
+    const f = settingsFixture!;
+    const validValue = "_partial write valid value";
+
+    const result = await callTool(editBlockTool, {
+      id: f.pageId,
+      propertyAlias: f.propertyAlias,
+      contentKey: f.seededBlockKey,
+      values: [
+        { alias: f.blockPropertyAlias, value: validValue },
+        { alias: "_notARealPropertyAliasOnThisElementType", value: "_should not apply" },
+      ],
+      blockType: undefined,
+      culture: undefined,
+      segment: undefined,
+    }, extra);
+
+    expect(result.isError).toBe(true);
+    const text = result.content[0].text as string;
+    expect(text).toContain("partially failed");
+    expect(text).toContain("1 of 2 field(s) saved");
+
+    const problem = JSON.parse(text);
+    expect(problem.savedFields).toEqual([f.blockPropertyAlias]);
+    expect(problem.failedFields).toEqual(["_notARealPropertyAliasOnThisElementType"]);
+    // A partial write still changed the document — validation/previewUrl are
+    // worth returning even on this error path.
+    expect(typeof problem.validation?.valid).toBe("boolean");
+    expect(problem.previewUrl?.url).toEqual(expect.any(String));
+
+    // The valid alias's value was still persisted, despite the overall error.
+    const docResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: f.pageId });
+    const doc = extractChainedResult(docResult);
+    const propValue = (doc.values ?? []).find((v: any) => v.alias === f.propertyAlias)?.value;
+    const block = (propValue?.contentData ?? []).find((b: any) => b.key === f.seededBlockKey);
+    const updatedProp = (block?.values ?? []).find((p: any) => p.alias === f.blockPropertyAlias);
+    expect(updatedProp?.value).toBe(validValue);
+  }, 60000);
 });
