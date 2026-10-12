@@ -17,6 +17,7 @@
  * and RTE the same level of coverage as BlockList.
  */
 
+import { randomUUID } from "node:crypto";
 import { mcpClientManager } from "../../../../mcp-client.js";
 import { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { getStructuredContent } from "@umbraco-cms/mcp-server-sdk/testing";
@@ -102,13 +103,17 @@ export interface BlockListFixture extends DonorInfo {
   seededBlockKey: string;
   /** Set when seedSettings: true was passed AND the donor exposed settings info */
   seededSettingsKey?: string;
+  /** Set when seedNested: true was passed — the inner block's contentKey */
+  seededNestedBlockKey?: string;
   cleanup(): Promise<void>;
 }
 
 const SEEDED_BLOCK_KEY = "11111111-1111-4111-8111-111111111111";
 const SEEDED_SETTINGS_KEY = "22222222-2222-4222-8222-222222222222";
+const SEEDED_NESTED_BLOCK_KEY = "33333333-3333-4333-8333-333333333333";
 const SEEDED_VALUE = "_seeded block value";
 const SEEDED_SETTINGS_VALUE = "_seeded settings value";
+const SEEDED_NESTED_VALUE = "_seeded nested block value";
 
 const PROVISIONED_TEXTBOX_NAME = "_Audit textbox";
 const PROVISIONED_ELEMENT_ALIAS = "_auditBlockElement";
@@ -169,6 +174,67 @@ async function provisionAuditElementType(): Promise<string | null> {
     elementTypeId = items.find(d => d.alias === PROVISIONED_ELEMENT_ALIAS || d.name === PROVISIONED_ELEMENT_NAME)?.id;
   }
   return elementTypeId ?? null;
+}
+
+const PROVISIONED_NESTED_BLOCKLIST_NAME = "_Audit nested blocklist";
+const NESTED_PROPERTY_ALIAS = "nestedBlocks";
+
+/**
+ * Idempotently add a self-referential "nestedBlocks" BlockList property (whose
+ * blocks are of the SAME element type) to the audit element type, so a seeded
+ * block's own value can carry another block inside it (Umbraco's nested-blocks
+ * feature). Unlike block discovery (which is purely shape-based), SAVING a
+ * document validates each block's properties against its element type's real
+ * schema and strips anything not declared there — so a nested value under an
+ * alias the element type doesn't know about is silently dropped on save.
+ *
+ * Returns true once the property exists (already there, or just added).
+ */
+async function provisionNestedBlockProperty(elementTypeId: string): Promise<boolean> {
+  const current = await mcpClientManager.callTool("cms", "get-document-type-by-id", { id: elementTypeId });
+  if (current.isError) return false;
+  const docType = extractChainedResult(current);
+  if (docType.properties.some((p: any) => p.alias === NESTED_PROPERTY_ALIAS)) return true;
+
+  const findNestedDt = await mcpClientManager.callTool("cms", "find-data-type", { name: PROVISIONED_NESTED_BLOCKLIST_NAME });
+  let nestedDtId = (extractChainedResult(findNestedDt)?.items ?? []).find((d: any) => d.name === PROVISIONED_NESTED_BLOCKLIST_NAME)?.id;
+  if (!nestedDtId) {
+    const created = await mcpClientManager.callTool("cms", "create-data-type", {
+      name: PROVISIONED_NESTED_BLOCKLIST_NAME,
+      editorAlias: "Umbraco.BlockList",
+      editorUiAlias: "Umb.PropertyEditorUi.BlockList",
+      values: [
+        { alias: "blocks", value: [{ contentElementTypeKey: elementTypeId }] },
+      ],
+    });
+    if (created.isError) return false;
+    nestedDtId = extractChainedResult(created)?.id;
+  }
+  if (!nestedDtId) return false;
+
+  const updated = await mcpClientManager.callTool("cms", "update-document-type", {
+    id: elementTypeId,
+    data: {
+      ...docType,
+      properties: [
+        ...docType.properties,
+        {
+          id: randomUUID(),
+          container: null,
+          sortOrder: docType.properties.length,
+          alias: NESTED_PROPERTY_ALIAS,
+          name: "Nested blocks",
+          description: null,
+          dataType: { id: nestedDtId },
+          variesByCulture: false,
+          variesBySegment: false,
+          validation: { mandatory: false, mandatoryMessage: null, regEx: null, regExMessage: null },
+          appearance: { labelOnTop: false },
+        },
+      ],
+    },
+  });
+  return !updated.isError;
 }
 
 async function findDocTypeId(alias: string, name: string): Promise<string | undefined> {
@@ -332,10 +398,22 @@ interface CreateBlockListFixtureOptions {
    * (the page is created at root), so `settings` is always set on the fixture.
    */
   seedSettings?: boolean;
+  /**
+   * Seed the block with an extra property whose value is itself a nested
+   * BlockList block (Umbraco's nested-blocks feature — a block's own property
+   * can be another BlockList/BlockGrid/RTE-with-blocks value). Idempotently
+   * adds a self-referential "nestedBlocks" property to the donor's element
+   * type via `provisionNestedBlockProperty` — saving a document validates
+   * each block's properties against its element type's real schema, so the
+   * nested value needs a real property to be declared there, or it's
+   * silently stripped on save.
+   */
+  seedNested?: boolean;
 }
 
 export async function createBlockListFixture(extra: any, name: string, options: CreateBlockListFixtureOptions = {}): Promise<BlockListFixture | null> {
   const seedSettings = options.seedSettings === true;
+  const seedNested = options.seedNested === true;
   let donor: DonorInfo | null;
   let parentId: string | undefined;
   if (seedSettings) {
@@ -345,6 +423,7 @@ export async function createBlockListFixture(extra: any, name: string, options: 
     parentId = (await initContentTestState(extra)).testPageId;
   }
   if (!donor) return null;
+  if (seedNested && !(await provisionNestedBlockProperty(donor.elementTypeId))) return null;
 
   const layoutEntry: { contentKey: string; settingsKey?: string } = seedSettings
     ? { contentKey: SEEDED_BLOCK_KEY, settingsKey: SEEDED_SETTINGS_KEY }
@@ -358,6 +437,25 @@ export async function createBlockListFixture(extra: any, name: string, options: 
       ],
     }]
     : [];
+  const nestedValues = seedNested
+    ? [{
+      alias: NESTED_PROPERTY_ALIAS,
+      culture: null,
+      segment: null,
+      value: {
+        contentData: [{
+          key: SEEDED_NESTED_BLOCK_KEY,
+          contentTypeKey: donor.elementTypeId,
+          values: [
+            { alias: donor.blockPropertyAlias, value: SEEDED_NESTED_VALUE, culture: null, segment: null },
+          ],
+        }],
+        settingsData: [],
+        layout: { "Umbraco.BlockList": [{ contentKey: SEEDED_NESTED_BLOCK_KEY }] },
+        expose: [{ contentKey: SEEDED_NESTED_BLOCK_KEY, culture: null, segment: null }],
+      },
+    }]
+    : [];
 
   const blockListValue = {
     contentData: [
@@ -366,6 +464,7 @@ export async function createBlockListFixture(extra: any, name: string, options: 
         contentTypeKey: donor.elementTypeId,
         values: [
           { alias: donor.blockPropertyAlias, value: SEEDED_VALUE, culture: null, segment: null },
+          ...nestedValues,
         ],
       },
     ],
@@ -387,6 +486,7 @@ export async function createBlockListFixture(extra: any, name: string, options: 
     pageId: page.getId(),
     seededBlockKey: SEEDED_BLOCK_KEY,
     ...(seedSettings ? { seededSettingsKey: SEEDED_SETTINGS_KEY } : {}),
+    ...(seedNested ? { seededNestedBlockKey: SEEDED_NESTED_BLOCK_KEY } : {}),
     cleanup: async () => {
       await ContentTestHelper.cleanupById(page.getId());
     },
