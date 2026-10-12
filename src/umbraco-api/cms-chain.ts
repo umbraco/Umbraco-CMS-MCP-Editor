@@ -8,13 +8,24 @@ type CmsChainResult<TName extends CmsToolsName> =
 
 /**
  * Pull the ProblemDetails-shaped payload out of a chained `CallToolResult`
- * error envelope. The SDK's `createToolResultError(problemDetails)` puts the
- * details directly under `structuredContent`, so we just take that. If the
- * caller chose compat mode (no structuredContent) we fall back to JSON-parsing
- * `content[0].text`. Synthesize a minimal ProblemDetails if neither is present
- * — callers always receive a stable shape.
+ * error envelope.
+ *
+ * As of `@umbraco-cms/mcp-server-sdk` beta.43, `createToolResultError` no
+ * longer sets `structuredContent` on error results at all (intentionally —
+ * see its JSDoc and https://github.com/umbraco/Umbraco-MCP-Base/issues/343:
+ * some MCP clients validate `structuredContent` against the tool's
+ * outputSchema even on `isError` results, discarding the real error). So the
+ * `content[0].text` JSON-parse path below is now the normal path, not just a
+ * compat-mode fallback; the `structuredContent` check only still matters for
+ * chained tools running an older SDK. Synthesize a minimal ProblemDetails if
+ * neither is present — callers always receive a stable shape.
+ *
+ * Exported so other internal consumers that need to inspect a tool result's
+ * ProblemDetails before reshaping it into their own response — e.g.
+ * `bulk-handler.ts`'s `parseBulkError` — can reuse the same extraction
+ * instead of duplicating it.
  */
-function extractInnerProblemDetails(result: Record<string, unknown>): Record<string, unknown> {
+export function extractInnerProblemDetails(result: Record<string, unknown>): Record<string, unknown> {
   if (result.structuredContent && typeof result.structuredContent === "object") {
     return result.structuredContent as Record<string, unknown>;
   }
@@ -30,7 +41,15 @@ function extractInnerProblemDetails(result: Record<string, unknown>): Record<str
           return parsed as Record<string, unknown>;
         }
       } catch {
-        // Fall through to synthesized default.
+        // Not JSON — a plain human-readable string (createToolResultError
+        // supports passing one directly, e.g. rename-page.ts). Surface it
+        // rather than discarding it for a generic message.
+        return {
+          type: "Error",
+          title: "Chained tool error",
+          status: 500,
+          detail: `Chained CMS tool returned a non-JSON error: ${text}`,
+        };
       }
     }
   }
@@ -40,6 +59,23 @@ function extractInnerProblemDetails(result: Record<string, unknown>): Record<str
     status: 500,
     detail: "Chained CMS tool returned an error with no structured details.",
   };
+}
+
+/**
+ * An in-process "Tool not found" error lists every available tool (370+ names)
+ * after ". Available tools", which is useless noise once it reaches the model
+ * (and the Workers log, via the `console.warn` in `chainCms` below) — keep
+ * only the leading sentence that names the missing tool. Gated on both
+ * markers being present (not just ". Available tools") so an unrelated
+ * thrown error that happens to contain that substring passes through
+ * untouched instead of silently losing its real content.
+ */
+function truncateAvailableTools(message: string): string {
+  const availableToolsIndex = message.indexOf(". Available tools");
+  if (availableToolsIndex === -1 || !message.includes("Tool not found:")) {
+    return message;
+  }
+  return message.slice(0, availableToolsIndex + 1);
 }
 
 export async function chainCms<TName extends CmsToolsName>(
@@ -54,7 +90,8 @@ export async function chainCms<TName extends CmsToolsName>(
     // its own schema check) surfaces as a thrown protocol-level McpError from the
     // underlying client, not a resolved isError result — normalize it to the same
     // { ok: false, errorResult } contract so callers never need a try/catch here.
-    const message = error instanceof Error ? error.message : String(error);
+    const message = truncateAvailableTools(error instanceof Error ? error.message : String(error));
+    console.warn(`Chained CMS tool "${toolName}" failed: ${message}`);
     return {
       ok: false,
       errorResult: createToolResultError({

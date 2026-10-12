@@ -51,56 +51,32 @@ describe("edit-block", () => {
     if (settingsFixture) await settingsFixture.cleanup();
   }, 30000);
 
-  it("should edit a block property when blocks exist", async () => {
-    const inspectResult = await inspectBlocksTool.handler(
-      { id: testPageId, propertyAlias: undefined },
-      extra,
-    );
+  it("should edit a block property on a seeded block", async () => {
+    // The test creates its own block data via the fixture — never skips.
+    expect(settingsFixture).not.toBeNull();
+    const f = settingsFixture!;
 
-    const inspectData = getStructuredContent(inspectResult) as any;
-    expect(inspectData?.blockProperties).toBeDefined();
+    const result = await callTool(editBlockTool, {
+      id: f.pageId,
+      propertyAlias: f.propertyAlias,
+      contentKey: f.seededBlockKey,
+      values: [{ alias: f.blockPropertyAlias, value: "_edited block value" }],
+      blockType: undefined,
+      culture: undefined,
+      segment: undefined,
+    }, extra);
 
-    const blockProp = inspectData.blockProperties.find(
-      (bp: any) => bp.blocks?.length > 0,
-    );
-    if (!blockProp) {
-      // Graceful skip — no block properties with blocks on this test page
-      return;
-    }
-
-    const block = blockProp.blocks.find(
-      (b: any) => b.contentKey && b.values?.length > 0,
-    );
-    if (!block) {
-      // Graceful skip — no blocks with values on this test page
-      return;
-    }
-
-    const firstValue = block.values[0];
-    const result = await editBlockTool.handler(
-      {
-        id: testPageId,
-        propertyAlias: blockProp.propertyAlias,
-        contentKey: block.contentKey,
-        values: [{ alias: firstValue.alias, value: firstValue.value }],
-        blockType: undefined,
-        culture: undefined,
-        segment: undefined,
-      },
-      extra,
-    );
-
-    expect(createSnapshotResult(result, testPageId)).toMatchSnapshot();
-  }, 30000);
+    expect(result.isError).toBeFalsy();
+    // Seeded block key is a fixed constant; page id is normalised by the helper.
+    expect(createSnapshotResult(result, f.pageId)).toMatchSnapshot();
+  }, 60000);
 
   it("updates a block's settings when blockType='settings'", async () => {
-    if (!settingsFixture || !settingsFixture.seededSettingsKey || !settingsFixture.settings) {
-      // Demo donor doesn't expose a settings element type — skip rather than fail.
-      return;
-    }
-    const f = settingsFixture;
+    expect(settingsFixture?.seededSettingsKey).toBeTruthy();
+    expect(settingsFixture?.settings).toBeTruthy();
+    const f = settingsFixture!;
 
-    const result = await editBlockTool.handler(
+    const result = await callTool(editBlockTool,
       {
         id: f.pageId,
         propertyAlias: f.propertyAlias,
@@ -124,15 +100,14 @@ describe("edit-block", () => {
   }, 60000);
 
   it("edits a block on a page that started empty (lifecycle regression)", async () => {
-    if (!settingsFixture) return; // Re-use fixture to get donor info (propertyAlias, elementTypeId, etc.)
-    const f = settingsFixture;
+    expect(settingsFixture).not.toBeNull();
+    const f = settingsFixture!; // Re-use fixture to get donor info (propertyAlias, elementTypeId, etc.)
 
-    // Create a fresh page with NO block values
-    const state = await initContentTestState(extra);
+    // Create a fresh page with NO block values. The settings donor's doc type is
+    // provisioned allowed-at-root only, so the page goes at root.
     const freshPage = await new ContentBuilder()
       .withName("_Test edit-block lifecycle regression")
       .withDocumentType(f.donorDocTypeId)
-      .withParent(state.testPageId)
       .create();
     const freshPageId = freshPage.getId();
 
