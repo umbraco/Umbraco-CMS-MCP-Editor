@@ -37,7 +37,7 @@ import { registerCmsChainedServer } from "./umbraco-api/cms-chained-server.js";
 import packageJson from "../package.json" with { type: "json" };
 
 // mcp-dev is loaded on first request, not at startup (see cms-collections-loader.ts)
-import { getLoadedCmsCollections, loadCmsCollections } from "./umbraco-api/cms-collections-loader.js";
+import { getLoadedCmsCollections, loadCmsCollections, readsChainedServerConfig } from "./umbraco-api/cms-collections-loader.js";
 
 // ============================================================================
 // Server Configuration
@@ -146,16 +146,18 @@ const workerExport = createWorkerExport(provider, options);
 
 export default {
   async fetch(request: Request, env: HostedMcpEnv, ctx: ExecutionContext): Promise<Response> {
-    // Load mcp-dev before a handler reads the chained server's config (consent
-    // screen, /info). A failed load must not take down routes that don't need
-    // it (OAuth, landing page): log it and carry on. A reader then gets the
-    // getter's "not loaded" error, MCP sessions load it themselves in init(),
-    // and the next request retries. A module that throws on load is caught by
-    // the test suite, which imports the real collections, before deploy.
-    try {
-      await loadCmsCollections();
-    } catch (error) {
-      console.error("[editor-mcp] Failed to load @umbraco-cms/mcp-dev collections:", error);
+    // Load mcp-dev only for the routes that read the chained server's config
+    // synchronously (consent screen, /info). Other routes skip it, and MCP
+    // sessions load it themselves in init(). A failed load is logged and the
+    // request carries on, so the reader gets the getter's "not loaded" error
+    // rather than every route failing. A module that throws on load is caught
+    // by the test suite, which imports the real collections, before deploy.
+    if (readsChainedServerConfig(new URL(request.url).pathname)) {
+      try {
+        await loadCmsCollections();
+      } catch (error) {
+        console.error("[editor-mcp] Failed to load @umbraco-cms/mcp-dev collections:", error);
+      }
     }
     return workerExport.fetch(request, env, ctx);
   },

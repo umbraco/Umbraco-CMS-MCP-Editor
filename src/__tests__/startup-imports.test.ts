@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { createCmsCollectionsLoader, loadCmsCollections, getLoadedCmsCollections } from "../umbraco-api/cms-collections-loader.js";
+import { createCmsCollectionsLoader, loadCmsCollections, getLoadedCmsCollections, readsChainedServerConfig } from "../umbraco-api/cms-collections-loader.js";
 
 // Cloudflare limits Worker startup to 1 s of CPU. Importing
 // @umbraco-cms/mcp-dev's collections builds every mcp-dev tool's schemas, which
@@ -43,26 +43,53 @@ describe("worker startup: mcp-dev is not imported at module scope", () => {
   });
 });
 
+const fakeCollections = (extra: Record<string, unknown> = {}) => ({
+  collections: [], allModes: [], allModeNames: [], allSliceNames: [], ...extra,
+});
+
 describe("cms collections loader", () => {
   it("shares one in-flight load between concurrent callers", async () => {
     let calls = 0;
-    const loader = createCmsCollectionsLoader(async () => ({ n: ++calls }));
+    const loader = createCmsCollectionsLoader(async () => { calls += 1; return fakeCollections(); });
     const [a, b] = await Promise.all([loader.load(), loader.load()]);
     expect(a).toBe(b);
     expect(calls).toBe(1);
   });
 
-  it("retries after a failed load instead of caching the failure", async () => {
+  it("keeps a failed load and rethrows it without importing again", async () => {
     let calls = 0;
     const loader = createCmsCollectionsLoader(async () => {
       calls += 1;
-      if (calls === 1) throw new Error("boom");
-      return { ok: true };
+      throw new Error("boom");
     });
     await expect(loader.load()).rejects.toThrow("boom");
-    expect(() => loader.get()).toThrow("not loaded yet");
-    await expect(loader.load()).resolves.toEqual({ ok: true });
-    expect(loader.get()).toEqual({ ok: true });
-    expect(calls).toBe(2);
+    await expect(loader.load()).rejects.toThrow("boom");
+    expect(calls).toBe(1);
+    expect(() => loader.get()).toThrow("not loaded");
+  });
+
+  it("rejects a half-initialised module (exports missing) instead of storing it", async () => {
+    // What a bundled re-import returns after the module threw part-way through.
+    const loader = createCmsCollectionsLoader(async () => fakeCollections({ allModes: undefined, allSliceNames: undefined }));
+    await expect(loader.load()).rejects.toThrow("missing: allModes, allSliceNames");
+    expect(() => loader.get()).toThrow("not loaded");
+  });
+});
+
+describe("readsChainedServerConfig", () => {
+  it.each([
+    ["/authorize", true],
+    ["/authorize/site-1", true],
+    ["/at/my-project.euwest01/authorize", true],
+    ["/info", true],
+    ["/mcp", false],
+    ["/at/my-project.euwest01/mcp", false],
+    ["/token", false],
+    ["/register", false],
+    ["/.well-known/oauth-authorization-server", false],
+    ["/", false],
+    ["/callback", false],
+  ])("%s -> %s", (path, expected) => {
+    expect(readsChainedServerConfig(path)).toBe(expected);
   });
 });
