@@ -65,7 +65,7 @@ describe("hosted session isolation (#210)", () => {
 
   it("keeps every session's Umbraco requests on its own site and token", async () => {
     const report = await checkSessionIsolation(serverOptions as never, {
-      init: () => registerCmsChainedServer(),
+      init: async () => { await registerCmsChainedServer(); },
       toolCalls: [
         { name: "get-page", arguments: { id: PAGE_ID } },
         { name: "list-document-types" },

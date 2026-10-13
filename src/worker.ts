@@ -36,25 +36,22 @@ import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
 import { registerCmsChainedServer } from "./umbraco-api/cms-chained-server.js";
 import packageJson from "../package.json" with { type: "json" };
 
-// Import CMS collections for in-process chaining
-import {
-  collections as cmsCollections,
-  allModes as cmsModes,
-  allModeNames as cmsModeNames,
-  allSliceNames as cmsSliceNames,
-} from "@umbraco-cms/mcp-dev/collections";
+// mcp-dev is loaded on first request, not at startup (see cms-collections-loader.ts)
+import { getLoadedCmsCollections, loadCmsCollections } from "./umbraco-api/cms-collections-loader.js";
 
 // ============================================================================
 // Server Configuration
 // ============================================================================
 
+// Getters, so mcp-dev's collections are only read at request time (consent
+// screen, /info), after the fetch entry below has loaded them.
 const cmsChainedServer: ChainedServerConsentConfig = {
   name: "cms",
   displayName: "umbraco-cms-mcp",
-  modeRegistry: cmsModes,
-  collections: cmsCollections,
-  allModeNames: cmsModeNames,
-  allSliceNames: cmsSliceNames,
+  get modeRegistry() { return getLoadedCmsCollections().allModes; },
+  get collections() { return getLoadedCmsCollections().collections; },
+  get allModeNames() { return getLoadedCmsCollections().allModeNames; },
+  get allSliceNames() { return getLoadedCmsCollections().allSliceNames; },
 };
 
 // Umbraco Cloud multi-tenancy.
@@ -126,7 +123,7 @@ export class UmbracoMcpAgent extends McpAgent<HostedMcpEnv, unknown, AuthProps> 
     // No setServerRef here: the server ref for elicitation now comes from the
     // per-request store that createPerRequestServer sets up (Umbraco-MCP-Base#384).
 
-    registerCmsChainedServer();
+    await registerCmsChainedServer();
   }
 }
 
@@ -145,4 +142,12 @@ const provider = new OAuthProvider({
   clientRegistrationEndpoint: "/register",
 });
 
-export default createWorkerExport(provider, options);
+const workerExport = createWorkerExport(provider, options);
+
+export default {
+  async fetch(request: Request, env: HostedMcpEnv, ctx: ExecutionContext): Promise<Response> {
+    // Load mcp-dev before any handler reads the chained server's config.
+    await loadCmsCollections();
+    return workerExport.fetch(request, env, ctx);
+  },
+};
