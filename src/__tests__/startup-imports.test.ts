@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { createCmsCollectionsLoader, loadCmsCollections, getLoadedCmsCollections, readsChainedServerConfig } from "../umbraco-api/cms-collections-loader.js";
+import { createCmsCollectionsLoader, loadCmsCollections, getLoadedCmsCollections, needsCmsCollections } from "../umbraco-api/cms-collections-loader.js";
 
 // Cloudflare limits Worker startup to 1 s of CPU. Importing
 // @umbraco-cms/mcp-dev's collections builds every mcp-dev tool's schemas, which
@@ -76,20 +76,28 @@ describe("cms collections loader", () => {
   });
 });
 
-describe("readsChainedServerConfig", () => {
+describe("needsCmsCollections", () => {
   it.each([
-    ["/authorize", true],
-    ["/authorize/site-1", true],
-    ["/at/my-project.euwest01/authorize", true],
-    ["/info", true],
-    ["/mcp", false],
-    ["/at/my-project.euwest01/mcp", false],
-    ["/token", false],
-    ["/register", false],
-    ["/.well-known/oauth-authorization-server", false],
-    ["/", false],
-    ["/callback", false],
-  ])("%s -> %s", (path, expected) => {
-    expect(readsChainedServerConfig(path)).toBe(expected);
+    // consent tool selection off (the editor's setting): only /info
+    ["/info", false, true],
+    ["/at/my-project.euwest01/info", false, true],
+    ["/authorize", false, false],
+    ["/callback", false, false],
+    ["/", false, false],
+    ["/mcp", false, false],
+    // consent on: every default-handler request builds the consent config
+    ["/authorize", true, true],
+    ["/authorize/site-1", true, true],
+    ["/callback", true, true],
+    ["/callback/site-1", true, true],
+    ["/logout-callback", true, true],
+    ["/", true, true],
+    ["/unknown", true, true],
+    ["/at/my-project.euwest01/authorize", true, true],
+    // MCP traffic never: the Durable Object's init() loads it
+    ["/mcp", true, false],
+    ["/at/my-project.euwest01/mcp", true, false],
+  ])("%s (consent selection %s) -> %s", (path, consent, expected) => {
+    expect(needsCmsCollections(path, consent)).toBe(expected);
   });
 });

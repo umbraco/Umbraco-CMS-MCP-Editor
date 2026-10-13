@@ -37,7 +37,7 @@ import { registerCmsChainedServer } from "./umbraco-api/cms-chained-server.js";
 import packageJson from "../package.json" with { type: "json" };
 
 // mcp-dev is loaded on first request, not at startup (see cms-collections-loader.ts)
-import { getLoadedCmsCollections, loadCmsCollections, readsChainedServerConfig } from "./umbraco-api/cms-collections-loader.js";
+import { getLoadedCmsCollections, loadCmsCollections, needsCmsCollections } from "./umbraco-api/cms-collections-loader.js";
 
 // ============================================================================
 // Server Configuration
@@ -146,13 +146,15 @@ const workerExport = createWorkerExport(provider, options);
 
 export default {
   async fetch(request: Request, env: HostedMcpEnv, ctx: ExecutionContext): Promise<Response> {
-    // Load mcp-dev only for the routes that read the chained server's config
-    // synchronously (consent screen, /info). Other routes skip it, and MCP
+    // Load mcp-dev only for requests that read the chained server's config
+    // synchronously (see needsCmsCollections). Other requests skip it, and MCP
     // sessions load it themselves in init(). A failed load is logged and the
     // request carries on, so the reader gets the getter's "not loaded" error
     // rather than every route failing. A module that throws on load is caught
     // by the test suite, which imports the real collections, before deploy.
-    if (readsChainedServerConfig(new URL(request.url).pathname)) {
+    // Same rule as createDefaultHandler: an explicit option wins, then the env var.
+    const consentToolSelection = options.enableConsentToolSelection ?? env.ENABLE_CONSENT_TOOL_SELECTION === "true";
+    if (needsCmsCollections(new URL(request.url).pathname, consentToolSelection)) {
       try {
         await loadCmsCollections();
       } catch (error) {

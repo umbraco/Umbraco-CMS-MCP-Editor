@@ -65,11 +65,17 @@ export const getLoadedCmsCollections = (): CmsCollectionsModule => loader.get();
 
 /**
  * True for requests whose handlers read the chained server's config
- * synchronously: the consent screen (`/authorize`, `/authorize/:siteId`, and
- * the same under `/at/{alias}/`) and `/info`. MCP requests don't need it (the
- * Durable Object's init() loads it), nor do OAuth token/registration,
- * `.well-known` or the landing page.
+ * synchronously, so mcp-dev must be loaded first. Mirrors
+ * @umbraco-cms/mcp-hosted's createDefaultHandler:
+ * - `/info` always reads it.
+ * - With consent tool selection on, the default handler builds the consent
+ *   config at the start of every request it serves (before routing), which
+ *   reads it too. That's every request except MCP traffic (`/mcp`,
+ *   `/at/{alias}/mcp`), which goes to the Durable Object, whose init() loads it.
+ * With consent selection off (the editor's setting), only `/info` needs it.
  */
-export function readsChainedServerConfig(pathname: string): boolean {
-  return /\/(?:authorize|info)(?:\/[^/]*)?$/.test(pathname);
+export function needsCmsCollections(pathname: string, consentToolSelection: boolean): boolean {
+  if (/\/info$/.test(pathname)) return true;
+  if (!consentToolSelection) return false;
+  return !/(?:^|\/)mcp(?:\/|$)/.test(pathname);
 }
