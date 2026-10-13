@@ -36,25 +36,22 @@ import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
 import { registerCmsChainedServer } from "./umbraco-api/cms-chained-server.js";
 import packageJson from "../package.json" with { type: "json" };
 
-// Import CMS collections for in-process chaining
-import {
-  collections as cmsCollections,
-  allModes as cmsModes,
-  allModeNames as cmsModeNames,
-  allSliceNames as cmsSliceNames,
-} from "@umbraco-cms/mcp-dev/collections";
+// mcp-dev is loaded on first request, not at startup (see cms-collections-loader.ts)
+import { getLoadedCmsCollections, loadCmsCollections, needsCmsCollections } from "./umbraco-api/cms-collections-loader.js";
 
 // ============================================================================
 // Server Configuration
 // ============================================================================
 
+// Getters, so mcp-dev's collections are only read at request time (consent
+// screen, /info), after the fetch entry below has loaded them.
 const cmsChainedServer: ChainedServerConsentConfig = {
   name: "cms",
   displayName: "umbraco-cms-mcp",
-  modeRegistry: cmsModes,
-  collections: cmsCollections,
-  allModeNames: cmsModeNames,
-  allSliceNames: cmsSliceNames,
+  get modeRegistry() { return getLoadedCmsCollections().allModes; },
+  get collections() { return getLoadedCmsCollections().collections; },
+  get allModeNames() { return getLoadedCmsCollections().allModeNames; },
+  get allSliceNames() { return getLoadedCmsCollections().allSliceNames; },
 };
 
 // Umbraco Cloud multi-tenancy.
@@ -126,7 +123,7 @@ export class UmbracoMcpAgent extends McpAgent<HostedMcpEnv, unknown, AuthProps> 
     // No setServerRef here: the server ref for elicitation now comes from the
     // per-request store that createPerRequestServer sets up (Umbraco-MCP-Base#384).
 
-    registerCmsChainedServer();
+    await registerCmsChainedServer();
   }
 }
 
@@ -145,4 +142,25 @@ const provider = new OAuthProvider({
   clientRegistrationEndpoint: "/register",
 });
 
-export default createWorkerExport(provider, options);
+const workerExport = createWorkerExport(provider, options);
+
+export default {
+  async fetch(request: Request, env: HostedMcpEnv, ctx: ExecutionContext): Promise<Response> {
+    // Load mcp-dev only for requests that read the chained server's config
+    // synchronously (see needsCmsCollections). Other requests skip it, and MCP
+    // sessions load it themselves in init(). A failed load is logged and the
+    // request carries on, so the reader gets the getter's "not loaded" error
+    // rather than every route failing. A module that throws on load is caught
+    // by the test suite, which imports the real collections, before deploy.
+    // Same rule as createDefaultHandler: an explicit option wins, then the env var.
+    const consentToolSelection = options.enableConsentToolSelection ?? env.ENABLE_CONSENT_TOOL_SELECTION === "true";
+    if (needsCmsCollections(new URL(request.url).pathname, consentToolSelection)) {
+      try {
+        await loadCmsCollections();
+      } catch (error) {
+        console.error("[editor-mcp] Failed to load @umbraco-cms/mcp-dev collections:", error);
+      }
+    }
+    return workerExport.fetch(request, env, ctx);
+  },
+};

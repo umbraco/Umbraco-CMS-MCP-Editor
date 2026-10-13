@@ -15,14 +15,14 @@ describe("chained CMS tools follow the request's Umbraco version (#197)", () => 
   // in-process connection worker.ts registers, so remove every instance
   // override for its duration and put them back afterwards.
   const shimmed = new Map<string, unknown>();
-  beforeAll(() => {
+  beforeAll(async () => {
     for (const key of ["callTool", "listTools"] as const) {
       if (Object.prototype.hasOwnProperty.call(mcpClientManager, key)) {
         shimmed.set(key, (mcpClientManager as unknown as Record<string, unknown>)[key]);
         delete (mcpClientManager as unknown as Record<string, unknown>)[key];
       }
     }
-    registerCmsChainedServer();
+    await registerCmsChainedServer();
   });
   afterAll(() => {
     for (const [key, fn] of shimmed) (mcpClientManager as unknown as Record<string, unknown>)[key] = fn;
