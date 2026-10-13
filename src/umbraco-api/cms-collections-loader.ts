@@ -77,9 +77,9 @@ export const getLoadedCmsCollections = (): CmsCollectionsModule => loader.get();
 export function needsCmsCollections(pathname: string, consentToolSelection: boolean): boolean {
   if (/\/info$/.test(pathname)) return true;
   if (!consentToolSelection) return false;
-  // Only the MCP endpoints themselves are skipped (path ends in /mcp). A tenant
-  // alias or site id that is literally "mcp" (/at/mcp/authorize) must still
-  // load it. Over-loading (e.g. an MCP request to /at/{alias}/) only costs the
-  // one-off load in this isolate.
-  return !/\/mcp\/?$/.test(pathname);
+  // Only the MCP endpoints themselves are skipped: exactly `/mcp` and
+  // `/at/{alias}/mcp`. A tenant alias or site id that is literally "mcp"
+  // (/at/mcp/authorize, /authorize/mcp) must still load it. Over-loading (e.g.
+  // an MCP request to /at/{alias}/) only costs the one-off load in this isolate.
+  return !/^(?:\/at\/[^/]+)?\/mcp\/?$/.test(pathname);
 }
