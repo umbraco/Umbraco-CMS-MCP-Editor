@@ -7,21 +7,33 @@
  * produced structuredContent.structuredContent.problemDetails and the LLM
  * reported "validation failed but no detail was returned" because it looks at
  * structuredContent directly. This test pins the single-layer shape we want.
+ *
+ * As of `@umbraco-cms/mcp-server-sdk` beta.43, `createToolResultError` no
+ * longer sets `structuredContent` on the error results it builds (intentional
+ * — see `cms-chain.ts`'s `extractInnerProblemDetails` doc comment and
+ * https://github.com/umbraco/Umbraco-MCP-Base/issues/343). So these tests now
+ * read `errorResult`'s single-layer ProblemDetails back out of
+ * `content[0].text` instead of `structuredContent` — the "no double-wrap"
+ * shape being pinned is otherwise unchanged.
  */
 
 import { describe, it, expect, jest, beforeEach, afterEach } from "@jest/globals";
-import { chainCms } from "../cms-chain.js";
+import { getResultText } from "@umbraco-cms/mcp-server-sdk/testing";
+import { chainCms, isCmsToolAvailable } from "../cms-chain.js";
 import { mcpClientManager } from "../mcp-client.js";
 
 describe("chainCms", () => {
   let spy: ReturnType<typeof jest.spyOn>;
+  let warnSpy: ReturnType<typeof jest.spyOn>;
 
   beforeEach(() => {
     spy = jest.spyOn(mcpClientManager, "callTool");
+    warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
   });
 
   afterEach(() => {
     spy.mockRestore();
+    warnSpy.mockRestore();
   });
 
   it("surfaces the inner ProblemDetails on the chained error path (no double-wrap)", async () => {
@@ -48,10 +60,12 @@ describe("chainCms", () => {
 
     expect(result.errorResult.isError).toBe(true);
 
-    // The key assertion: our errorResult.structuredContent IS the ProblemDetails,
-    // NOT the chained envelope. Pre-fix this is nested under .structuredContent.
-    expect(result.errorResult.structuredContent).toEqual(innerProblemDetails);
-    expect((result.errorResult.structuredContent as any)?.errors?.["$.values[0].value"])
+    // The key assertion: errorResult's single-layer ProblemDetails (read back
+    // out of content[0].text) IS the inner ProblemDetails, NOT the chained
+    // envelope. Pre-fix this was nested under .structuredContent.structuredContent.
+    const problemDetails = JSON.parse(getResultText(result.errorResult as any));
+    expect(problemDetails).toEqual(innerProblemDetails);
+    expect(problemDetails?.errors?.["$.values[0].value"])
       .toEqual(["The required property 'pageTitle' was empty."]);
   });
 
@@ -73,7 +87,7 @@ describe("chainCms", () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected error result");
-    expect(result.errorResult.structuredContent).toEqual(innerProblemDetails);
+    expect(JSON.parse(getResultText(result.errorResult as any))).toEqual(innerProblemDetails);
   });
 
   it("falls back to a synthesized ProblemDetails when neither structuredContent nor text is available", async () => {
@@ -88,12 +102,30 @@ describe("chainCms", () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected error result");
-    const sc = result.errorResult.structuredContent as any;
+    const sc = JSON.parse(getResultText(result.errorResult as any));
     expect(sc).toMatchObject({
       status: 500,
       title: expect.any(String),
       detail: expect.any(String),
     });
+  });
+
+  it("preserves the raw text when content[0].text is present but not valid JSON", async () => {
+    const chainedFailure = {
+      isError: true,
+      content: [{ type: "text" as const, text: "Something went wrong talking to Umbraco" }],
+    };
+
+    spy.mockResolvedValueOnce(chainedFailure as any);
+
+    const result = await chainCms("get-document-by-id" as any, { id: "00000000-0000-0000-0000-000000000000" } as any);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected error result");
+    const sc = JSON.parse(getResultText(result.errorResult as any));
+    // The real message must survive — not be replaced by a generic
+    // "no structured details" placeholder that discards it.
+    expect(sc.detail).toContain("Something went wrong talking to Umbraco");
   });
 
   it("normalizes a thrown protocol-level error (e.g. the chained tool's own output failing its output schema) to { ok: false }", async () => {
@@ -107,9 +139,55 @@ describe("chainCms", () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected error result");
     expect(result.errorResult.isError).toBe(true);
-    const sc = result.errorResult.structuredContent as any;
+    const sc = JSON.parse(getResultText(result.errorResult as any));
     expect(sc.detail).toContain("get-document-public-access");
     expect(sc.detail).toContain("-32602");
+
+    // #203 review: the reason must reach the Workers logs, not just the
+    // result text, so telemetry can see thrown chained-tool failures.
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("get-document-public-access"));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("-32602"));
+  });
+
+  it("trims a thrown 'Tool not found' message's tool list before logging or returning it", async () => {
+    // An in-process "Tool not found" error lists every available tool (370+
+    // names) after ". Available tools" — that list must not reach the model
+    // in `detail`, nor the Workers log via console.warn.
+    const availableTools = Array.from({ length: 400 }, (_, i) => `tool-${i}`).join(", ");
+    spy.mockRejectedValueOnce(
+      new Error(`Tool not found: bogus-tool. Available tools: ${availableTools}`),
+    );
+
+    const result = await chainCms("get-document-public-access" as any, { id: "00000000-0000-0000-0000-000000000000" } as any);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected error result");
+    const sc = JSON.parse(getResultText(result.errorResult as any));
+    expect(sc.detail).toContain("Tool not found: bogus-tool.");
+    expect(sc.detail).not.toContain("Available tools");
+    expect(sc.detail).not.toContain("tool-399");
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Tool not found: bogus-tool."));
+    expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("Available tools"));
+  });
+
+  it("leaves an unrelated thrown message untrimmed even if it coincidentally contains '. Available tools'", async () => {
+    // Guards against over-matching: truncation must require BOTH "Tool not
+    // found:" and ". Available tools" markers, not just the latter, so a
+    // future/unrelated error that happens to contain that phrase keeps its
+    // real content instead of being silently cut.
+    const message = "Upstream request failed. Available tools endpoint returned a 503.";
+    spy.mockRejectedValueOnce(new Error(message));
+
+    const result = await chainCms("get-document-public-access" as any, { id: "00000000-0000-0000-0000-000000000000" } as any);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected error result");
+    const sc = JSON.parse(getResultText(result.errorResult as any));
+    expect(sc.detail).toContain(message);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(message));
   });
 
   it("returns ok with extracted data on the success path", async () => {
@@ -127,5 +205,48 @@ describe("chainCms", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("expected success result");
     expect(result.data).toEqual(successData);
+  });
+});
+
+describe("isCmsToolAvailable", () => {
+  let spy: ReturnType<typeof jest.spyOn>;
+
+  beforeEach(() => {
+    spy = jest.spyOn(mcpClientManager, "listTools");
+  });
+
+  afterEach(() => {
+    spy.mockRestore();
+  });
+
+  it("returns true when the tool is in the chained server's tool list", async () => {
+    spy.mockResolvedValueOnce({
+      tools: [
+        { name: "get-document-by-id" },
+        { name: "update-and-publish-document" },
+      ],
+    } as any);
+
+    const result = await isCmsToolAvailable("update-and-publish-document" as any);
+
+    expect(result).toBe(true);
+  });
+
+  it("returns false when the tool is absent from the chained server's tool list", async () => {
+    spy.mockResolvedValueOnce({
+      tools: [{ name: "get-document-by-id" }],
+    } as any);
+
+    const result = await isCmsToolAvailable("update-and-publish-document" as any);
+
+    expect(result).toBe(false);
+  });
+
+  it("treats the tool as available when listTools throws, letting the subsequent chainCms call surface the real failure", async () => {
+    spy.mockRejectedValueOnce(new Error("MCP error -32000: connection not established"));
+
+    const result = await isCmsToolAvailable("update-and-publish-document" as any);
+
+    expect(result).toBe(true);
   });
 });

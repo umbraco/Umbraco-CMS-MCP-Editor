@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
-import { chainCms } from "../../../cms-chain.js";
+import { chainCms, isCmsToolAvailable } from "../../../cms-chain.js";
 import { fetchPublishedUrls, publishedUrlsSchema } from "../../helpers/preview-url.js";
 import { verifyDocumentPublished } from "../../helpers/verify-published.js";
 
@@ -44,7 +44,7 @@ function mergeValues(existing: DocumentValue[], updates: DocumentValue[]): Docum
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "save-and-publish",
-  description: "Save property changes and publish a content page in one atomic operation — mirrors the 'Save and publish' button in the Umbraco backoffice. If `values` is provided the changes are saved first; then the page is published. Optionally publish descendants. Call get-page or get-document-type first to discover valid property aliases.",
+  description: "Save property changes and publish a content page — mirrors the 'Save and publish' button in the Umbraco backoffice. If `values` is provided the changes are saved first; then the page is published. This is a single atomic operation when the connected Umbraco instance supports it (17.6+), otherwise a two-call save-then-publish sequence is used. Optionally publish descendants. Call get-page or get-document-type first to discover valid property aliases.",
   inputSchema,
   outputSchema,
   slices: ["publish", "update"],
@@ -117,20 +117,60 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       // everything else) — merge the caller's partial values into the document's
       // current full value set rather than sending only what they passed.
       const mergedValues = mergeValues(doc.values ?? [], values ?? []);
-      const updateAndPublishResult = await chainCms("update-and-publish-document", {
-        id,
-        data: {
-          values: mergedValues,
-          variants: (doc.variants ?? []).map(v => ({
-            culture: v.culture ?? null,
-            segment: v.segment ?? null,
-            name: v.name,
-          })),
-          template: doc.template ?? null,
-          culturesToPublish: variantCultures.filter((c): c is string => c !== null),
-        },
-      });
-      if (!updateAndPublishResult.ok) return updateAndPublishResult.errorResult;
+      const variants = (doc.variants ?? []).map(v => ({
+        culture: v.culture ?? null,
+        segment: v.segment ?? null,
+        name: v.name,
+      }));
+
+      // update-and-publish-document is only registered on Umbraco 17.6+ (gated
+      // at runtime by the chained CMS server against the connected instance's
+      // version — see cms-tool-types-augment.d.ts). When it isn't available,
+      // fall back to the same two-call update-then-publish pattern used
+      // elsewhere in this branch, feeding the merged values into the update call.
+      if (await isCmsToolAvailable("update-and-publish-document")) {
+        const updateAndPublishResult = await chainCms("update-and-publish-document", {
+          id,
+          data: {
+            values: mergedValues,
+            variants,
+            template: doc.template ?? null,
+            culturesToPublish: variantCultures.filter((c): c is string => c !== null),
+          },
+        });
+        if (!updateAndPublishResult.ok) return updateAndPublishResult.errorResult;
+      } else {
+        const updateResult = await chainCms("update-document", {
+          id,
+          data: {
+            values: mergedValues,
+            variants,
+            template: doc.template ?? null,
+          },
+        });
+        if (!updateResult.ok) return updateResult.errorResult;
+
+        const publishResult = await chainCms("publish-document", {
+          id,
+          data: {
+            publishSchedules: variantCultures.map(c => ({ culture: c })),
+          },
+        });
+        if (!publishResult.ok) {
+          if (saved) {
+            return createToolResult({
+              message: `Saved ${fieldNames.length} field(s) on "${pageName}" but publish failed: ${publishResult.errorResult.content?.[0]?.text ?? "unknown error"}`,
+              id,
+              name: pageName,
+              saved: true,
+              published: false,
+              updatedFields: fieldNames,
+              publishedUrls: [],
+            });
+          }
+          return publishResult.errorResult;
+        }
+      }
     }
 
     // Verify the publish actually took effect — the chained call can return ok

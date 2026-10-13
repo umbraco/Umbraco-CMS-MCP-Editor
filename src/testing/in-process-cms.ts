@@ -137,6 +137,7 @@ async function getCmsToolMap(): Promise<Map<string, any>> {
  */
 export function connectInProcess(manager: McpClientManager): void {
   const originalCallTool = manager.callTool.bind(manager);
+  const originalListTools = manager.listTools.bind(manager);
 
   manager.callTool = async function (serverName: string, toolName: string, args?: Record<string, unknown>) {
     if (serverName !== "cms") {
@@ -163,4 +164,26 @@ export function connectInProcess(manager: McpClientManager): void {
       };
     }
   } as typeof manager.callTool;
+
+  // The real McpClientManager.listTools() routes through connect(), which
+  // throws "Unknown MCP server: cms" in-process because callTool is overridden
+  // above instead of actually registering a "cms" server config. Tools like
+  // save-and-publish that probe tool availability via isCmsToolAvailable()
+  // need listTools("cms") to resolve to the same in-process tool map callTool
+  // dispatches against, so every existing test keeps working without having to
+  // mock it — tests that want to exercise a tool's "not available" fallback
+  // path spy over this with jest.spyOn(mcpClientManager, "listTools").
+  manager.listTools = async function (serverName: string) {
+    if (serverName !== "cms") {
+      return originalListTools(serverName);
+    }
+
+    const cmsToolMap = await getCmsToolMap();
+    return {
+      tools: Array.from(cmsToolMap.values(), (tool: any) => ({
+        name: tool.name,
+        description: tool.description,
+      })),
+    };
+  } as typeof manager.listTools;
 }

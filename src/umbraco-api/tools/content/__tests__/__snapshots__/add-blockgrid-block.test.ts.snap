@@ -1,0 +1,21 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`add-blockgrid-block appends a new block to a top-level BlockGrid layout with default span 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "contentKey": "<block-content-key>",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "message": "Added a new block to "_Test add-blockgrid-block fixture" (saved, not published)",
+    "name": "_Test add-blockgrid-block fixture",
+    "previewUrl": {
+      "requiresBackofficeAuth": true,
+      "url": "<preview-url>",
+    },
+    "validation": {
+      "errors": [],
+      "valid": true,
+    },
+  },
+}
+`;
