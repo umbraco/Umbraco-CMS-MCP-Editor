@@ -13,23 +13,40 @@
  */
 type CmsCollectionsModule = typeof import("@umbraco-cms/mcp-dev/collections");
 
-let loaded: CmsCollectionsModule | undefined;
-let loading: Promise<CmsCollectionsModule> | undefined;
+/** @internal Exported for tests; use loadCmsCollections / getLoadedCmsCollections. */
+export function createCmsCollectionsLoader<T>(importModule: () => Promise<T>) {
+  let loaded: T | undefined;
+  let loading: Promise<T> | undefined;
 
-export function loadCmsCollections(): Promise<CmsCollectionsModule> {
-  if (loaded) return Promise.resolve(loaded);
-  loading ??= import("@umbraco-cms/mcp-dev/collections").then((mod) => (loaded = mod));
-  return loading;
+  return {
+    load(): Promise<T> {
+      if (loaded) return Promise.resolve(loaded);
+      loading ??= importModule().then(
+        (mod) => (loaded = mod),
+        (error: unknown) => {
+          // Don't cache a failed load: the next caller retries.
+          loading = undefined;
+          throw error;
+        },
+      );
+      return loading;
+    },
+    get(): T {
+      if (!loaded) {
+        throw new Error("@umbraco-cms/mcp-dev collections are not loaded yet: await loadCmsCollections() first.");
+      }
+      return loaded;
+    },
+  };
 }
+
+const loader = createCmsCollectionsLoader<CmsCollectionsModule>(() => import("@umbraco-cms/mcp-dev/collections"));
+
+export const loadCmsCollections = (): Promise<CmsCollectionsModule> => loader.load();
 
 /**
  * The collections module, once loadCmsCollections() has resolved. For
  * synchronous readers (the chained server's consent config), which only run
  * inside request handlers after the worker's fetch entry has loaded it.
  */
-export function getLoadedCmsCollections(): CmsCollectionsModule {
-  if (!loaded) {
-    throw new Error("@umbraco-cms/mcp-dev collections are not loaded yet: await loadCmsCollections() first.");
-  }
-  return loaded;
-}
+export const getLoadedCmsCollections = (): CmsCollectionsModule => loader.get();
