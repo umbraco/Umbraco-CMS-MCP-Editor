@@ -94,9 +94,14 @@ describe("needsCmsCollections", () => {
     ["/", true, true],
     ["/unknown", true, true],
     ["/at/my-project.euwest01/authorize", true, true],
-    // MCP traffic never: the Durable Object's init() loads it
+    // a tenant alias / site id that is literally "mcp" still loads it
+    ["/at/mcp/authorize", true, true],
+    ["/authorize/mcp", true, true],
+    // the MCP endpoints never: the Durable Object's init() loads it
     ["/mcp", true, false],
+    ["/mcp/", true, false],
     ["/at/my-project.euwest01/mcp", true, false],
+    ["/at/mcp/mcp", true, false],
   ])("%s (consent selection %s) -> %s", (path, consent, expected) => {
     expect(needsCmsCollections(path, consent)).toBe(expected);
   });
