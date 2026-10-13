@@ -24,6 +24,30 @@ A live-MCP audit campaign in `docs/audits/mcp-live-validation/` exercised every 
   about this yet** — `EnterWorktree` always bases new branches off `dev`/`main`, so a
   `-v17` branch needs its base moved to `v17/dev` by hand until the hook is taught to do it.
 
+## Release process
+
+Version files for this package: **`package.json`** (the `version` field) and
+**`package-lock.json`** (its root `version` field, plus `packages[""].version` — both
+must match `package.json`'s version). There is no CHANGELOG.md in this repo; the GitHub
+Release notes are the changelog.
+
+To bump the version, edit `package.json`'s `version` field, then sync the lockfile with:
+
+```bash
+npm run sync-lockfile
+```
+
+This updates only the root `version` fields in `package-lock.json` to match
+`package.json` — it does not touch `node_modules`, run lifecycle scripts, or change any
+dependency resolution (verify with `git diff --stat package-lock.json`: it should show
+only the two version-field lines changed). **Never hand-edit or hand-reconstruct
+`package-lock.json`** — it's ~400KB with hundreds of long integrity hashes, too large and
+too failure-prone to retype accurately through a chat-based tool call; use a real local
+`git clone` + this npm command instead. This is the same pattern `dependabot-rollup` uses
+to reconcile lockfiles after merging bump branches (see
+`.claude/skills/dependabot-rollup/references/lockfile-and-verification.md` in the
+umbraco-mcp-ops repo).
+
 ## PR / CI workflow
 
 Pushing is not the finish line — watch CI and fix failures before reporting a PR as ready:

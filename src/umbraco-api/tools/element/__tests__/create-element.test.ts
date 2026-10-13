@@ -14,10 +14,12 @@ import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   createSnapshotResult,
+  getStructuredContent,
   ElementTestHelper,
 } from "./setup.js";
 import createElementTool from "../post/create-element.js";
 import { callTool } from "../../../../testing/call-tool-with-validation.js";
+import { CompositionDoctypeFixture } from "../../content/__tests__/helpers/composition-doctype-fixture.js";
 
 const TEST_ELEMENT_NAME = "_Test Create Element";
 const NON_EXISTENT_UUID = "00000000-0000-0000-0000-000000000000";
@@ -68,4 +70,58 @@ describe("create-element", () => {
 
     expect(result.isError).toBe(true);
   }, 30000);
+
+  describe("composition-inherited properties (#208)", () => {
+    const fixture = new CompositionDoctypeFixture();
+    let hostElementTypeId: string;
+    let propertyAlias: string;
+
+    beforeAll(async () => {
+      const result = await fixture.create(true);
+      hostElementTypeId = result.hostDocTypeId;
+      propertyAlias = result.propertyAlias;
+    }, 60000);
+
+    afterAll(async () => {
+      await fixture.cleanup();
+    }, 30000);
+
+    it("resolves editorAlias for a value on a composition-inherited property and creates the element", async () => {
+      const result = await callTool(
+        createElementTool,
+        {
+          name: "_Test Create Element Composition",
+          elementTypeId: hostElementTypeId,
+          parentId: undefined,
+          values: [{ alias: propertyAlias, value: "Composed SEO Title" }],
+        },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      lastCreatedId = data.id;
+      expect(typeof data.id).toBe("string");
+    }, 30000);
+
+    it("fails before calling Umbraco for an alias that is not a property on the element type at all", async () => {
+      const result = await callTool(
+        createElementTool,
+        {
+          name: "_Test Create Element Bogus Alias",
+          elementTypeId: hostElementTypeId,
+          parentId: undefined,
+          values: [{ alias: "thisAliasDoesNotExistAnywhere", value: "irrelevant" }],
+        },
+        extra,
+      );
+
+      expect(result.isError).toBeTruthy();
+      expect(JSON.stringify(result)).toContain("thisAliasDoesNotExistAnywhere");
+
+      // No element should have been created — searching for it should find nothing.
+      const found = await ElementTestHelper.findByName("_Test Create Element Bogus Alias");
+      expect(found).toBeUndefined();
+    }, 30000);
+  });
 });

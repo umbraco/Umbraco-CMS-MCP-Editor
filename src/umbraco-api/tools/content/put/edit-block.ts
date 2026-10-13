@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
+import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { blockPropertyAliasSchema, classifyBlockUpdateResults, enrichBlockNotFoundError, findSettingsKey, isRteWithBlocks } from "../../helpers/block-inspector.js";
 import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 import { validateDocumentState, validationResultSchema } from "../../helpers/validate-document.js";
 
@@ -9,7 +10,7 @@ const inputSchema = {
   propertyAlias: z.string().describe("The document property alias containing the blocks (e.g. 'mainContent'). Use inspect-blocks to find this."),
   contentKey: z.string().uuid().describe("The unique key of the block to edit. Use inspect-blocks to find this."),
   values: z.array(z.object({
-    alias: z.string().describe("The property alias within the block"),
+    alias: blockPropertyAliasSchema.describe("The property alias within the block"),
     value: z.any().describe("The new value for the property"),
   })).describe("Properties to update within the block"),
   blockType: z.enum(["content", "settings"]).optional().describe("Whether to update the block's content or its settings. Defaults to 'content'."),
@@ -25,6 +26,7 @@ const outputSchema = z.object({
   updatedFields: z.array(z.string()),
   previewUrl: previewUrlSchema,
   validation: validationResultSchema,
+  warnings: z.array(z.string()).optional(),
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
@@ -41,6 +43,25 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const fieldNames = values.map((v) => v.alias);
     const resolvedBlockType = blockType ?? "content";
 
+    // A block's settings live in a separate `settingsData` entry under its own
+    // key, and update-block-property addresses blocks by that key — so for a
+    // settings edit, translate the caller's contentKey (what inspect-blocks
+    // reports) into the paired settingsKey.
+    let targetKey = contentKey;
+    if (resolvedBlockType === "settings") {
+      const rawValue = (docResult.data.values ?? []).find(
+        (v) => v.alias === propertyAlias && (v.culture ?? null) === (culture ?? null) && (v.segment ?? null) === (segment ?? null),
+      )?.value;
+      const container = isRteWithBlocks(rawValue) ? (rawValue as { blocks: unknown }).blocks : rawValue;
+      const settingsKey = findSettingsKey(container, contentKey);
+      if (!settingsKey) {
+        return createToolResultError(
+          `Block ${contentKey} in property "${propertyAlias}" has no settings entry, so its settings cannot be edited. Use inspect-blocks to check for a settingsKey, or omit blockType to edit the block's content.`,
+        );
+      }
+      targetKey = settingsKey;
+    }
+
     const propsTuple = values.map(v => ({ alias: v.alias, value: v.value })) as [
       { alias: string; value: any }, ...{ alias: string; value: any }[]
     ];
@@ -50,13 +71,58 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       culture: culture ?? null,
       segment: segment ?? null,
       updates: [{
-        contentKey,
+        contentKey: targetKey,
         blockType: resolvedBlockType,
         properties: propsTuple,
       }],
     });
-    if (!updateResult.ok) return updateResult.errorResult;
+    if (!updateResult.ok) {
+      return enrichBlockNotFoundError(updateResult.errorResult, docResult.data.values ?? [], {
+        propertyAlias,
+        note: "A block's settingsKey (reported by inspect-blocks) is not a valid contentKey — pass the block's contentKey together with blockType: \"settings\" to edit its settings instead.",
+      });
+    }
 
+    // `update-block-property`'s top-level `success` is always true once the
+    // call itself completes, and even a per-block result's own `success` flag
+    // can't be trusted alone: upstream sets it to
+    // `totalProcessed > 0 || errors.length === 0`, so a block with one valid
+    // alias and one invalid one still reads `success: true` with `errors`
+    // populated, and a block where nothing was written and no error was
+    // recorded either (e.g. an alias that only produced a `warnings` entry)
+    // reads `success: true, errors: []`. Comparing how many properties were
+    // actually written (`updatedCount`/`addedCount`) against how many were
+    // requested is the only check that catches both — see
+    // `classifyBlockUpdateResults`'s own doc comment for the full case list.
+    // `edit-element-block.ts` and `bulk-set-block-property.ts` use the same
+    // helper, for the same reason.
+    const results = updateResult.data.results;
+    if (!results || results.length === 0) {
+      return createToolResultError(
+        "update-block-property returned no per-block result — cannot confirm the write succeeded.",
+      );
+    }
+    const classification = classifyBlockUpdateResults(results, fieldNames.length, fieldNames, 1);
+    if (classification.outcome === "failed") {
+      return createToolResultError(
+        `Block update failed: ${classification.detail || updateResult.data.message || "no detail returned"}`,
+      );
+    }
+    if (classification.outcome === "partial") {
+      return createToolResultError({
+        message: `Block update partially failed: ${classification.processedCount} of ${fieldNames.length} field(s) saved — ${classification.detail}`,
+        savedFields: classification.savedFields,
+        failedFields: classification.failedFields,
+        ...(classification.savedFields.length > 0
+          ? { note: "savedFields were written to the document and must not be retried." }
+          : {}),
+        ...(classification.warnings.length ? { warnings: classification.warnings } : {}),
+        validation: await validateDocumentState(id),
+        previewUrl: await fetchPreviewUrl(id),
+      });
+    }
+
+    const warnings = classification.warnings;
     const validation = await validateDocumentState(id);
     const target = resolvedBlockType === "settings" ? "settings" : "content";
     const baseMessage = `Updated ${fieldNames.length} field(s) in block ${target} on "${pageName}" (saved, not published)`;
@@ -72,6 +138,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       updatedFields: fieldNames,
       previewUrl: await fetchPreviewUrl(id),
       validation,
+      ...(warnings.length ? { warnings } : {}),
     });
   },
 };
