@@ -146,8 +146,17 @@ const workerExport = createWorkerExport(provider, options);
 
 export default {
   async fetch(request: Request, env: HostedMcpEnv, ctx: ExecutionContext): Promise<Response> {
-    // Load mcp-dev before any handler reads the chained server's config.
-    await loadCmsCollections();
+    // Load mcp-dev before a handler reads the chained server's config (consent
+    // screen, /info). A failed load must not take down routes that don't need
+    // it (OAuth, landing page): log it and carry on. A reader then gets the
+    // getter's "not loaded" error, MCP sessions load it themselves in init(),
+    // and the next request retries. A module that throws on load is caught by
+    // the test suite, which imports the real collections, before deploy.
+    try {
+      await loadCmsCollections();
+    } catch (error) {
+      console.error("[editor-mcp] Failed to load @umbraco-cms/mcp-dev collections:", error);
+    }
     return workerExport.fetch(request, env, ctx);
   },
 };
