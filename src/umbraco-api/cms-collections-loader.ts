@@ -70,12 +70,16 @@ export const getLoadedCmsCollections = (): CmsCollectionsModule => loader.get();
  * - `/info` always reads it.
  * - With consent tool selection on, the default handler builds the consent
  *   config at the start of every request it serves (before routing), which
- *   reads it too. That's every request except MCP traffic (`/mcp`,
- *   `/at/{alias}/mcp`), which goes to the Durable Object, whose init() loads it.
+ *   reads it too. That's every request except the MCP endpoints (`/mcp`,
+ *   `/at/{alias}/mcp`), which go to the Durable Object, whose init() loads it.
  * With consent selection off (the editor's setting), only `/info` needs it.
  */
 export function needsCmsCollections(pathname: string, consentToolSelection: boolean): boolean {
   if (/\/info$/.test(pathname)) return true;
   if (!consentToolSelection) return false;
-  return !/(?:^|\/)mcp(?:\/|$)/.test(pathname);
+  // Only the MCP endpoints themselves are skipped (path ends in /mcp). A tenant
+  // alias or site id that is literally "mcp" (/at/mcp/authorize) must still
+  // load it. Over-loading (e.g. an MCP request to /at/{alias}/) only costs the
+  // one-off load in this isolate.
+  return !/\/mcp\/?$/.test(pathname);
 }
