@@ -17,6 +17,21 @@ import { resolve } from "node:path";
 
 const DEFAULT_PROVIDER_ALIAS = "umbDocumentUrlProvider";
 
+// `get-document-urls` takes ids as repeated `id=` query params, so the request
+// URL grows with the batch size. 300+ ids trips `414 URI Too Long` on a local
+// Kestrel instance, and stricter hosts (e.g. IIS's 2048-byte default
+// `maxQueryString`) cap out well below that. 40 ids keeps every chunk's query
+// string comfortably under such limits.
+const URL_BATCH_CHUNK_SIZE = 40;
+
+function chunkIds(ids: string[], size: number): string[][] {
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += size) {
+    chunks.push(ids.slice(i, i + size));
+  }
+  return chunks;
+}
+
 // Module-level cache for .env-based base URL resolution.
 let cachedBaseUrl: string | null = null;
 let cachedMtimeMs: number | null = null;
@@ -250,8 +265,13 @@ export async function fetchPublishedUrls(id: string): Promise<string[]> {
 
 /**
  * Batch variant of `fetchPublishedUrls` for list endpoints. Calls
- * `get-document-urls` once with all ids and returns a map keyed by document id
- * with the flattened URL list per page. Missing entries → empty array.
+ * `get-document-urls` in chunks of `URL_BATCH_CHUNK_SIZE` ids (its ids go into
+ * the query string, so an unbounded single call trips `414 URI Too Long` once
+ * the id list is large — see `URL_BATCH_CHUNK_SIZE`'s comment) and returns a
+ * map keyed by document id with the flattened URL list per page, merged
+ * across chunks. Missing entries → empty array. A chunk that fails is skipped
+ * — its ids are simply absent from the result — while the other chunks'
+ * results are kept.
  *
  * Use this on list-children / search-content / report-page-references where
  * the per-id fan-out would otherwise be N round-trips.
@@ -261,15 +281,17 @@ export async function fetchPublishedUrlsBatch(
 ): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>();
   if (ids.length === 0) return out;
-  try {
-    const result = await chainCms("get-document-urls", { id: ids });
-    if (!result.ok) return out;
-    for (const entry of result.data.items ?? []) {
-      if (!entry?.id) continue;
-      out.set(entry.id, flattenPublishedUrls([entry]));
+  for (const idChunk of chunkIds(ids, URL_BATCH_CHUNK_SIZE)) {
+    try {
+      const result = await chainCms("get-document-urls", { id: idChunk });
+      if (!result.ok) continue;
+      for (const entry of result.data.items ?? []) {
+        if (!entry?.id) continue;
+        out.set(entry.id, flattenPublishedUrls([entry]));
+      }
+    } catch {
+      // Keep whatever the other chunks returned; this chunk's ids stay unset.
     }
-  } catch {
-    // Fall through with whatever we collected so far.
   }
   return out;
 }

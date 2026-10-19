@@ -8,12 +8,20 @@
  * instance — same as any other integration test in this repo.
  */
 
-import { describe, it, expect } from "@jest/globals";
+import { describe, it, expect, beforeAll, afterAll } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
 } from "@umbraco-cms/mcp-server-sdk/testing";
-import { fetchPrimaryPublishedUrl, fetchPrimaryPublishedUrlsBatch } from "../preview-url.js";
+import { v4 as uuid } from "uuid";
+import {
+  fetchPrimaryPublishedUrl,
+  fetchPrimaryPublishedUrlsBatch,
+  fetchPublishedUrlsBatch,
+} from "../preview-url.js";
+import { ContentBuilder } from "../../content/__tests__/helpers/content-builder.js";
+import { ContentTestHelper } from "../../content/__tests__/helpers/content-test-helper.js";
+import { initContentTestState } from "../../content/__tests__/setup.js";
 
 const NON_EXISTENT_UUID = "00000000-0000-0000-0000-000000000000";
 
@@ -40,4 +48,39 @@ describe("fetchPrimaryPublishedUrl / fetchPrimaryPublishedUrlsBatch", () => {
     expect(map.has(NON_EXISTENT_UUID)).toBe(true);
     expect(map.get(NON_EXISTENT_UUID)).toBe("");
   }, 30000);
+});
+
+describe("fetchPublishedUrlsBatch — 414 regression (PR #235 review)", () => {
+  setupTestEnvironment();
+
+  const extra = createMockRequestHandlerExtra();
+  let publishedDoc: ContentBuilder;
+
+  beforeAll(async () => {
+    const state = await initContentTestState(extra);
+
+    publishedDoc = await new ContentBuilder()
+      .withName("_Test 414 Regression Published")
+      .withDocumentType(state.testDocumentTypeId)
+      .withParent(state.testPageId)
+      .create();
+    await publishedDoc.publish();
+  }, 60000);
+
+  afterAll(async () => {
+    if (publishedDoc) {
+      await ContentTestHelper.cleanupById(publishedDoc.getId());
+    }
+  }, 30000);
+
+  it("still returns the real page's URL when batched alongside ~300 other ids (previously a 414)", async () => {
+    const otherIds = Array.from({ length: 300 }, () => uuid());
+    const ids = [publishedDoc.getId(), ...otherIds];
+
+    const map = await fetchPublishedUrlsBatch(ids);
+
+    const realUrls = map.get(publishedDoc.getId());
+    expect(realUrls).toBeDefined();
+    expect(realUrls!.length).toBeGreaterThan(0);
+  }, 60000);
 });
