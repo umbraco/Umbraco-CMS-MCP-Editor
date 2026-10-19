@@ -47,6 +47,39 @@ describe("audit-page-content", () => {
     expect(typeof data.bodyWordCount).toBe("number");
     expect(typeof data.hasMetaDescription).toBe("boolean");
     expect(typeof data.lastModified).toBe("string");
+    // Regression guard for #233: a draft-only page has no resolvable route.
+    expect(data.url).toBe("");
+  }, 30000);
+});
+
+describe("audit-page-content – published URL (regression for #233)", () => {
+  setupTestEnvironment();
+
+  const extra = createMockRequestHandlerExtra();
+  let publishedId: string | undefined;
+
+  beforeAll(async () => {
+    const state = await initContentTestState(extra);
+    const doc = await new ContentBuilder()
+      .withName("_Test Audit Content Published")
+      .withDocumentType(state.testDocumentTypeId)
+      .withParent(state.testPageId)
+      .create();
+    await doc.publish();
+    publishedId = doc.getId();
+  }, 60000);
+
+  afterAll(async () => {
+    if (publishedId) await ContentTestHelper.cleanupById(publishedId);
+  }, 30000);
+
+  it("returns a real published URL for a published page", async () => {
+    const result = await callTool(auditPageContentTool, { id: publishedId! }, extra);
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+
+    expect(typeof data.url).toBe("string");
+    expect(data.url.length).toBeGreaterThan(0);
   }, 30000);
 });
 

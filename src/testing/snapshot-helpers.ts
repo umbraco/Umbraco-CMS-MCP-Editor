@@ -81,6 +81,20 @@ function normalizeEditorFields(obj: any): any {
     );
   }
 
+  // Normalize a plain `url: string` field (reports/audits that surface a
+  // single published URL rather than the publishedUrls array) to the same
+  // placeholder — but only when it's non-empty, so a draft-only fixture's
+  // `""` still round-trips untouched and stays meaningful in the snapshot.
+  // Excludes the previewUrl `{ url, requiresBackofficeAuth: true }` shape,
+  // which is normalized separately above.
+  if (
+    typeof normalized.url === "string" &&
+    normalized.url.length > 0 &&
+    normalized.requiresBackofficeAuth !== true
+  ) {
+    normalized.url = NORMALIZED_PUBLISHED_URL;
+  }
+
   for (const field of EDITOR_DATE_FIELDS) {
     if (normalized[field] && typeof normalized[field] === "string") {
       normalized[field] = NORMALIZED_DATE;

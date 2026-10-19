@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { fetchPrimaryPublishedUrlsBatch } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   parentId: z.string().uuid().optional().describe("Scope to a subtree by parent page ID. Omit to start from root."),
@@ -56,6 +57,11 @@ async function buildTreeNodes(
 ): Promise<TreeNode[]> {
   const items = await fetchTreeLevel(parentId, depth);
 
+  // One get-document-urls request per tree level fetched — never per item.
+  const urlsById = await fetchPrimaryPublishedUrlsBatch(
+    items.map((item) => item.id).filter((id): id is string => typeof id === "string"),
+  );
+
   const nodes: TreeNode[] = [];
 
   for (const item of items) {
@@ -74,7 +80,7 @@ async function buildTreeNodes(
     nodes.push({
       id: item.id ?? "",
       name: item.name ?? item.variants?.[0]?.name ?? "Unknown",
-      url: item.url ?? item.urls?.[0]?.url ?? "",
+      url: urlsById.get(item.id) ?? "",
       documentType: item.documentType?.name ?? item.contentTypeName ?? "",
       depth,
       childCount: children.length,
