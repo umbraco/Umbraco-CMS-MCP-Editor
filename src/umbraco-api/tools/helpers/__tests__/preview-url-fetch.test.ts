@@ -1,7 +1,7 @@
 /**
  * Integration tests for the `fetchPrimaryPublishedUrl` / `fetchPrimaryPublishedUrlsBatch`
- * helpers added for #233 (Umbraco 18 no longer returns `urls` on
- * get-document-by-id — published URLs come only from get-document-urls).
+ * helpers added for #233 (the document response doesn't carry `urls`;
+ * published URLs come only from get-document-urls).
  *
  * These go through the chained CMS tool (unlike the rest of preview-url.test.ts,
  * which is pure), so they need `setupTestEnvironment()` and a running Umbraco

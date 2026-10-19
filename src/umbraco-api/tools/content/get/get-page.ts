@@ -68,9 +68,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       })),
       variants: doc.variants ?? [],
       previewUrl: buildPreviewUrl(doc.id),
-      // Umbraco 18's get-document-by-id response no longer carries `urls` —
-      // published URLs now come only from the separate get-document-urls
-      // endpoint via fetchPublishedUrls.
+      // The get-document-by-id response doesn't carry `urls` — published
+      // URLs come only from the separate get-document-urls endpoint via
+      // fetchPublishedUrls.
       publishedUrls: await fetchPublishedUrls(id),
     });
   },
