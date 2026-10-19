@@ -2,6 +2,7 @@ import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { extractHeadings, extractImages, countWords, extractTextContent, stripHtml } from "../../helpers/tree-walker.js";
+import { fetchPrimaryPublishedUrl } from "../../helpers/preview-url.js";
 
 const TITLE_ALIASES = ["pageTitle", "title", "metaTitle", "seoTitle"];
 const META_DESC_ALIASES = ["metaDescription", "seoMetaDescription", "description"];
@@ -65,14 +66,12 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const headings = extractHeadings(allHtml);
     const images = extractImages(allHtml);
     const bodyWordCount = countWords(extractTextContent(values));
-
-    // GetDocumentByIdOutput doesn't include `urls` — runtime field, not in the upstream Zod schema.
-    const extra = doc as { urls?: { url?: string }[] };
+    const url = await fetchPrimaryPublishedUrl(id);
 
     return createToolResult({
       id: doc.id,
       name: variant?.name ?? "Unknown",
-      url: extra.urls?.[0]?.url ?? "",
+      url,
       hasTitle: title.length > 0,
       hasMetaDescription: metaDescription.length > 0,
       titleLength: title.length,

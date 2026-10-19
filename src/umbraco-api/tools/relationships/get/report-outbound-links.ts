@@ -2,6 +2,7 @@ import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { extractLinksFromValues, resolveOutboundIds } from "../../helpers/link-extractor.js";
+import { fetchPrimaryPublishedUrl } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to analyze for outbound links"),
@@ -54,8 +55,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
 
     const variant = doc.variants?.[0];
     const name = variant?.name ?? "Unknown";
-    // GetDocumentByIdOutput doesn't include `urls` — runtime field, not in the upstream Zod schema.
-    const url = (doc as { urls?: { url?: string }[] }).urls?.[0]?.url ?? "";
+    const url = await fetchPrimaryPublishedUrl(id);
     const values = doc.values ?? [];
 
     const links = extractLinksFromValues(values);

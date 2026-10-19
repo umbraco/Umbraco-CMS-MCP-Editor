@@ -23,7 +23,7 @@ exports[`report-content-references should return referencedBy array and referenc
     "referenceCount": 0,
     "referencedBy": [],
     "type": "document",
-    "url": "",
+    "url": "<published-url>",
   },
 }
 `;
