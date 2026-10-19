@@ -2,6 +2,7 @@ import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { extractTextContent, stripHtml } from "../../helpers/tree-walker.js";
+import { fetchPrimaryPublishedUrl } from "../../helpers/preview-url.js";
 
 const META_DESC_ALIASES = ["metaDescription", "seoMetaDescription", "description"];
 const BODY_CONTENT_MAX = 2000;
@@ -55,15 +56,15 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       ? fullBodyText.split(/\s+/).filter(Boolean).length
       : 0;
 
-    // GetDocumentByIdOutput doesn't include `urls` or documentType.name —
-    // they're present at runtime but not in the upstream Zod schema.
-    const extra = doc as { urls?: { url?: string }[] };
+    // GetDocumentByIdOutput doesn't include documentType.name — present at
+    // runtime but not in the upstream Zod schema.
     const dt = doc.documentType as { name?: string };
+    const url = await fetchPrimaryPublishedUrl(id);
 
     return createToolResult({
       id: doc.id,
       name: variant?.name ?? "Unknown",
-      url: extra.urls?.[0]?.url ?? "",
+      url,
       hasMetaDescription: metaDescription.length > 0,
       bodyWordCount: wordCount,
       metaDescription,

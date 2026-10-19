@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { buildPreviewUrl, flattenPublishedUrls, previewUrlSchema, publishedUrlsSchema } from "../../helpers/preview-url.js";
+import { buildPreviewUrl, fetchPublishedUrls, previewUrlSchema, publishedUrlsSchema } from "../../helpers/preview-url.js";
 
 
 const inputSchema = {
@@ -68,8 +68,10 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       })),
       variants: doc.variants ?? [],
       previewUrl: buildPreviewUrl(doc.id),
-      // GetDocumentByIdOutput doesn't include `urls` — runtime field, not in the upstream Zod schema.
-      publishedUrls: flattenPublishedUrls((doc as { urls?: unknown }).urls),
+      // Umbraco 18's get-document-by-id response no longer carries `urls` —
+      // published URLs now come only from the separate get-document-urls
+      // endpoint via fetchPublishedUrls.
+      publishedUrls: await fetchPublishedUrls(id),
     });
   },
 };
