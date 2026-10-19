@@ -9,7 +9,9 @@
  * live Umbraco instance or enough real ids to actually hit a 414. The real
  * 414 regression (one published page id + ~300 random ids) is covered
  * separately in `preview-url-fetch.test.ts`, which does run against a live
- * instance.
+ * instance. Also asserts the `console.warn` logged on a failed/thrown chunk
+ * (PR #235 review follow-up) so a batch of silently-empty URLs leaves a
+ * diagnostic trail.
  */
 import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import { fileURLToPath } from "node:url";
@@ -41,6 +43,8 @@ describe("fetchPublishedUrlsBatch — chunking", () => {
   let tmpDir: string;
   let origCwd: () => string;
   const originalBaseUrl = process.env.UMBRACO_BASE_URL;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let warnSpy: any;
 
   beforeEach(() => {
     mockChainCms.mockReset();
@@ -49,6 +53,7 @@ describe("fetchPublishedUrlsBatch — chunking", () => {
     process.cwd = () => tmpDir;
     delete process.env.UMBRACO_BASE_URL;
     _resetCacheForTests();
+    warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -59,11 +64,37 @@ describe("fetchPublishedUrlsBatch — chunking", () => {
       process.env.UMBRACO_BASE_URL = originalBaseUrl;
     }
     _resetCacheForTests();
+    warnSpy.mockRestore();
     try {
       rmSync(tmpDir, { recursive: true, force: true });
     } catch {
       // best effort
     }
+  });
+
+  it("sends exactly one chained call for exactly 40 ids (chunk boundary)", async () => {
+    const ids = makeIds(40);
+    const calls: string[][] = [];
+
+    mockChainCms.mockImplementation(async (toolName: string, args: { id: string[] }) => {
+      expect(toolName).toBe("get-document-urls");
+      calls.push(args.id);
+      return {
+        ok: true,
+        data: {
+          items: args.id.map((id) => ({
+            id,
+            urlInfos: [{ culture: "en-US", url: `/page-${id}`, message: null, provider: "x" }],
+          })),
+        },
+      };
+    });
+
+    const result = await fetchPublishedUrlsBatch(ids);
+
+    expect(calls.length).toBe(1);
+    expect(calls[0].length).toBe(40);
+    expect(result.size).toBe(40);
   });
 
   it("splits a 95-id batch into multiple chained calls, none over 40 ids, and merges every id", async () => {
@@ -123,6 +154,7 @@ describe("fetchPublishedUrlsBatch — chunking", () => {
     for (const id of ids.slice(40, 80)) {
       expect(result.has(id)).toBe(false);
     }
+    expect(warnSpy).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the other chunks' results when one chunk throws", async () => {
@@ -151,5 +183,7 @@ describe("fetchPublishedUrlsBatch — chunking", () => {
     for (const id of ids.slice(40, 80)) {
       expect(result.has(id)).toBe(false);
     }
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(String(warnSpy.mock.calls[0][0])).toContain("network error");
   });
 });

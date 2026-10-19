@@ -269,9 +269,12 @@ export async function fetchPublishedUrls(id: string): Promise<string[]> {
  * the query string, so an unbounded single call trips `414 URI Too Long` once
  * the id list is large — see `URL_BATCH_CHUNK_SIZE`'s comment) and returns a
  * map keyed by document id with the flattened URL list per page, merged
- * across chunks. Missing entries → empty array. A chunk that fails is skipped
- * — its ids are simply absent from the result — while the other chunks'
- * results are kept.
+ * across chunks. The returned map is sparse — a chunk that fails is skipped
+ * and its ids are simply absent, rather than mapped to an empty array; the
+ * `?? []` / `?? ""` on the caller side is what produces the empty result.
+ * Each skipped chunk is logged (matching the `console.warn` convention in
+ * `cms-chain.ts`) so a batch of silently-empty URLs — the exact symptom this
+ * helper exists to fix — leaves a diagnostic trail instead of vanishing.
  *
  * Use this on list-children / search-content / report-page-references where
  * the per-id fan-out would otherwise be N round-trips.
@@ -284,13 +287,21 @@ export async function fetchPublishedUrlsBatch(
   for (const idChunk of chunkIds(ids, URL_BATCH_CHUNK_SIZE)) {
     try {
       const result = await chainCms("get-document-urls", { id: idChunk });
-      if (!result.ok) continue;
+      if (!result.ok) {
+        console.warn(
+          `fetchPublishedUrlsBatch: get-document-urls failed for a chunk of ${idChunk.length} ids — those ids will have no published URL`,
+        );
+        continue;
+      }
       for (const entry of result.data.items ?? []) {
         if (!entry?.id) continue;
         out.set(entry.id, flattenPublishedUrls([entry]));
       }
-    } catch {
-      // Keep whatever the other chunks returned; this chunk's ids stay unset.
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `fetchPublishedUrlsBatch: unexpected error processing a chunk of ${idChunk.length} ids — those ids will have no published URL: ${message}`,
+      );
     }
   }
   return out;
@@ -308,12 +319,13 @@ export async function fetchPrimaryPublishedUrl(id: string): Promise<string> {
 }
 
 /**
- * Batch variant of `fetchPrimaryPublishedUrl`. Calls `get-document-urls` once
- * for every id in `ids` and returns a map keyed by id to a single URL string
- * (the first published URL, or `""`). Every id passed in is present in the
- * returned map — an id the chained call didn't return data for (not found,
- * draft-only, or the call failed outright) still maps to `""` rather than
- * being omitted, so callers can always do `map.get(id) ?? ""` safely.
+ * Batch variant of `fetchPrimaryPublishedUrl`. Calls `fetchPublishedUrlsBatch`
+ * (chunked internally) for every id in `ids` and returns a map keyed by id to
+ * a single URL string (the first published URL, or `""`). Every id passed in
+ * is present in the returned map — an id the chained call didn't return data
+ * for (not found, draft-only, or the call failed outright) still maps to
+ * `""` rather than being omitted, so callers can always do
+ * `map.get(id) ?? ""` safely.
  *
  * Use this on tree-walking / batch reporting tools that only need a single
  * URL per item — never fetch per item in a loop.
