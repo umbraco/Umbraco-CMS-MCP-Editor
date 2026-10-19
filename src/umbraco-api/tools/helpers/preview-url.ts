@@ -273,3 +273,36 @@ export async function fetchPublishedUrlsBatch(
   }
   return out;
 }
+
+/**
+ * Single-URL variant of `fetchPublishedUrls` for call sites that only ever
+ * surface one `url: string` field (audits, reference reports) rather than an
+ * array. Returns the first published URL, or `""` when the page has none
+ * (draft-only, unresolvable, or the chained call failed).
+ */
+export async function fetchPrimaryPublishedUrl(id: string): Promise<string> {
+  const urls = await fetchPublishedUrls(id);
+  return urls[0] ?? "";
+}
+
+/**
+ * Batch variant of `fetchPrimaryPublishedUrl`. Calls `get-document-urls` once
+ * for every id in `ids` and returns a map keyed by id to a single URL string
+ * (the first published URL, or `""`). Every id passed in is present in the
+ * returned map — an id the chained call didn't return data for (not found,
+ * draft-only, or the call failed outright) still maps to `""` rather than
+ * being omitted, so callers can always do `map.get(id) ?? ""` safely.
+ *
+ * Use this on tree-walking / batch reporting tools that only need a single
+ * URL per item — never fetch per item in a loop.
+ */
+export async function fetchPrimaryPublishedUrlsBatch(
+  ids: string[],
+): Promise<Map<string, string>> {
+  const batch = await fetchPublishedUrlsBatch(ids);
+  const out = new Map<string, string>();
+  for (const id of ids) {
+    out.set(id, batch.get(id)?.[0] ?? "");
+  }
+  return out;
+}

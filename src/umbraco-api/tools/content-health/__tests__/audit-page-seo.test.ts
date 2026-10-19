@@ -46,6 +46,8 @@ describe("audit-page-seo", () => {
     expect(Array.isArray(data.headings)).toBe(true);
     expect(Array.isArray(data.images)).toBe(true);
     expect(typeof data.bodyWordCount).toBe("number");
+    // Regression guard for #233: a draft-only page has no resolvable route.
+    expect(data.url).toBe("");
   }, 30000);
 
   it("should return error for non-existent page ID", async () => {
@@ -55,5 +57,36 @@ describe("audit-page-seo", () => {
     );
 
     expect(result.isError).toBe(true);
+  }, 30000);
+});
+
+describe("audit-page-seo – published URL (regression for #233)", () => {
+  setupTestEnvironment();
+
+  const extra = createMockRequestHandlerExtra();
+  let publishedId: string | undefined;
+
+  beforeAll(async () => {
+    const state = await initContentTestState(extra);
+    const doc = await new ContentBuilder()
+      .withName("_Test Audit SEO Published")
+      .withDocumentType(state.testDocumentTypeId)
+      .withParent(state.testPageId)
+      .create();
+    await doc.publish();
+    publishedId = doc.getId();
+  }, 60000);
+
+  afterAll(async () => {
+    if (publishedId) await ContentTestHelper.cleanupById(publishedId);
+  }, 30000);
+
+  it("returns a real published URL for a published page", async () => {
+    const result = await auditPageSeoTool.handler({ id: publishedId! }, extra);
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+
+    expect(typeof data.url).toBe("string");
+    expect(data.url.length).toBeGreaterThan(0);
   }, 30000);
 });

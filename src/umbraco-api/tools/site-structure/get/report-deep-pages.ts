@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { fetchPrimaryPublishedUrlsBatch } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   depthThreshold: z.number().optional().default(4).describe("Pages deeper than this level are reported (default 4)"),
@@ -39,48 +40,6 @@ const outputSchema = z.object({
   threshold: z.number().describe("The depth threshold used for this scan"),
 });
 
-async function walkForDeepPages(
-  parentId: string | undefined,
-  depth: number,
-  ancestorPath: PathEntry[],
-  deepPages: DeepPage[],
-  scannedRef: { count: number },
-  maxScan: number,
-): Promise<void> {
-  if (scannedRef.count >= maxScan) return;
-
-  const result = parentId
-    ? await chainCms("get-document-children", { parentId, cursor: encodeCursor({ s: 0, t: 100 }) })
-    : await chainCms("get-document-root", { cursor: encodeCursor({ s: 0, t: 100 }) });
-
-  if (!result.ok) return;
-  const data = result.data;
-  const items: any[] = data?.items ?? [];
-
-  for (const item of items) {
-    if (scannedRef.count >= maxScan) break;
-    scannedRef.count++;
-
-    const name: string = item.name ?? item.variants?.[0]?.name ?? "Unknown";
-    const currentPath: PathEntry[] = [...ancestorPath, { id: item.id, name }];
-
-    if (depth > 0) {
-      deepPages.push({
-        id: item.id ?? "",
-        name,
-        url: item.url ?? item.urls?.[0]?.url ?? "",
-        documentType: item.documentType?.name ?? item.contentTypeName ?? "",
-        depth,
-        path: currentPath,
-      });
-    }
-
-    if (item.hasChildren) {
-      await walkForDeepPages(item.id, depth + 1, currentPath, deepPages, scannedRef, maxScan);
-    }
-  }
-}
-
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "report-deep-pages",
   description: "Find pages buried more than N levels deep in the site tree. Deep pages are harder for users to find. Default threshold is 4 levels. Includes the full path to each deep page.",
@@ -108,6 +67,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       const data = result.data;
       const items: any[] = data?.items ?? [];
 
+      // One get-document-urls request per tree level fetched — never per item.
+      const urlsById = await fetchPrimaryPublishedUrlsBatch(
+        items.map((item) => item.id).filter((id): id is string => typeof id === "string"),
+      );
+
       for (const item of items) {
         if (scannedRef.count >= 500) break;
         scannedRef.count++;
@@ -118,7 +82,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         allPages.push({
           id: item.id ?? "",
           name,
-          url: item.url ?? item.urls?.[0]?.url ?? "",
+          url: urlsById.get(item.id) ?? "",
           documentType: item.documentType?.name ?? item.contentTypeName ?? "",
           depth,
           rawDepth: depth,
