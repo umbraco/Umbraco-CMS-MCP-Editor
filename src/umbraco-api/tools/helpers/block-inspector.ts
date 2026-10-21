@@ -13,6 +13,8 @@
  */
 
 import { z } from "zod";
+import { createToolResultError } from "@umbraco-cms/mcp-server-sdk";
+import { extractInnerProblemDetails } from "../../cms-chain.js";
 import { isBlockListOrGridValue, isRteWithBlocks } from "./block-builder.js";
 
 export { isBlockListOrGridValue, isRteWithBlocks };
@@ -151,10 +153,256 @@ export function collectBlockProperties(
     });
 }
 
+/** Cap on how many `availableBlocks` entries get enriched/returned — a page
+ * with a huge block tree shouldn't dump hundreds of entries into an error. */
+const MAX_ENRICHED_BLOCKS = 50;
+
+/** Cap on how many levels of block-in-block nesting `collectBlockEntryTypes`
+ * will descend into — comfortably covers any real-world block tree, and bounds
+ * the walk's cost against a pathologically deep (but still JSON-finite, so
+ * never cyclic) nested structure before it reaches `availableBlocks`'s own
+ * output cap. Same guard-a-tree-walk convention as `report-site-tree-summary`'s
+ * `maxDepth`. */
+const MAX_BLOCK_WALK_DEPTH = 20;
+
+interface BlockDataContainer {
+  contentData?: unknown[];
+  settingsData?: unknown[];
+}
+
+/**
+ * Enrich a "Blocks not found" error from `update-block-property` /
+ * `update-element-block-property` with each available block's
+ * `contentTypeKey`, cross-referenced from the already-fetched entity's raw
+ * property values. The chained tool's `availableBlocks` extension only lists
+ * `{key, type, path}` — no element-type information — so the model can't tell
+ * which key is which kind of block without an extra lookup. Both `edit-block`
+ * and `bulk-set-block-property` already have the document fetched by the time
+ * they see this error, so this is a free enrichment rather than a new chained
+ * call.
+ *
+ * Walks both `contentData` and `settingsData` (a block's settings live in a
+ * separate entry with its own key) and recurses into any block-in-block
+ * property, so a settings key or a nested block's key resolves too — not just
+ * top-level content blocks.
+ *
+ * Returns the error result unchanged when it isn't this specific shape (no
+ * `availableBlocks` array in its ProblemDetails) — e.g. "Property not found",
+ * which is left as-is per the issue's scope.
+ */
+export function enrichBlockNotFoundError(
+  errorResult: ReturnType<typeof createToolResultError>,
+  values: ReadonlyArray<WalkableValue>,
+  options: { propertyAlias?: string; note?: string } = {},
+): ReturnType<typeof createToolResultError> {
+  const problem = extractInnerProblemDetails(errorResult as Record<string, unknown>);
+  const availableBlocks = problem.availableBlocks;
+  if (!Array.isArray(availableBlocks)) return errorResult;
+
+  const { propertyAlias, note } = options;
+  const filtered = propertyAlias ? values.filter((v) => v.alias === propertyAlias) : values;
+  const typeByKey = new Map<string, string>();
+  for (const v of filtered) {
+    const container = isRteWithBlocks(v.value) ? (v.value as { blocks: unknown }).blocks : v.value;
+    if (isBlockListOrGridValue(container)) {
+      collectBlockEntryTypes(container as BlockDataContainer, typeByKey, 0);
+    }
+  }
+
+  const truncated = availableBlocks.length > MAX_ENRICHED_BLOCKS;
+  const limitedBlocks = truncated ? availableBlocks.slice(0, MAX_ENRICHED_BLOCKS) : availableBlocks;
+  const enrichedBlocks = limitedBlocks.map((b) =>
+    b && typeof b === "object" && typeof (b as { key?: unknown }).key === "string"
+      ? { ...b, contentTypeKey: typeByKey.get((b as { key: string }).key) ?? null }
+      : b,
+  );
+
+  return createToolResultError({
+    ...problem,
+    availableBlocks: enrichedBlocks,
+    ...(truncated
+      ? { availableBlocksNote: `Showing ${MAX_ENRICHED_BLOCKS} of ${availableBlocks.length} available blocks — use inspect-blocks for the full list.` }
+      : {}),
+    ...(note ? { note } : {}),
+  });
+}
+
+/**
+ * Recursively collect every block entry's key → contentTypeKey across a
+ * BlockList/BlockGrid container's content AND settings data, descending into
+ * any block-in-block property so a nested block's type is found too. A
+ * block's settings live in a separate `settingsData` array under their own
+ * key, and a block can itself carry a block-bearing property, so a walk of
+ * top-level `contentData` alone misses both.
+ *
+ * `depth` bounds the recursion at `MAX_BLOCK_WALK_DEPTH` — the parsed JSON
+ * this walks can't be cyclic, but it can in principle nest block-in-block
+ * arbitrarily deep, and this runs synchronously on every "Blocks not found"
+ * error, so an unbounded walk would be a real cost on a pathological document.
+ */
+function collectBlockEntryTypes(container: BlockDataContainer, into: Map<string, string>, depth: number): void {
+  if (depth > MAX_BLOCK_WALK_DEPTH) return;
+  for (const list of [container.contentData, container.settingsData]) {
+    if (!Array.isArray(list)) continue;
+    for (const block of list) {
+      if (!block || typeof block !== "object") continue;
+      const key = (block as { key?: unknown }).key;
+      const contentTypeKey = (block as { contentTypeKey?: unknown }).contentTypeKey;
+      if (typeof key === "string" && typeof contentTypeKey === "string") into.set(key, contentTypeKey);
+
+      const nestedValues = (block as { values?: unknown }).values;
+      if (!Array.isArray(nestedValues)) continue;
+      for (const nested of nestedValues as Array<{ value?: unknown }>) {
+        const nestedRaw = nested?.value;
+        const nestedContainer = isRteWithBlocks(nestedRaw) ? (nestedRaw as { blocks: unknown }).blocks : nestedRaw;
+        if (isBlockListOrGridValue(nestedContainer)) {
+          collectBlockEntryTypes(nestedContainer as BlockDataContainer, into, depth + 1);
+        }
+      }
+    }
+  }
+}
+
 /** Attach each block's paired settings key, where the layout wires one up. */
 function withSettingsKeys(blocks: InspectedBlock[], container: unknown): InspectedBlock[] {
   return blocks.map((block) => {
     const settingsKey = findSettingsKey(container, block.contentKey);
     return settingsKey ? { ...block, settingsKey } : block;
   });
+}
+
+/**
+ * Schema for a property alias inside a block-update `values[]` entry
+ * (`edit-block`, `edit-element-block`, `bulk-set-block-property`).
+ *
+ * Restricted to identifier characters — real Umbraco property aliases are
+ * camelCase identifiers and never contain a quote. `classifyBlockUpdateResults`
+ * tells a saved alias from a failed one by searching the chained tool's
+ * free-text error/warning messages for the alias wrapped in single quotes
+ * (`'alias'`); an alias allowed to contain its own quote could be crafted so
+ * its quoted form embeds a *different*, legitimately-saved alias's quoted
+ * form as a substring (e.g. alias `a', 'foo` makes upstream emit `Property
+ * 'a', 'foo' does not exist...`, which contains the literal substring
+ * `'foo'`), misclassifying that other alias as failed. Rejecting the
+ * characters that make the escape possible closes it at the source rather
+ * than trying to out-parse arbitrary free text.
+ */
+export const blockPropertyAliasSchema = z.string().regex(
+  /^[A-Za-z_][A-Za-z0-9_]*$/,
+  "Property alias must be a valid identifier (letters, digits, underscore; not starting with a digit)",
+);
+
+/** A single per-block/per-update result entry, as returned by the chained
+ * `update-block-property` / `update-element-block-property` tools. */
+export interface BlockUpdateResultEntry {
+  success: boolean;
+  message: string;
+  updatedCount?: number;
+  addedCount?: number;
+  warnings?: string[];
+  errors?: string[];
+}
+
+export type BlockUpdateOutcome = "clean" | "partial" | "failed";
+
+export interface BlockUpdateClassification {
+  /** "clean": every requested property was written. "partial": some were,
+   * some weren't. "failed": nothing was written at all. */
+  outcome: BlockUpdateOutcome;
+  /** Sum of `updatedCount`/`addedCount` across every result — the only
+   * reliable signal of what was actually written to the document. */
+  processedCount: number;
+  /** How many of the result entries individually wrote at least one property. */
+  updatedEntryCount: number;
+  /** Combined errors + warnings + per-entry messages, for reporting. */
+  detail: string;
+  /** Warnings across every result, for passing through to the caller even on
+   * an otherwise-clean outcome. */
+  warnings: string[];
+  /** Requested aliases that were NOT named in any error/warning — i.e. they
+   * were written and must not be retried. Empty when `requestedAliases` isn't
+   * passed, or when `unresolvedBlockCount` is non-zero (see below). */
+  savedFields: string[];
+  /** Requested aliases named in at least one error or warning message. Empty
+   * when `requestedAliases` isn't passed. */
+  failedFields: string[];
+  /** Count of block-level entries that can't be matched against a requested
+   * alias at all: a result entry that failed before ever reaching the
+   * per-property loop (e.g. "Block with contentKey 'x' not found in
+   * contentData" — no `updatedCount`/`addedCount`/`errors`/`warnings`), PLUS
+   * any block the caller expected a result for that the chained tool didn't
+   * even return an entry for (see `expectedEntryCount`). A caller matching
+   * multiple blocks (bulk-set-block-property) can have some blocks resolve
+   * cleanly and others go missing entirely (e.g. a stale key from a
+   * concurrent edit) in the same call; when that happens, `savedFields`
+   * can't promise every requested alias was written to every matched block,
+   * so it's left empty rather than overclaiming "nothing here needs
+   * retrying". */
+  unresolvedBlockCount: number;
+}
+
+/**
+ * Classify a chained `update-block-property` / `update-element-block-property`
+ * call's `results[]` against how many properties were actually requested.
+ *
+ * Upstream marks a result `success: true` whenever
+ * `totalProcessed > 0 || errors.length === 0` — so `success`/`errors` alone
+ * can't be trusted to tell a clean write from a partial or even a fully failed
+ * one: a result with one saved alias and one invalid one still reads
+ * `success: true` with `errors` populated, and a result where nothing was
+ * processed and no error was recorded either (e.g. the alias only produced a
+ * `warnings` entry because the block's element type couldn't be resolved)
+ * still reads `success: true, errors: []`. Comparing the actual processed
+ * count against how many properties were requested is the only check that
+ * catches all of these — including the case where the chained tool returns
+ * fewer result entries than blocks were requested, which silently lowers
+ * `processedCount` below `requestedCount` the same way a per-property failure
+ * would.
+ *
+ * Pass `requestedAliases` (the property aliases the caller asked to write) to
+ * also split them into `savedFields`/`failedFields`. Upstream's error/warning
+ * messages always wrap the alias in quotes verbatim (`Property 'alias' does
+ * not exist on Element Type`, via its own `getPropertyKey`, which — for a
+ * block property update — is just the alias; these tools never pass a
+ * per-property culture/segment), so matching the quoted alias against the
+ * combined error+warning text reliably tells saved aliases from failed ones
+ * without a second chained call — *except* for a block-level entry that never
+ * reached the per-property loop at all, or an expected block the chained
+ * tool returned no entry for whatsoever (see `unresolvedBlockCount`'s doc
+ * comment): neither carries an alias-naming error or a count. `savedFields`
+ * is left empty whenever one of those is present, rather than reporting
+ * every requested alias as saved when one or more matched blocks were never
+ * actually written to. Pass `expectedEntryCount` — how many block-level
+ * result entries the caller expects back (1 for a single-block update; the
+ * number of matched blocks for a bulk update applying the same properties to
+ * several) — to detect the "chained tool returned fewer entries than
+ * expected" case; it defaults to 1, the single-block case.
+ */
+export function classifyBlockUpdateResults(
+  results: ReadonlyArray<BlockUpdateResultEntry> | undefined,
+  requestedCount: number,
+  requestedAliases: ReadonlyArray<string> = [],
+  expectedEntryCount: number = 1,
+): BlockUpdateClassification {
+  const list = results ?? [];
+  const processedCount = list.reduce((sum, r) => sum + (r.updatedCount ?? 0) + (r.addedCount ?? 0), 0);
+  const updatedEntryCount = list.filter((r) => (r.updatedCount ?? 0) + (r.addedCount ?? 0) > 0).length;
+  const errors = list.flatMap((r) => r.errors ?? []);
+  const warnings = list.flatMap((r) => r.warnings ?? []);
+  const failureText = [...errors, ...warnings].join("; ");
+  const unresolvedEntries = list.filter(
+    (r) => (r.updatedCount ?? 0) + (r.addedCount ?? 0) === 0 && !(r.errors?.length) && !(r.warnings?.length),
+  );
+  const missingEntryCount = Math.max(0, expectedEntryCount - list.length);
+  const unresolvedBlockCount = unresolvedEntries.length + missingEntryCount;
+  const detail = [...errors, ...warnings, ...unresolvedEntries.map((r) => r.message).filter(Boolean)].join("; ")
+    || list.map((r) => r.message).filter(Boolean).join("; ")
+    || "no detail returned";
+  const outcome: BlockUpdateOutcome =
+    processedCount === 0 ? "failed" : processedCount < requestedCount ? "partial" : "clean";
+  const failedFields = requestedAliases.filter((alias) => failureText.includes(`'${alias}'`));
+  const savedFields = unresolvedBlockCount > 0
+    ? []
+    : requestedAliases.filter((alias) => !failedFields.includes(alias));
+  return { outcome, processedCount, updatedEntryCount, detail, warnings, savedFields, failedFields, unresolvedBlockCount };
 }

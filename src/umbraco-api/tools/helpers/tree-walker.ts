@@ -8,6 +8,7 @@
 
 import { chainCms } from "../../cms-chain.js";
 import { encodeCursor } from "@umbraco-cms/mcp-server-sdk";
+import { fetchPrimaryPublishedUrlsBatch } from "./preview-url.js";
 
 export interface TreeWalkOptions {
   /** Scope to a subtree (omit for root) */
@@ -58,6 +59,11 @@ export async function walkContentTree(
     cursor = treeData.nextCursor;
   }
 
+  // One get-document-urls request for the whole scan — never per item.
+  const urlsById = await fetchPrimaryPublishedUrlsBatch(
+    treeItems.map((item) => item.id).filter((id): id is string => typeof id === "string"),
+  );
+
   const enriched = await Promise.all(
     treeItems.map(async (item: any): Promise<WalkedPage | null> => {
       try {
@@ -65,15 +71,14 @@ export async function walkContentTree(
         if (!docResult.ok) return null;
         const doc = docResult.data;
         const variant = doc.variants?.[0];
-        // GetDocumentByIdOutput doesn't include `urls` or documentType.name/alias —
-        // they're present at runtime but not in the upstream Zod schema.
-        const extra = doc as { urls?: { url?: string }[] };
+        // GetDocumentByIdOutput doesn't include documentType.name/alias —
+        // present at runtime but not in the upstream Zod schema.
         const dt = doc.documentType as { name?: string; alias?: string };
 
         return {
           id: doc.id,
           name: variant?.name ?? "Unknown",
-          url: extra.urls?.[0]?.url ?? "",
+          url: urlsById.get(doc.id) ?? "",
           documentType: dt?.name ?? "",
           documentTypeAlias: dt?.alias ?? "",
           values: doc.values ?? [],

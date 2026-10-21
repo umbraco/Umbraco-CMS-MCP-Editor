@@ -14,6 +14,7 @@ import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
+  getResultText,
   createSnapshotResult,
   createElementBlockFixture,
   extractChainedResult,
@@ -184,7 +185,51 @@ describe("edit-element-block", () => {
     );
 
     expect(result.isError).toBe(true);
-    expect(getStructuredContent(result)).toContain("no settings entry");
+    // beta.43 of @umbraco-cms/mcp-server-sdk stopped setting structuredContent
+    // on error results (intentional — see cms-chain.ts's
+    // extractInnerProblemDetails doc comment). This tool passes a plain
+    // string to createToolResultError, so content[0].text IS that string
+    // (no JSON parsing needed).
+    expect(getResultText(result)).toContain("no settings entry");
+  }, 60000);
+
+  it("reports a partial failure — and still saves the valid alias — when only one of several aliases is invalid", async () => {
+    // Upstream `update-element-block-property` reports `success: true` on this
+    // result whenever at least one property saved, even if another alias in
+    // the same call failed — so a plain `success === false` check misses this
+    // case and would report a full success while silently dropping the
+    // invalid alias's value.
+    const validValue = "_partial write valid element value";
+
+    const result = await callTool(
+      editElementBlockTool,
+      {
+        id: fixture.elementId,
+        propertyAlias: fixture.propertyAlias,
+        contentKey: fixture.seededBlockKey,
+        values: [
+          { alias: fixture.blockPropertyAlias, value: validValue },
+          { alias: "notAPropertyOnThisBlockType", value: "unreachable" },
+        ],
+      },
+      extra,
+    );
+
+    expect(result.isError).toBe(true);
+    const text = result.content[0].text as string;
+    expect(text).toContain("partially failed");
+    expect(text).toContain("1 of 2 field(s) saved");
+
+    const problem = JSON.parse(text);
+    expect(problem.savedFields).toEqual([fixture.blockPropertyAlias]);
+    expect(problem.failedFields).toEqual(["notAPropertyOnThisBlockType"]);
+    // Elements are not routable/publishable the same way documents are —
+    // unlike edit-block's partial-failure payload, this one carries neither.
+    expect(problem).not.toHaveProperty("validation");
+    expect(problem).not.toHaveProperty("previewUrl");
+
+    // The valid alias's value was still persisted, despite the overall error.
+    expect(await readBlockValue(fixture, extra)).toBe(validValue);
   }, 60000);
 
   it("should return an error for a non-existent element", async () => {

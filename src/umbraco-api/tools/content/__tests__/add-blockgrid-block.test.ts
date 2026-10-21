@@ -10,6 +10,7 @@ import { mcpClientManager } from "../../../mcp-client.js";
 import addBlockgridBlockTool from "../post/add-blockgrid-block.js";
 import { createBlockGridFixture, type BlockGridFixture } from "./helpers/block-fixture.js";
 import { ContentBuilder } from "./helpers/content-builder.js";
+import { createBlockSnapshotResult } from "./helpers/block-snapshot.js";
 import { callTool } from "../../../../testing/call-tool-with-validation.js";
 
 type GridLayoutItem = {
@@ -41,15 +42,12 @@ describe("add-blockgrid-block", () => {
     if (fixture) await fixture.cleanup();
   }, 60000);
 
-  function skipIfNoFixture() {
-    return !fixture;
-  }
 
   it("appends a new block to a top-level BlockGrid layout with default span", async () => {
-    if (skipIfNoFixture()) return;
+    expect(fixture).not.toBeNull();
     const f = fixture!;
 
-    const result = await addBlockgridBlockTool.handler(
+    const result = await callTool(addBlockgridBlockTool, 
       {
         id: f.pageId,
         propertyAlias: f.propertyAlias,
@@ -70,6 +68,7 @@ describe("add-blockgrid-block", () => {
     expect(result.isError).toBeFalsy();
     const data = getStructuredContent(result) as any;
     expect(data.contentKey).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(createBlockSnapshotResult(result, f.pageId)).toMatchSnapshot();
 
     const layout = await getBlockGridLayout(f.pageId, f.propertyAlias);
     // append → new block at the end of the layout
@@ -80,10 +79,10 @@ describe("add-blockgrid-block", () => {
   }, 60000);
 
   it("prepends a new block when position.mode = 'prepend'", async () => {
-    if (skipIfNoFixture()) return;
+    expect(fixture).not.toBeNull();
     const f = fixture!;
 
-    const result = await addBlockgridBlockTool.handler(
+    const result = await callTool(addBlockgridBlockTool, 
       {
         id: f.pageId,
         propertyAlias: f.propertyAlias,
@@ -108,10 +107,10 @@ describe("add-blockgrid-block", () => {
   }, 60000);
 
   it("inserts before/after an anchor block by contentKey", async () => {
-    if (skipIfNoFixture()) return;
+    expect(fixture).not.toBeNull();
     const f = fixture!;
 
-    const beforeResult = await addBlockgridBlockTool.handler(
+    const beforeResult = await callTool(addBlockgridBlockTool, 
       {
         id: f.pageId,
         propertyAlias: f.propertyAlias,
@@ -126,7 +125,7 @@ describe("add-blockgrid-block", () => {
     expect(beforeResult.isError).toBeFalsy();
     const beforeData = getStructuredContent(beforeResult) as any;
 
-    const afterResult = await addBlockgridBlockTool.handler(
+    const afterResult = await callTool(addBlockgridBlockTool, 
       {
         id: f.pageId,
         propertyAlias: f.propertyAlias,
@@ -150,10 +149,10 @@ describe("add-blockgrid-block", () => {
   }, 60000);
 
   it("respects explicit columnSpan and rowSpan", async () => {
-    if (skipIfNoFixture()) return;
+    expect(fixture).not.toBeNull();
     const f = fixture!;
 
-    const result = await addBlockgridBlockTool.handler(
+    const result = await callTool(addBlockgridBlockTool, 
       {
         id: f.pageId,
         propertyAlias: f.propertyAlias,
@@ -181,10 +180,10 @@ describe("add-blockgrid-block", () => {
   }, 60000);
 
   it("rejects 'before' without anchorContentKey", async () => {
-    if (skipIfNoFixture()) return;
+    expect(fixture).not.toBeNull();
     const f = fixture!;
 
-    const result = await addBlockgridBlockTool.handler(
+    const result = await callTool(addBlockgridBlockTool, 
       {
         id: f.pageId,
         propertyAlias: f.propertyAlias,
@@ -201,10 +200,10 @@ describe("add-blockgrid-block", () => {
   }, 30000);
 
   it("rejects areaKey without parentContentKey", async () => {
-    if (skipIfNoFixture()) return;
+    expect(fixture).not.toBeNull();
     const f = fixture!;
 
-    const result = await addBlockgridBlockTool.handler(
+    const result = await callTool(addBlockgridBlockTool, 
       {
         id: f.pageId,
         propertyAlias: f.propertyAlias,
@@ -223,10 +222,10 @@ describe("add-blockgrid-block", () => {
   }, 30000);
 
   it("rejects when targeted property is not a BlockGrid", async () => {
-    if (skipIfNoFixture()) return;
+    expect(fixture).not.toBeNull();
     const f = fixture!;
 
-    const result = await addBlockgridBlockTool.handler(
+    const result = await callTool(addBlockgridBlockTool, 
       {
         id: f.pageId,
         propertyAlias: "nonExistentPropertyAlias_zzz",
@@ -242,7 +241,7 @@ describe("add-blockgrid-block", () => {
   }, 30000);
 
   it("adds first block to a BlockGrid property that has no value yet (regression: empty property)", async () => {
-    if (skipIfNoFixture()) return;
+    expect(fixture).not.toBeNull();
     const f = fixture!;
 
     // Create a fresh page using the same doctype but WITHOUT seeding any block value.
