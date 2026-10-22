@@ -221,8 +221,42 @@ entries, and the tree-walk audit — its own change.
 | `UMBRACO_EXCLUDE_SLICES` | `--umbraco-exclude-slices` | Exclude these slices |
 | `UMBRACO_READONLY` | `--umbraco-readonly` | Block write operations |
 | `DISABLE_MCP_CHAINING` | `--disable-mcp-chaining` | Disable MCP server chaining |
+| `UMBRACO_EXPECTED_MAJOR` | `--umbraco-expected-major` | Override the Umbraco major this server expects (both entry points; see below) |
 
 Custom fields defined in `config/server-config.ts`.
+
+### Umbraco-major version guard
+
+Both entry points warn on a connected-Umbraco-major mismatch; **neither blocks a
+tool call on its own**:
+
+- **stdio** (`src/index.ts`) calls the SDK's `checkUmbracoVersion()` itself
+  (via `src/startup-version-check.ts`, a direct, non-chained,
+  timeout-bounded call to `/umbraco/management/api/v1/server/information` —
+  the same `UmbracoManagementClient` pattern as `fetchPreviewUrl`) and folds
+  the resulting `getVersionCheckMessage()` into its own `instructions`,
+  visible at `initialize`. It deliberately never calls
+  `configureVersionCheckHook()` — that would block the first tool call, which
+  is the behaviour issue #247 settled against (closing #109's retry-based
+  guard).
+- **hosted** (`src/worker.ts`) hands `expectedUmbracoMajor` to
+  `@umbraco-cms/mcp-hosted`, which performs its own check per request and
+  folds a mismatch into that request's `instructions` — never blocking, so one
+  site's mismatch can't leak into another request in the same isolate
+  (umbraco/Umbraco-MCP-Base#224).
+- **`@umbraco-cms/mcp-dev`'s own one-time block** on its first *chained* tool
+  call is separate, pre-existing upstream behaviour with no disable switch. On
+  a mismatch it still fires once, on top of the editor's own instructions
+  warning above — that's expected, not a bug this repo tries to suppress or
+  re-guard against.
+- The expected major has one source of truth, shared by both entry points:
+  `getExpectedUmbracoMajor(override?)` in `src/config/expected-umbraco-major.ts`
+  — `override?.trim() || packageJson.version.split(".")[0]`, matching
+  `@umbraco-cms/mcp-dev`'s own `?.trim() ||` fallback. **Known upstream gap:**
+  `@umbraco-cms/mcp-hosted` instead does `env.UMBRACO_EXPECTED_MAJOR ??
+  options.expectedUmbracoMajor` — an *empty-string* env var override would not
+  fall back under `??` the way it does under `?.trim() ||`. That's a gap in
+  `mcp-hosted`, not something fixable from this repo; not in scope here.
 
 ## Modes and Slices
 
