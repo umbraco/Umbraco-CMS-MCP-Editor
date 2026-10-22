@@ -37,4 +37,15 @@ describe("applyWorkerDryRun (#246)", () => {
     applyWorkerDryRun({});
     expect(isDryRunEnabled()).toBe(false);
   });
+
+  it("does not throw for a non-string value (e.g. an unquoted TOML/JSON Worker var) and still parses it", () => {
+    // @ts-expect-error — exercising a runtime value outside the declared type,
+    // since Worker vars aren't guaranteed to match it (see worker-dry-run.ts).
+    expect(() => applyWorkerDryRun({ UMBRACO_DRY_RUN: true })).not.toThrow();
+    expect(isDryRunEnabled()).toBe(true);
+
+    // @ts-expect-error — same as above, for a non-boolean non-string value.
+    expect(() => applyWorkerDryRun({ UMBRACO_DRY_RUN: 0 })).not.toThrow();
+    expect(isDryRunEnabled()).toBe(false);
+  });
 });

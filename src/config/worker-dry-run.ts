@@ -12,14 +12,18 @@
 import { configureDryRunMode } from "@umbraco-cms/mcp-server-sdk";
 
 /**
- * Activates (or leaves off) dry-run mode for the current Worker request,
- * based on the `UMBRACO_DRY_RUN` env var.
+ * Activates (or leaves off) dry-run mode for this MCP session, based on the
+ * `UMBRACO_DRY_RUN` env var. Called once from `UmbracoMcpAgent.init()` —
+ * `configureDryRunMode` is global SDK state, not scoped per-request.
  *
  * Parses case-insensitively, matching stdio's existing SDK parsing
  * (`String(value).toLowerCase() === "true"`) rather than `UMBRACO_READONLY`'s
  * stricter hosted check (`env.UMBRACO_READONLY === "true"`). Unset, empty, or
- * any other value leaves dry-run off.
+ * any other value leaves dry-run off. Coerces with `String(...)` first (rather
+ * than relying on the declared type) because a Worker var can arrive as a
+ * non-string — e.g. an unquoted TOML boolean or a dashboard JSON var — and
+ * `.toLowerCase()` on a non-string would otherwise throw during `init()`.
  */
 export function applyWorkerDryRun(env: { UMBRACO_DRY_RUN?: string }): void {
-  configureDryRunMode(env.UMBRACO_DRY_RUN?.toLowerCase() === "true");
+  configureDryRunMode(String(env.UMBRACO_DRY_RUN ?? "").toLowerCase() === "true");
 }
