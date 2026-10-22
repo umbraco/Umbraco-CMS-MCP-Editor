@@ -34,7 +34,13 @@ import { umbracoCloudSiteRouting } from "@umbraco-cms/mcp-hosted/cloud";
 import { collections, allModes, allModeNames, allSliceNames } from "./collections.js";
 import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
 import { registerCmsChainedServer } from "./umbraco-api/cms-chained-server.js";
+import { applyWorkerDryRun } from "./config/worker-dry-run.js";
 import packageJson from "../package.json" with { type: "json" };
+
+// @umbraco-cms/mcp-hosted's HostedMcpEnv doesn't read UMBRACO_DRY_RUN (unlike
+// UMBRACO_READONLY, which it does read) — see applyWorkerDryRun for why this
+// is a local addition rather than an upstream one.
+type EditorMcpEnv = HostedMcpEnv & { UMBRACO_DRY_RUN?: string };
 
 // mcp-dev is loaded on first request, not at startup (see cms-collections-loader.ts)
 import { getLoadedCmsCollections, loadCmsCollections, needsCmsCollections } from "./umbraco-api/cms-collections-loader.js";
@@ -98,7 +104,7 @@ const serverOptions = getServerOptions(options);
 // McpAgent Durable Object
 // ============================================================================
 
-export class UmbracoMcpAgent extends McpAgent<HostedMcpEnv, unknown, AuthProps> {
+export class UmbracoMcpAgent extends McpAgent<EditorMcpEnv, unknown, AuthProps> {
   server!: McpServer;
 
   async init() {
@@ -119,6 +125,7 @@ export class UmbracoMcpAgent extends McpAgent<HostedMcpEnv, unknown, AuthProps> 
       this.props!,
       sessionId,
     );
+    applyWorkerDryRun(this.env);
 
     // No setServerRef here: the server ref for elicitation now comes from the
     // per-request store that createPerRequestServer sets up (Umbraco-MCP-Base#384).

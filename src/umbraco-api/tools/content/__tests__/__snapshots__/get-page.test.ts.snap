@@ -1,5 +1,41 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
+exports[`get-page returns a real published URL once the page is live (regression for #233) 1`] = `
+{
+  "content": [],
+  "structuredContent": {
+    "documentType": {
+      "id": "00000000-0000-0000-0000-000000000000",
+    },
+    "id": "00000000-0000-0000-0000-000000000000",
+    "name": "_Test Get Page Published",
+    "previewUrl": {
+      "requiresBackofficeAuth": true,
+      "url": "<preview-url>",
+    },
+    "publishedUrls": [
+      "<published-url>",
+    ],
+    "values": [],
+    "variants": [
+      {
+        "createDate": "NORMALIZED_DATE",
+        "culture": null,
+        "flags": [],
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "_Test Get Page Published",
+        "publishDate": "NORMALIZED_DATE",
+        "scheduledPublishDate": null,
+        "scheduledUnpublishDate": null,
+        "segment": null,
+        "state": "Published",
+        "updateDate": "NORMALIZED_DATE",
+      },
+    ],
+  },
+}
+`;
+
 exports[`get-page should get page details by ID 1`] = `
 {
   "content": [],
