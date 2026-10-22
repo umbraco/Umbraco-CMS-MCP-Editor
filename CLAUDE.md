@@ -221,8 +221,39 @@ entries, and the tree-walk audit — its own change.
 | `UMBRACO_EXCLUDE_SLICES` | `--umbraco-exclude-slices` | Exclude these slices |
 | `UMBRACO_READONLY` | `--umbraco-readonly` | Block write operations |
 | `DISABLE_MCP_CHAINING` | `--disable-mcp-chaining` | Disable MCP server chaining |
+| `UMBRACO_EXPECTED_MAJOR` | `--umbraco-expected-major` (stdio only) | Override the Umbraco major this server expects to be connected to |
 
 Custom fields defined in `config/server-config.ts`.
+
+### Umbraco-major version guard
+
+Both entry points resolve the expected major the same way —
+`getExpectedUmbracoMajor(override)` in `config/expected-umbraco-major.ts`:
+`override?.trim() || packageJson.version.split(".")[0]` (an empty-string
+override falls back to the default, matching `@umbraco-cms/mcp-dev`'s own
+`?.trim() ||`). They differ in what happens on a mismatch:
+
+- **Stdio** (`src/index.ts`) calls `checkUmbracoVersion()` →
+  `configureVersionCheckHook()` → `getVersionCheckMessage()` at startup, the
+  same pattern `@umbraco-cms/mcp-dev` uses for its own subprocess. A mismatch
+  **blocks the first decorated tool call once** (wired into
+  `withPreExecutionCheck` via `withStandardDecorators`, so it applies to every
+  editor tool regardless of whether that tool chains to mcp-dev); the block
+  clears itself after surfacing the message once, so a deliberate retry
+  succeeds. **Accepted consequence:** on a stdio mismatch, the user will also
+  still hit mcp-dev's own *separate* one-time block on the first *chained*
+  tool call, on top of the editor's own — two one-time blocks in sequence.
+  That's pre-existing upstream behaviour with no disable switch; this is
+  expected, not a bug to fix.
+- **Hosted worker** (`src/worker.ts`) passes `expectedUmbracoMajor` to
+  `@umbraco-cms/mcp-hosted`, which folds a mismatch warning into that
+  request's `instructions` and **never blocks** — deliberately, so one site's
+  mismatch can't leak into another request in the same isolate
+  (umbraco/Umbraco-MCP-Base#224).
+- `@umbraco-cms/mcp-hosted` resolves its own override with `??` rather than
+  mcp-dev's `?.trim() ||`, so an empty-string `UMBRACO_EXPECTED_MAJOR` behaves
+  differently there than on stdio — tracked upstream as
+  umbraco/Umbraco-MCP-Base#426, not fixed in this repo.
 
 ## Modes and Slices
 

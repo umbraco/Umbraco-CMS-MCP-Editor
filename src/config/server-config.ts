@@ -28,6 +28,12 @@ import {
 export interface MyServerCustomConfig {
   /** Disable MCP server chaining (useful for testing or isolated deployments) */
   disableMcpChaining?: boolean;
+  /**
+   * Override the Umbraco major version this server expects to be connected
+   * to (see `getExpectedUmbracoMajor`). Falls back to the package's own
+   * major version when unset or blank.
+   */
+  expectedUmbracoMajor?: string;
 }
 
 // ============================================================================
@@ -47,6 +53,12 @@ const customFields: ConfigFieldDefinition[] = [
     envVar: "DISABLE_MCP_CHAINING",
     cliFlag: "disable-mcp-chaining",
     type: "boolean",
+  },
+  {
+    name: "expectedUmbracoMajor",
+    envVar: "UMBRACO_EXPECTED_MAJOR",
+    cliFlag: "umbraco-expected-major",
+    type: "string",
   },
 ];
 

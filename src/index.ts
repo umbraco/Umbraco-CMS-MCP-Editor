@@ -18,10 +18,16 @@ import {
   setServerRef,
   initializeUmbracoFetch,
   useDraft202012ToolSchemas,
+  checkUmbracoVersion,
+  configureVersionCheckHook,
+  getVersionCheckMessage,
+  UmbracoManagementClient,
+  SERVER_INFORMATION_PATH,
   type CollectionConfiguration,
   type ToolCollectionExport,
 } from "@umbraco-cms/mcp-server-sdk";
 import { CHAINED_DEPS } from "./auth/chained-deps.generated.js";
+import { getExpectedUmbracoMajor } from "./config/expected-umbraco-major.js";
 
 // Import the Orval-generated API client
 // Tool collections come from the shared registry in collections.ts, which the
@@ -45,31 +51,16 @@ import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
 // Configure the API client for use with toolkit helpers
 // This connects your generated Orval client to executeGetApiCall, executeVoidApiCall, etc.
 // ============================================================================
-// MCP Server Setup
-// ============================================================================
-
-// Create MCP server
-const server = new McpServer(
-  {
-    name: "umbraco-editor-mcp",
-    version: packageJson.version,
-  },
-  {
-    instructions: SERVER_INSTRUCTIONS,
-  },
-);
-
-// Make the underlying Server available to tools that need elicitation
-setServerRef(server.server);
-
-// ============================================================================
 // Tool Filtering Setup
 // ============================================================================
 
 // Clear config cache to ensure fresh config for each server start
 clearConfigCache();
 
-// Load server configuration (includes filtering settings from env vars)
+// Load server configuration (includes filtering settings from env vars). Moved
+// ahead of the McpServer construction below (it used to run after) so the
+// version check that follows — which needs auth to reach the CMS, and whose
+// message needs to be in hand before the server is constructed — can use it.
 const serverConfig = await loadServerConfig(true);
 
 // Create collection config loader with our registries
@@ -82,7 +73,9 @@ const configLoader = createCollectionConfigLoader({
 // Initialize UmbracoFetch so any tool that calls UmbracoManagementClient directly
 // (instead of going via chainCms) works in stdio mode. Without this the SDK throws
 // "UmbracoFetch not initialized" because the subprocess that runs the chained CMS
-// server sets up its own UmbracoFetch — this editor MCP process never did.
+// server sets up its own UmbracoFetch — this editor MCP process never did. Also
+// moved ahead of the McpServer construction below: the direct version-check
+// request right after this needs it initialized too.
 initializeUmbracoFetch({
   baseUrl: serverConfig.umbraco.auth.baseUrl,
   clientId: serverConfig.umbraco.auth.clientId,
@@ -91,6 +84,64 @@ initializeUmbracoFetch({
 
 // Load filtering configuration from server config
 const filterConfig: CollectionConfiguration = configLoader.loadFromConfig(serverConfig.umbraco);
+
+// ============================================================================
+// Umbraco Major Version Guard
+// ============================================================================
+
+// A hung or very slow CMS must not delay `initialize` — this direct request
+// (same UmbracoManagementClient<T>({ url, method }) pattern as
+// `helpers/preview-url.ts`'s fetchPreviewUrl) carries its own short timeout,
+// independent of whatever timeout the eventual chained mcp-dev call might use.
+const SERVER_INFORMATION_TIMEOUT_MS = 5000;
+
+await checkUmbracoVersion({
+  mcpVersion: packageJson.version,
+  expectedUmbracoMajor: getExpectedUmbracoMajor(serverConfig.custom.expectedUmbracoMajor),
+  client: {
+    getServerInformation: () =>
+      UmbracoManagementClient<{ version: string }>(
+        { url: SERVER_INFORMATION_PATH, method: "GET" },
+        { signal: AbortSignal.timeout(SERVER_INFORMATION_TIMEOUT_MS) },
+      ),
+  },
+});
+
+// Wires the version check's blocking state into withPreExecutionCheck, which
+// every editor tool already composes via withStandardDecorators — this fires
+// independently of whether a given tool chains to mcp-dev. On a mismatch this
+// blocks the first decorated tool call once; the hook clears itself after
+// surfacing the message, so a deliberate retry succeeds. On a stdio mismatch,
+// the user will also still hit mcp-dev's own separate one-time block on the
+// first *chained* tool call, on top of this one — that's expected, pre-existing
+// upstream behaviour (see CLAUDE.md), not something this suppresses or retries
+// around.
+configureVersionCheckHook();
+
+// Fold the version-check message (if any) into the server's own instructions,
+// mirroring @umbraco-cms/mcp-dev's own startup sequence exactly.
+const versionCheckMessage = getVersionCheckMessage();
+const instructions = versionCheckMessage
+  ? `${SERVER_INSTRUCTIONS}\n\n${versionCheckMessage}`
+  : SERVER_INSTRUCTIONS;
+
+// ============================================================================
+// MCP Server Setup
+// ============================================================================
+
+// Create MCP server
+const server = new McpServer(
+  {
+    name: "umbraco-editor-mcp",
+    version: packageJson.version,
+  },
+  {
+    instructions,
+  },
+);
+
+// Make the underlying Server available to tools that need elicitation
+setServerRef(server.server);
 
 // ============================================================================
 // Register Tools with Filtering

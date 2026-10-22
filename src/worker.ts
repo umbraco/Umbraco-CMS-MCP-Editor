@@ -34,6 +34,7 @@ import { umbracoCloudSiteRouting } from "@umbraco-cms/mcp-hosted/cloud";
 import { collections, allModes, allModeNames, allSliceNames } from "./collections.js";
 import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
 import { registerCmsChainedServer } from "./umbraco-api/cms-chained-server.js";
+import { getExpectedUmbracoMajor } from "./config/expected-umbraco-major.js";
 import packageJson from "../package.json" with { type: "json" };
 
 // mcp-dev is loaded on first request, not at startup (see cms-collections-loader.ts)
@@ -73,8 +74,13 @@ const options: HostedMcpServerOptions = {
   // dev/main, 17.x on v17/*). Tags every span with umbraco.mcp.umbraco_major
   // and enables the hosted version check, which folds a mismatch warning into
   // the request's instructions (never blocks). `env.UMBRACO_EXPECTED_MAJOR`
-  // overrides it per deployment.
-  expectedUmbracoMajor: packageJson.version.split(".")[0],
+  // overrides it per deployment — applied per-request by mcp-hosted itself
+  // (`env.UMBRACO_EXPECTED_MAJOR ?? options.expectedUmbracoMajor`), so no
+  // override is passed here: `options` is built at module scope, with no
+  // `env` in hand. `getExpectedUmbracoMajor()` is the same default this
+  // package's stdio entry point (`src/index.ts`) resolves, so both entry
+  // points share one source of truth for the default.
+  expectedUmbracoMajor: getExpectedUmbracoMajor(),
   instructions: SERVER_INSTRUCTIONS,
   collections,
   modeRegistry: allModes,
