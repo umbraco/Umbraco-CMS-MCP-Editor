@@ -9,7 +9,7 @@
  * can communicate that constraint when relaying the URL to the editor.
  */
 
-import { UmbracoManagementClient } from "@umbraco-cms/mcp-server-sdk";
+import { UmbracoManagementClient, createToolResultError } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms, extractInnerProblemDetails } from "../../cms-chain.js";
 import { z } from "zod";
 import { readFileSync, statSync } from "node:fs";
@@ -30,7 +30,7 @@ const URL_BATCH_CHUNK_SIZE = 40;
  * `block-inspector.ts` and `bulk-handler.ts`'s `parseBulkError` already use
  * around `extractInnerProblemDetails`.
  */
-function describeChainError(errorResult: unknown): string {
+function describeChainError(errorResult: ReturnType<typeof createToolResultError>): string {
   const problem = extractInnerProblemDetails(errorResult as Record<string, unknown>);
   const title = typeof problem.title === "string" ? problem.title : undefined;
   const detail = typeof problem.detail === "string" ? problem.detail : undefined;
