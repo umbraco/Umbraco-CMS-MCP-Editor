@@ -80,12 +80,7 @@ const options: HostedMcpServerOptions = {
   // dev/main, 17.x on v17/*). Tags every span with umbraco.mcp.umbraco_major
   // and enables the hosted version check, which folds a mismatch warning into
   // the request's instructions (never blocks). `env.UMBRACO_EXPECTED_MAJOR`
-  // overrides it per deployment — mcp-hosted applies that override itself
-  // (`env.UMBRACO_EXPECTED_MAJOR ?? options.expectedUmbracoMajor` in
-  // create-server.ts), so no override is passed here: `options` is built at
-  // module scope with no `env` in hand. See `getExpectedUmbracoMajor`'s own
-  // doc comment for the `??` vs `?.trim() ||` gap this leaves (upstream, not
-  // fixed here).
+  // overrides it per deployment (applied by mcp-hosted per request).
   expectedUmbracoMajor: getExpectedUmbracoMajor(),
   instructions: SERVER_INSTRUCTIONS,
   collections,

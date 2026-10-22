@@ -28,11 +28,7 @@ import {
 export interface MyServerCustomConfig {
   /** Disable MCP server chaining (useful for testing or isolated deployments) */
   disableMcpChaining?: boolean;
-  /**
-   * Override the Umbraco major this server expects to be connected to (e.g.
-   * "17"). Passed to `getExpectedUmbracoMajor()` as the override argument;
-   * an empty/whitespace-only value falls back to the package-version default.
-   */
+  /** Override the Umbraco major this server expects (see getExpectedUmbracoMajor) */
   expectedUmbracoMajor?: string;
 }
 

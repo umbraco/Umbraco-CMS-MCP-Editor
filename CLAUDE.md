@@ -222,42 +222,16 @@ entries, and the tree-walk audit — its own change.
 | `UMBRACO_READONLY` | `--umbraco-readonly` | Block write operations |
 | `UMBRACO_DRY_RUN` | `--umbraco-dry-run` | Preview mutations instead of executing them (read-only tools unaffected) |
 | `DISABLE_MCP_CHAINING` | `--disable-mcp-chaining` | Disable MCP server chaining |
-| `UMBRACO_EXPECTED_MAJOR` | `--umbraco-expected-major` | Override the Umbraco major this server expects (both entry points; see below) |
+| `UMBRACO_EXPECTED_MAJOR` | `--umbraco-expected-major` | Override the Umbraco major this server expects (default: `package.json`'s major; see below) |
 
 Custom fields defined in `config/server-config.ts`.
 
 ### Umbraco-major version guard
 
-Both entry points warn on a connected-Umbraco-major mismatch; **neither blocks a
-tool call on its own**:
+The expected major comes from `getExpectedUmbracoMajor()` (`src/config/expected-umbraco-major.ts`): the override (env var / flag) if non-blank, else `package.json`'s major, which tracks the Umbraco major (18.x on `dev`/`main`, 17.x on `v17/*`). On a mismatch:
 
-- **stdio** (`src/index.ts`) calls the SDK's `checkUmbracoVersion()` itself
-  (via `src/startup-version-check.ts`, a direct, non-chained,
-  timeout-bounded call to `/umbraco/management/api/v1/server/information` —
-  the same `UmbracoManagementClient` pattern as `fetchPreviewUrl`) and folds
-  the resulting `getVersionCheckMessage()` into its own `instructions`,
-  visible at `initialize`. It deliberately never calls
-  `configureVersionCheckHook()` — that would block the first tool call, which
-  is the behaviour issue #247 settled against (closing #109's retry-based
-  guard).
-- **hosted** (`src/worker.ts`) hands `expectedUmbracoMajor` to
-  `@umbraco-cms/mcp-hosted`, which performs its own check per request and
-  folds a mismatch into that request's `instructions` — never blocking, so one
-  site's mismatch can't leak into another request in the same isolate
-  (umbraco/Umbraco-MCP-Base#224).
-- **`@umbraco-cms/mcp-dev`'s own one-time block** on its first *chained* tool
-  call is separate, pre-existing upstream behaviour with no disable switch. On
-  a mismatch it still fires once, on top of the editor's own instructions
-  warning above — that's expected, not a bug this repo tries to suppress or
-  re-guard against.
-- The expected major has one source of truth, shared by both entry points:
-  `getExpectedUmbracoMajor(override?)` in `src/config/expected-umbraco-major.ts`
-  — `override?.trim() || packageJson.version.split(".")[0]`, matching
-  `@umbraco-cms/mcp-dev`'s own `?.trim() ||` fallback. **Known upstream gap:**
-  `@umbraco-cms/mcp-hosted` instead does `env.UMBRACO_EXPECTED_MAJOR ??
-  options.expectedUmbracoMajor` — an *empty-string* env var override would not
-  fall back under `??` the way it does under `?.trim() ||`. That's a gap in
-  `mcp-hosted`, not something fixable from this repo; not in scope here.
+- **Stdio blocks the first tool call once**, mirroring `@umbraco-cms/mcp-dev`'s own startup (`src/startup-version-check.ts`): a retry succeeds, and the warning is also in the server's `instructions`. The chained mcp-dev subprocess runs its own guard too, so its first chained call is blocked once more. That's expected — mcp-dev has no switch to disable it; don't add a retry around it.
+- **Hosted only warns** in each request's `instructions` (`@umbraco-cms/mcp-hosted`). A process-wide block would leak between sites sharing a Worker isolate (umbraco/Umbraco-MCP-Base#224). mcp-hosted resolves the env override with `??`, so a blank `UMBRACO_EXPECTED_MAJOR` disables its check instead of falling back (umbraco/Umbraco-MCP-Base#426).
 
 ## Modes and Slices
 

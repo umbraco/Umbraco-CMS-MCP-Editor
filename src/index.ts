@@ -18,7 +18,6 @@ import {
   setServerRef,
   initializeUmbracoFetch,
   useDraft202012ToolSchemas,
-  getVersionCheckMessage,
   type CollectionConfiguration,
   type ToolCollectionExport,
 } from "@umbraco-cms/mcp-server-sdk";
@@ -40,7 +39,7 @@ import { mcpServers } from "./config/mcp-servers.js";
 // Import registries for tool filtering
 import { allModes, allModeNames, allSliceNames, loadServerConfig, clearConfigCache } from "./config/index.js";
 import { getExpectedUmbracoMajor } from "./config/expected-umbraco-major.js";
-import { checkStdioUmbracoVersion } from "./startup-version-check.js";
+import { applyStdioVersionGuard } from "./startup-version-check.js";
 
 // Server-level instructions sent to MCP clients during initialization.
 import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
@@ -68,8 +67,7 @@ const configLoader = createCollectionConfigLoader({
 // (instead of going via chainCms) works in stdio mode. Without this the SDK throws
 // "UmbracoFetch not initialized" because the subprocess that runs the chained CMS
 // server sets up its own UmbracoFetch — this editor MCP process never did.
-// This must also happen before the version check below, which calls
-// UmbracoManagementClient directly.
+// Also needed by the version check below.
 initializeUmbracoFetch({
   baseUrl: serverConfig.umbraco.auth.baseUrl,
   clientId: serverConfig.umbraco.auth.clientId,
@@ -83,19 +81,10 @@ const filterConfig: CollectionConfiguration = configLoader.loadFromConfig(server
 // MCP Server Setup
 // ============================================================================
 
-// Stdio warns, it never blocks (matching the hosted worker — see
-// src/startup-version-check.ts and CLAUDE.md's configuration notes).
-// `configureVersionCheckHook()` is never called here: this check only ever
-// feeds `instructions` below, so it must run — and the resulting message must
-// be read back out — before `new McpServer(...)` is constructed.
-// `@umbraco-cms/mcp-dev`'s own one-time block on its first *chained* tool
-// call is separate, pre-existing upstream behaviour and still fires on a
-// mismatch independently of this.
-await checkStdioUmbracoVersion({
-  mcpVersion: packageJson.version,
+// Must resolve before the server is built: any mismatch message goes into its instructions.
+const versionCheckMessage = await applyStdioVersionGuard({
   expectedUmbracoMajor: getExpectedUmbracoMajor(serverConfig.custom.expectedUmbracoMajor),
 });
-const versionCheckMessage = getVersionCheckMessage();
 const instructions = versionCheckMessage
   ? `${SERVER_INSTRUCTIONS}\n\n${versionCheckMessage}`
   : SERVER_INSTRUCTIONS;

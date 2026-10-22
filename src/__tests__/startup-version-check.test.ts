@@ -1,92 +1,83 @@
 /**
- * Unit tests for the stdio-only startup version check — no live Umbraco
- * needed. Drives `checkStdioUmbracoVersion` with a fake `getServerInformation`
- * for the mismatch, match, and unreachable-CMS cases, asserting
- * `getVersionCheckMessage()` ends up non-null / null and that the check never
- * throws (CheckVersionOptions.md requirement 6/7 for issue #247).
- *
- * `configureVersionCheckHook()` is never called here — asserted via a static
- * source check rather than `jest.spyOn` on the SDK's named exports: the SDK
- * is published as native ESM, whose module-namespace properties are
- * non-configurable live bindings, so `jest.spyOn`/`Object.defineProperty`
- * cannot replace them (the attempt throws "Cannot redefine property").
- * A real `VersionCheckService` instance is used per test (instead of the
- * SDK's module-level singleton) so cases don't leak state into each other.
+ * Unit tests for the stdio Umbraco-major guard. CI's demo site always matches,
+ * so a fake `getServerInformation` drives the mismatch / match / unreachable
+ * cases, and a tool wrapped with `withStandardDecorators` (as every editor
+ * tool is) proves whether the first call is blocked. Each test uses its own
+ * `VersionCheckService` so no state leaks between cases.
  */
+import { describe, it, expect, jest } from "@jest/globals";
+import { z } from "zod";
+import {
+  VersionCheckService,
+  withStandardDecorators,
+  type ToolDefinition,
+  type VersionCheckClient,
+} from "@umbraco-cms/mcp-server-sdk";
+import { applyStdioVersionGuard } from "../startup-version-check.js";
+import { callTool } from "../testing/call-tool-with-validation.js";
 
-import { describe, it, expect } from "@jest/globals";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { VersionCheckService, getVersionCheckMessage } from "@umbraco-cms/mcp-server-sdk";
-import { checkStdioUmbracoVersion } from "../startup-version-check.js";
+const outputSchema = z.object({ ok: z.boolean() });
 
-describe("checkStdioUmbracoVersion", () => {
-  it("sets a non-null message on a major-version mismatch", async () => {
-    const service = new VersionCheckService();
+function buildTool() {
+  const handler = jest.fn(async () => ({
+    content: [{ type: "text" as const, text: "ran" }],
+    structuredContent: { ok: true },
+  }));
+  const definition: ToolDefinition<Record<string, never>, typeof outputSchema> = {
+    name: "fake-tool",
+    description: "A fake tool for version-guard tests.",
+    inputSchema: {},
+    outputSchema,
+    slices: ["read"],
+    annotations: { readOnlyHint: true },
+    handler,
+  };
+  return { tool: withStandardDecorators(definition), handler };
+}
 
-    await checkStdioUmbracoVersion({
-      mcpVersion: "18.0.0",
-      expectedUmbracoMajor: "18",
-      service,
-      client: {
-        getServerInformation: async () => ({ version: "17.2.0" }),
+function serverReporting(version: string): VersionCheckClient {
+  return { getServerInformation: async () => ({ version }) };
+}
+
+async function guard(client: VersionCheckClient) {
+  return applyStdioVersionGuard({ expectedUmbracoMajor: "18", client, service: new VersionCheckService() });
+}
+
+describe("applyStdioVersionGuard", () => {
+  it("on a mismatch, returns the message and blocks the first tool call once", async () => {
+    const message = await guard(serverReporting("17.2.0"));
+    expect(message).toMatch(/version mismatch/i);
+
+    const { tool, handler } = buildTool();
+    const blocked = await callTool(tool, {}, {});
+    expect(blocked.isError).toBe(true);
+    expect(handler).not.toHaveBeenCalled();
+
+    const retry = await callTool(tool, {}, {});
+    expect(retry.isError).toBeFalsy();
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("on a match, returns no message and blocks nothing", async () => {
+    expect(await guard(serverReporting("18.3.1"))).toBeNull();
+
+    const { tool, handler } = buildTool();
+    const result = await callTool(tool, {}, {});
+    expect(result.isError).toBeFalsy();
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("when the CMS is unreachable, never throws and blocks nothing", async () => {
+    const message = await guard({
+      getServerInformation: async () => {
+        throw new Error("fetch failed: ECONNREFUSED");
       },
     });
+    expect(message).toContain("Unable to verify");
 
-    expect(getVersionCheckMessage(service)).not.toBeNull();
-    expect(getVersionCheckMessage(service)).toContain("Version Mismatch");
-  });
-
-  it("sets no message when the major versions match", async () => {
-    const service = new VersionCheckService();
-
-    await checkStdioUmbracoVersion({
-      mcpVersion: "18.0.0",
-      expectedUmbracoMajor: "18",
-      service,
-      client: {
-        getServerInformation: async () => ({ version: "18.3.1" }),
-      },
-    });
-
-    expect(getVersionCheckMessage(service)).toBeNull();
-  });
-
-  it("never throws when the CMS is unreachable, and sets a diagnostic message", async () => {
-    const service = new VersionCheckService();
-
-    await expect(
-      checkStdioUmbracoVersion({
-        mcpVersion: "18.0.0",
-        expectedUmbracoMajor: "18",
-        service,
-        client: {
-          getServerInformation: async () => {
-            throw new Error("fetch failed: ECONNREFUSED");
-          },
-        },
-      }),
-    ).resolves.toBeUndefined();
-
-    expect(getVersionCheckMessage(service)).toContain("Unable to verify");
-  });
-
-  it("never imports configureVersionCheckHook — stdio warns, it never blocks", () => {
-    // See the file-level comment: the SDK's ESM exports can't be spied on
-    // directly, so this asserts the invariant at the source level instead.
-    // The function can only be called if it is imported from the SDK, so
-    // checking the import specifier (rather than the whole file, which
-    // mentions the name in prose/doc comments) is both sufficient and not
-    // tripped up by those comments. PR #109 (closed in favour of issue #247)
-    // added exactly this call; this guards against its reintroduction.
-    const source = readFileSync(
-      fileURLToPath(new URL("../startup-version-check.ts", import.meta.url)),
-      "utf8",
-    );
-    const sdkImportMatch = source.match(
-      /import\s*{([^}]*)}\s*from\s*["']@umbraco-cms\/mcp-server-sdk["']/,
-    );
-    expect(sdkImportMatch).not.toBeNull();
-    expect(sdkImportMatch![1]).not.toContain("configureVersionCheckHook");
+    const { tool, handler } = buildTool();
+    const result = await callTool(tool, {}, {});
+    expect(result.isError).toBeFalsy();
+    expect(handler).toHaveBeenCalledTimes(1);
   });
 });
