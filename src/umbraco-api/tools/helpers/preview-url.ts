@@ -9,8 +9,8 @@
  * can communicate that constraint when relaying the URL to the editor.
  */
 
-import { UmbracoManagementClient } from "@umbraco-cms/mcp-server-sdk";
-import { chainCms } from "../../cms-chain.js";
+import { UmbracoManagementClient, createToolResultError } from "@umbraco-cms/mcp-server-sdk";
+import { chainCms, extractInnerProblemDetails } from "../../cms-chain.js";
 import { z } from "zod";
 import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
@@ -23,6 +23,19 @@ const DEFAULT_PROVIDER_ALIAS = "umbDocumentUrlProvider";
 // `maxQueryString`) cap out well below that. 40 ids keeps every chunk's query
 // string comfortably under such limits.
 const URL_BATCH_CHUNK_SIZE = 40;
+
+/**
+ * Format the `title`/`detail` out of a chained call's ProblemDetails-shaped
+ * `errorResult` for inclusion in a `console.warn`. Mirrors the cast pattern
+ * `block-inspector.ts` and `bulk-handler.ts`'s `parseBulkError` already use
+ * around `extractInnerProblemDetails`.
+ */
+function describeChainError(errorResult: ReturnType<typeof createToolResultError>): string {
+  const problem = extractInnerProblemDetails(errorResult as Record<string, unknown>);
+  const title = typeof problem.title === "string" ? problem.title : undefined;
+  const detail = typeof problem.detail === "string" ? problem.detail : undefined;
+  return [title, detail].filter(Boolean).join(": ") || "unknown error";
+}
 
 function chunkIds(ids: string[], size: number): string[][] {
   const chunks: string[][] = [];
@@ -256,9 +269,18 @@ export function flattenPublishedUrls(urls: unknown): string[] {
 export async function fetchPublishedUrls(id: string): Promise<string[]> {
   try {
     const result = await chainCms("get-document-urls", { id: [id] });
-    if (!result.ok) return [];
+    if (!result.ok) {
+      console.warn(
+        `fetchPublishedUrls: get-document-urls failed for id ${id} — returning no published URLs: ${describeChainError(result.errorResult)}`,
+      );
+      return [];
+    }
     return flattenPublishedUrls(result.data.items);
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `fetchPublishedUrls: unexpected error fetching published URLs for id ${id} — returning no published URLs: ${message}`,
+    );
     return [];
   }
 }
@@ -289,7 +311,7 @@ export async function fetchPublishedUrlsBatch(
       const result = await chainCms("get-document-urls", { id: idChunk });
       if (!result.ok) {
         console.warn(
-          `fetchPublishedUrlsBatch: get-document-urls failed for a chunk of ${idChunk.length} ids — those ids will have no published URL`,
+          `fetchPublishedUrlsBatch: get-document-urls failed for a chunk of ${idChunk.length} ids — those ids will have no published URL: ${describeChainError(result.errorResult)}`,
         );
         continue;
       }
