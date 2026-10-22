@@ -220,6 +220,7 @@ entries, and the tree-walk audit — its own change.
 | `UMBRACO_INCLUDE_SLICES` | `--umbraco-include-slices` | Include only these slices |
 | `UMBRACO_EXCLUDE_SLICES` | `--umbraco-exclude-slices` | Exclude these slices |
 | `UMBRACO_READONLY` | `--umbraco-readonly` | Block write operations |
+| `UMBRACO_DRY_RUN` | `--umbraco-dry-run` | Preview mutations instead of executing them (read-only tools unaffected) |
 | `DISABLE_MCP_CHAINING` | `--disable-mcp-chaining` | Disable MCP server chaining |
 
 Custom fields defined in `config/server-config.ts`.

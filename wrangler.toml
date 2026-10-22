@@ -41,6 +41,7 @@ new_sqlite_classes = ["UmbracoMcpAgent"]
 # UMBRACO_INCLUDE_SLICES = ""
 # UMBRACO_EXCLUDE_SLICES = ""
 # UMBRACO_READONLY = "false"
+# UMBRACO_DRY_RUN = "false"
 #
 # Umbraco Cloud multi-tenant routing — set to "true" to engage the Cloud
 # preset (MCP endpoint becomes /at/{alias}/, per-request URLs resolve to
