@@ -76,9 +76,8 @@ const cmsChainedServer: ChainedServerConsentConfig = {
 const options: HostedMcpServerOptions = {
   name: "umbraco-cms-editor-mcp-hosted",
   version: packageJson.version,
-  // This package's major tracks the Umbraco major it targets (18.x on
-  // dev/main, 17.x on v17/*). Tags every span with umbraco.mcp.umbraco_major
-  // and enables the hosted version check, which folds a mismatch warning into
+  // The generated target major (see getExpectedUmbracoMajor). Tags every
+  // span with umbraco.mcp.umbraco_major and enables the hosted version check, which folds a mismatch warning into
   // the request's instructions (never blocks). `env.UMBRACO_EXPECTED_MAJOR`
   // overrides it per deployment (applied by mcp-hosted per request).
   expectedUmbracoMajor: getExpectedUmbracoMajor(),

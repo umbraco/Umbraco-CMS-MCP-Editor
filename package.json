@@ -17,6 +17,7 @@
     "sync-lockfile": "npm install --package-lock-only --ignore-scripts",
     "build": "tsup --config tsup.config.ts",
     "compile": "tsc --noEmit",
+    "generate": "node scripts/generate-target-major.mjs",
     "watch": "tsup --config tsup.config.ts --watch",
     "start:umbraco": "bash scripts/start-umbraco.sh",
     "stop:umbraco": "bash scripts/stop-umbraco.sh",

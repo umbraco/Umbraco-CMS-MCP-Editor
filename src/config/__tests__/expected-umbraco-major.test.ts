@@ -1,20 +1,20 @@
 /**
  * Pure unit tests for getExpectedUmbracoMajor — no live Umbraco needed.
  *
- * `override?.trim() || packageJson.version.split(".")[0]` must match
+ * `override?.trim() || UMBRACO_TARGET_MAJOR` must match
  * @umbraco-cms/mcp-dev's own `process.env.UMBRACO_EXPECTED_MAJOR?.trim() ||
  * UMBRACO_TARGET_MAJOR` — an override that is empty or whitespace-only falls
- * back to the package-version default rather than disabling the check.
+ * back to the generated default rather than disabling the check.
  */
 
 import { describe, it, expect } from "@jest/globals";
-import packageJson from "../../../package.json" with { type: "json" };
 import { getExpectedUmbracoMajor } from "../expected-umbraco-major.js";
+import { UMBRACO_TARGET_MAJOR } from "../umbraco-target.generated.js";
 
 describe("getExpectedUmbracoMajor", () => {
-  const defaultMajor = packageJson.version.split(".")[0];
+  const defaultMajor = UMBRACO_TARGET_MAJOR;
 
-  it("returns the package-version major when no override is given", () => {
+  it("returns the generated target major when no override is given", () => {
     expect(getExpectedUmbracoMajor()).toBe(defaultMajor);
     expect(getExpectedUmbracoMajor(undefined)).toBe(defaultMajor);
   });
