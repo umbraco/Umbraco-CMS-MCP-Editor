@@ -22,11 +22,15 @@ import { join } from "node:path";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockChainCms = jest.fn<(...args: any[]) => any>();
 const cmsChainPath = fileURLToPath(new URL("../../../cms-chain.ts", import.meta.url));
+const actualCmsChain = await import(cmsChainPath);
 jest.unstable_mockModule(cmsChainPath, () => ({
+  ...actualCmsChain,
   chainCms: mockChainCms,
 }));
 
-const { fetchPublishedUrlsBatch, _resetCacheForTests } = await import("../preview-url.js");
+const { fetchPublishedUrlsBatch, fetchPublishedUrls, _resetCacheForTests } = await import(
+  "../preview-url.js"
+);
 
 function makeIds(count: number): string[] {
   return Array.from(
@@ -133,7 +137,23 @@ describe("fetchPublishedUrlsBatch — chunking", () => {
 
     mockChainCms.mockImplementation(async (_toolName: string, args: { id: string[] }) => {
       if (args.id[0] === ids[40]) {
-        return { ok: false, errorResult: { isError: true, content: [] } };
+        return {
+          ok: false,
+          errorResult: {
+            isError: true,
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  type: "Error",
+                  title: "Document not found",
+                  status: 404,
+                  detail: "No document exists with the requested id.",
+                }),
+              },
+            ],
+          },
+        };
       }
       return {
         ok: true,
@@ -155,6 +175,8 @@ describe("fetchPublishedUrlsBatch — chunking", () => {
       expect(result.has(id)).toBe(false);
     }
     expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(String(warnSpy.mock.calls[0][0])).toContain("Document not found");
+    expect(String(warnSpy.mock.calls[0][0])).toContain("No document exists with the requested id.");
   });
 
   it("keeps the other chunks' results when one chunk throws", async () => {
@@ -183,6 +205,82 @@ describe("fetchPublishedUrlsBatch — chunking", () => {
     for (const id of ids.slice(40, 80)) {
       expect(result.has(id)).toBe(false);
     }
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(String(warnSpy.mock.calls[0][0])).toContain("network error");
+  });
+});
+
+describe("fetchPublishedUrls — warn content on failure (#239)", () => {
+  // Same tmpdir/.env isolation as the batch describe block above — not
+  // load-bearing for these assertions (they only inspect console.warn), but
+  // kept consistent with the rest of this file.
+  let tmpDir: string;
+  let origCwd: () => string;
+  const originalBaseUrl = process.env.UMBRACO_BASE_URL;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let warnSpy: any;
+
+  beforeEach(() => {
+    mockChainCms.mockReset();
+    tmpDir = mkdtempSync(join(tmpdir(), "preview-url-single-"));
+    origCwd = process.cwd;
+    process.cwd = () => tmpDir;
+    delete process.env.UMBRACO_BASE_URL;
+    _resetCacheForTests();
+    warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    process.cwd = origCwd;
+    if (originalBaseUrl === undefined) {
+      delete process.env.UMBRACO_BASE_URL;
+    } else {
+      process.env.UMBRACO_BASE_URL = originalBaseUrl;
+    }
+    _resetCacheForTests();
+    warnSpy.mockRestore();
+    try {
+      rmSync(tmpDir, { recursive: true, force: true });
+    } catch {
+      // best effort
+    }
+  });
+
+  it("warns with the real title/detail when the chained call resolves !ok", async () => {
+    mockChainCms.mockResolvedValue({
+      ok: false,
+      errorResult: {
+        isError: true,
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              type: "Error",
+              title: "Document not found",
+              status: 404,
+              detail: "No document exists with the requested id.",
+            }),
+          },
+        ],
+      },
+    });
+
+    const urls = await fetchPublishedUrls("00000000-0000-0000-0000-000000000001");
+
+    expect(urls).toEqual([]);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(String(warnSpy.mock.calls[0][0])).toContain("Document not found");
+    expect(String(warnSpy.mock.calls[0][0])).toContain("No document exists with the requested id.");
+  });
+
+  it("warns with the thrown error's message when the chained call throws", async () => {
+    mockChainCms.mockImplementation(async () => {
+      throw new Error("network error");
+    });
+
+    const urls = await fetchPublishedUrls("00000000-0000-0000-0000-000000000001");
+
+    expect(urls).toEqual([]);
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(String(warnSpy.mock.calls[0][0])).toContain("network error");
   });
