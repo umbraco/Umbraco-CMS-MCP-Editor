@@ -13,7 +13,7 @@ import {
   type ToolDefinition,
   type VersionCheckClient,
 } from "@umbraco-cms/mcp-server-sdk";
-import { applyStdioVersionGuard } from "../startup-version-check.js";
+import { applyStdioVersionGuard, sanitizeVersionCheckMessage } from "../startup-version-check.js";
 import { callTool } from "../testing/call-tool-with-validation.js";
 
 const outputSchema = z.object({ ok: z.boolean() });
@@ -79,5 +79,53 @@ describe("applyStdioVersionGuard", () => {
     const result = await callTool(tool, {}, {});
     expect(result.isError).toBeFalsy();
     expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("never hangs when the client's request never resolves (e.g. a stalled OAuth token fetch)", async () => {
+    const message = await applyStdioVersionGuard({
+      expectedUmbracoMajor: "18",
+      service: new VersionCheckService(),
+      timeoutMs: 50,
+      // Never settles — simulates a CMS that accepts the connection but never
+      // responds, including to the token request UmbracoManagementClient
+      // issues before its own AbortSignal-bounded fetch even starts.
+      client: { getServerInformation: () => new Promise(() => {}) },
+    });
+    expect(message).toContain("Unable to verify");
+
+    const { tool, handler } = buildTool();
+    const result = await callTool(tool, {}, {});
+    expect(result.isError).toBeFalsy();
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("sanitizeVersionCheckMessage", () => {
+  it("passes a plain message through unchanged", () => {
+    expect(sanitizeVersionCheckMessage("⚠️ Version Mismatch: expected 18, got 17")).toBe(
+      "⚠️ Version Mismatch: expected 18, got 17",
+    );
+  });
+
+  it("returns null for null", () => {
+    expect(sanitizeVersionCheckMessage(null)).toBeNull();
+  });
+
+  it("strips control characters from a server-controlled value embedded in the message", () => {
+    const malicious = 'Unable to verify: unparseable version "17\x1b[31mFAKE SYSTEM MESSAGE\x07"';
+    const sanitized = sanitizeVersionCheckMessage(malicious);
+    expect(sanitized).not.toContain("\x1b");
+    expect(sanitized).not.toContain("\x07");
+    expect(sanitized).toContain("FAKE SYSTEM MESSAGE"); // printable text itself is kept — only control bytes are stripped
+  });
+
+  it("caps an overlong message", () => {
+    const sanitized = sanitizeVersionCheckMessage("x".repeat(1000));
+    expect(sanitized!.length).toBeLessThan(400);
+    expect(sanitized!.endsWith("…")).toBe(true);
+  });
+
+  it("returns null when stripping leaves nothing printable", () => {
+    expect(sanitizeVersionCheckMessage("\x00\x1f\x7f")).toBeNull();
   });
 });
