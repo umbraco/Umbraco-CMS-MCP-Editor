@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { fetchPrimaryPublishedUrl, fetchPrimaryPublishedUrlsBatch } from "../../helpers/preview-url.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the content page or media item to look up references for"),
@@ -23,6 +24,42 @@ const outputSchema = z.object({
   referenceCount: z.number().describe("Total number of pages referencing this item"),
 });
 
+interface ReferencedByEntry {
+  id: string;
+  name: string;
+  url: string;
+  documentType: string;
+}
+
+/**
+ * Build the `referencedBy` list from a `*-referenced-by` response, resolving
+ * published URLs for the document entries in a single batch request (never
+ * one `get-document-urls` call per referencing page).
+ */
+async function buildReferencedBy(refItems: any[]): Promise<ReferencedByEntry[]> {
+  const docRefIds = refItems
+    .filter((ref) => ref.$type === "DocumentReferenceResponseModel")
+    .map((ref) => ref.id as string);
+  const urlsById = await fetchPrimaryPublishedUrlsBatch(docRefIds);
+
+  return refItems.map((ref) => {
+    if (ref.$type === "DocumentReferenceResponseModel") {
+      return {
+        id: ref.id,
+        name: ref.variants?.[0]?.name ?? ref.name ?? "(unnamed)",
+        url: urlsById.get(ref.id) ?? "",
+        documentType: ref.documentType?.alias ?? "",
+      };
+    }
+    return {
+      id: ref.id,
+      name: ref.name ?? "(unnamed)",
+      url: "",
+      documentType: "",
+    };
+  });
+}
+
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "report-content-references",
   description: "Find which pages reference a given content page or media item. Useful before deleting or restructuring content to understand the impact.",
@@ -38,34 +75,14 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       ]);
 
       let name = "Unknown";
-      let url = "";
       if (docResult.ok) {
-        const doc = docResult.data;
-        name = doc.variants?.[0]?.name ?? "Unknown";
-        // GetDocumentByIdOutput doesn't include `urls` — runtime field, not in the upstream Zod schema.
-        url = (doc as { urls?: { url?: string }[] }).urls?.[0]?.url ?? "";
+        name = docResult.data.variants?.[0]?.name ?? "Unknown";
       }
+      const url = await fetchPrimaryPublishedUrl(id);
 
-      const referencedBy: { id: string; name: string; url: string; documentType: string }[] = [];
-      if (refResult.ok) {
-        for (const ref of refResult.data.items ?? []) {
-          if (ref.$type === "DocumentReferenceResponseModel") {
-            referencedBy.push({
-              id: ref.id,
-              name: ref.variants?.[0]?.name ?? ref.name ?? "(unnamed)",
-              url: (ref as { urls?: { url?: string }[]; url?: string }).urls?.[0]?.url ?? (ref as { url?: string }).url ?? "",
-              documentType: ref.documentType?.alias ?? "",
-            });
-          } else {
-            referencedBy.push({
-              id: ref.id,
-              name: ref.name ?? "(unnamed)",
-              url: "",
-              documentType: "",
-            });
-          }
-        }
-      }
+      const referencedBy = refResult.ok
+        ? await buildReferencedBy(refResult.data.items ?? [])
+        : [];
 
       return createToolResult({
         id,
@@ -93,26 +110,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         url = entry?.urlInfos?.[0]?.url ?? "";
       }
 
-      const referencedBy: { id: string; name: string; url: string; documentType: string }[] = [];
-      if (refResult.ok) {
-        for (const ref of refResult.data.items ?? []) {
-          if (ref.$type === "DocumentReferenceResponseModel") {
-            referencedBy.push({
-              id: ref.id,
-              name: ref.variants?.[0]?.name ?? ref.name ?? "(unnamed)",
-              url: (ref as { urls?: { url?: string }[]; url?: string }).urls?.[0]?.url ?? (ref as { url?: string }).url ?? "",
-              documentType: ref.documentType?.alias ?? "",
-            });
-          } else {
-            referencedBy.push({
-              id: ref.id,
-              name: ref.name ?? "(unnamed)",
-              url: "",
-              documentType: "",
-            });
-          }
-        }
-      }
+      const referencedBy = refResult.ok
+        ? await buildReferencedBy(refResult.data.items ?? [])
+        : [];
 
       return createToolResult({
         id,

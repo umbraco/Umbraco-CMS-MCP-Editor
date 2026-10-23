@@ -6,6 +6,7 @@
  */
 
 import { chainCms } from "../../cms-chain.js";
+import { fetchPrimaryPublishedUrlsBatch } from "./preview-url.js";
 
 // UUID v4 pattern for detecting picker references
 const UUID_REGEX = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
@@ -288,20 +289,22 @@ export async function resolveOutboundIds(
     ? candidateIds.filter((cid) => cid !== excludeId.toLowerCase())
     : candidateIds;
 
+  // One get-document-urls request for the whole batch — never fetch per item.
+  const urlsById = await fetchPrimaryPublishedUrlsBatch(filtered);
+
   await Promise.all(
     filtered.map(async (refId) => {
       try {
         const docResult = await chainCms("get-document-by-id", { id: refId });
         if (docResult.ok) {
           const refDoc = docResult.data;
-          // GetDocumentByIdOutput doesn't include `urls` or documentType.alias —
-          // runtime fields, not in the upstream Zod schema.
-          const docExtra = refDoc as { urls?: { url?: string }[] };
+          // GetDocumentByIdOutput doesn't include documentType.alias — runtime
+          // field, not in the upstream Zod schema.
           const docType = refDoc.documentType as { alias?: string };
           internalPages.push({
             id: refId,
             name: refDoc.variants?.[0]?.name ?? "Unknown",
-            url: docExtra.urls?.[0]?.url ?? "",
+            url: urlsById.get(refId) ?? "",
             documentType: docType?.alias ?? "",
           });
           return;

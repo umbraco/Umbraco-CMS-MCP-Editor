@@ -20,7 +20,9 @@ import { sections } from "../../../../auth/auth-policies.js";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockChainCms = jest.fn<(...args: any[]) => any>();
 const cmsChainPath = fileURLToPath(new URL("../../../cms-chain.ts", import.meta.url));
+const actualCmsChain = await import(cmsChainPath);
 jest.unstable_mockModule(cmsChainPath, () => ({
+  ...actualCmsChain,
   chainCms: mockChainCms,
 }));
 
