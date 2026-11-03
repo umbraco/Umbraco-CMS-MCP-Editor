@@ -11,6 +11,7 @@ import { callTool } from "../../../../testing/call-tool-with-validation.js";
 import createPageTool from "../post/create-page.js";
 import getPageTool from "../get/get-page.js";
 import { CompositionDoctypeFixture } from "./helpers/composition-doctype-fixture.js";
+import { VariantPageFixture } from "./helpers/variant-page-fixture.js";
 
 const TEST_PAGE_NAME = "_Test Create Page";
 
@@ -41,6 +42,7 @@ describe("create-page", () => {
         name: TEST_PAGE_NAME,
         documentTypeId: testDocumentTypeId,
         parentId: testPageId,
+        culture: undefined,
         values: undefined,
       },
       extra,
@@ -115,6 +117,91 @@ describe("create-page", () => {
       // No page should have been created — searching for it should find nothing.
       const found = await ContentTestHelper.findDocument("_Test Create Page Bogus Alias");
       expect(found).toBeUndefined();
+    }, 30000);
+  });
+
+  describe("culture-variant document types", () => {
+    const fixture = new VariantPageFixture();
+    let documentTypeId: string;
+    let propertyAlias: string;
+    let defaultCulture: string;
+    let secondaryCulture: string;
+
+    beforeAll(async () => {
+      ({ documentTypeId, propertyAlias, defaultCulture, secondaryCulture } = await fixture.create(extra));
+    }, 120000);
+
+    afterAll(async () => {
+      await fixture.cleanup();
+    }, 30000);
+
+    it("creates the page in the default language when no culture is given", async () => {
+      const result = await callTool(
+        createPageTool,
+        {
+          name: "_Test Create Page Variant Default",
+          documentTypeId,
+          parentId: undefined,
+          values: [{ alias: propertyAlias, value: "Default culture title" }],
+        },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      lastCreatedId = data.id;
+
+      const doc = await VariantPageFixture.getDocument(data.id);
+      expect(doc.variants.map((v: any) => v.culture)).toEqual([defaultCulture]);
+      const variant = doc.variants.find((v: any) => v.culture === defaultCulture);
+      expect(variant?.name).toBe("_Test Create Page Variant Default");
+      expect(variant?.state).toBe("Draft");
+      // A value without a culture on a culture-variant property lands in the page's culture.
+      const value = doc.values.find((v: any) => v.alias === propertyAlias);
+      expect(value?.culture).toBe(defaultCulture);
+      expect(value?.value).toBe("Default culture title");
+    }, 30000);
+
+    it("creates the page in the requested culture", async () => {
+      const result = await callTool(
+        createPageTool,
+        {
+          name: "_Test Create Page Variant Secondary",
+          documentTypeId,
+          parentId: undefined,
+          culture: secondaryCulture,
+          values: undefined,
+        },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      lastCreatedId = data.id;
+
+      const doc = await VariantPageFixture.getDocument(data.id);
+      expect(doc.variants.map((v: any) => v.culture)).toEqual([secondaryCulture]);
+    }, 30000);
+
+    it("ignores culture for a document type that does not vary by culture", async () => {
+      const result = await callTool(
+        createPageTool,
+        {
+          name: "_Test Create Page Invariant With Culture",
+          documentTypeId: testDocumentTypeId,
+          parentId: testPageId,
+          culture: secondaryCulture,
+          values: undefined,
+        },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      lastCreatedId = data.id;
+
+      const doc = await VariantPageFixture.getDocument(data.id);
+      expect(doc.variants.map((v: any) => v.culture)).toEqual([null]);
     }, 30000);
   });
 });
