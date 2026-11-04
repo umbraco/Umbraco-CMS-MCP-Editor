@@ -19,6 +19,11 @@
  * composition failed to load and an alias doesn't resolve, that alias might
  * live on the composition we couldn't fetch — the error says so rather than
  * wrongly calling it "not a property".
+ *
+ * When `defaultCulture` is given (the culture the page is created in, see
+ * resolve-page-culture.ts), a value without an explicit culture for a property
+ * that varies by culture gets that culture — Umbraco rejects a `culture: null`
+ * value on a culture-variant property.
  */
 
 import { createToolResultError } from "@umbraco-cms/mcp-server-sdk";
@@ -48,11 +53,13 @@ export type ResolveEditorAliasesResult =
  * Resolve `editorAlias` for every value against `documentTypeId`'s own and
  * composition-inherited properties. Returns a tool error — never a partial
  * resolution — when one or more aliases don't match any property on the
- * document type.
+ * document type. Values on culture-variant properties without an explicit
+ * culture get `defaultCulture`.
  */
 export async function resolveEditorAliases(
   documentTypeId: string,
   values: PageValueInput[] | undefined,
+  defaultCulture: string | null = null,
 ): Promise<ResolveEditorAliasesResult> {
   if (!values || values.length === 0) {
     return { ok: true, values: [] };
@@ -83,9 +90,11 @@ export async function resolveEditorAliases(
   );
 
   const editorAliasByPropertyAlias = new Map<string, string>();
+  const cultureVariantAliases = new Set<string>();
   for (const prop of docTypeResult.properties) {
     const editorAlias = prop.dataType?.id ? editorAliasByDataTypeId.get(prop.dataType.id) : undefined;
     if (prop.alias && editorAlias) editorAliasByPropertyAlias.set(prop.alias, editorAlias);
+    if (prop.alias && prop.variesByCulture) cultureVariantAliases.add(prop.alias);
   }
 
   // Two distinct failure modes get two distinct messages: an alias that isn't
@@ -103,7 +112,7 @@ export async function resolveEditorAliases(
     return {
       alias: v.alias,
       value: v.value,
-      culture: v.culture ?? null,
+      culture: v.culture ?? (cultureVariantAliases.has(v.alias) ? defaultCulture : null),
       segment: v.segment ?? null,
       editorAlias: editorAlias ?? "",
     };
