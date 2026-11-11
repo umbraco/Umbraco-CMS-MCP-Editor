@@ -24,18 +24,13 @@ import {
   createPerRequestServer,
   getServerOptions,
   type HostedMcpEnv,
-  type HostedMcpServerOptions,
   type AuthProps,
-  type ChainedServerConsentConfig,
 } from "@umbraco-cms/mcp-hosted";
 import { umbracoCloudSiteRouting } from "@umbraco-cms/mcp-hosted/cloud";
 
-// Import tool collections and registries (shared with stdio mode via collections.ts)
-import { collections, allModes, allModeNames, allSliceNames } from "./collections.js";
-import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
+import { createEditorHostedOptions } from "./hosted/server-options.js";
 import { registerCmsChainedServer } from "./umbraco-api/cms-chained-server.js";
 import { applyWorkerDryRun } from "./config/worker-dry-run.js";
-import packageJson from "../package.json" with { type: "json" };
 
 // @umbraco-cms/mcp-hosted's HostedMcpEnv doesn't read UMBRACO_DRY_RUN (unlike
 // UMBRACO_READONLY, which it does read) — see applyWorkerDryRun for why this
@@ -43,22 +38,11 @@ import packageJson from "../package.json" with { type: "json" };
 type EditorMcpEnv = HostedMcpEnv & { UMBRACO_DRY_RUN?: string };
 
 // mcp-dev is loaded on first request, not at startup (see cms-collections-loader.ts)
-import { getLoadedCmsCollections, loadCmsCollections, needsCmsCollections } from "./umbraco-api/cms-collections-loader.js";
+import { loadCmsCollections, needsCmsCollections } from "./umbraco-api/cms-collections-loader.js";
 
 // ============================================================================
 // Server Configuration
 // ============================================================================
-
-// Getters, so mcp-dev's collections are only read at request time (consent
-// screen, /info), after the fetch entry below has loaded them.
-const cmsChainedServer: ChainedServerConsentConfig = {
-  name: "cms",
-  displayName: "umbraco-cms-mcp",
-  get modeRegistry() { return getLoadedCmsCollections().allModes; },
-  get collections() { return getLoadedCmsCollections().collections; },
-  get allModeNames() { return getLoadedCmsCollections().allModeNames; },
-  get allSliceNames() { return getLoadedCmsCollections().allSliceNames; },
-};
 
 // Umbraco Cloud multi-tenancy.
 // Wired unconditionally; the lib gates engagement at request time via
@@ -72,23 +56,7 @@ const cmsChainedServer: ChainedServerConsentConfig = {
 // Each Cloud project must register an OAuth client with the id below.
 // Typed so a misplaced option fails to compile rather than being silently
 // dropped by getServerOptions().
-const options: HostedMcpServerOptions = {
-  name: "umbraco-cms-editor-mcp-hosted",
-  version: packageJson.version,
-  // This package's major tracks the Umbraco major it targets (18.x on
-  // dev/main, 17.x on v17/*). Tags every span with umbraco.mcp.umbraco_major
-  // and enables the hosted version check, which folds a mismatch warning into
-  // the request's instructions (never blocks). `env.UMBRACO_EXPECTED_MAJOR`
-  // overrides it per deployment.
-  expectedUmbracoMajor: packageJson.version.split(".")[0],
-  instructions: SERVER_INSTRUCTIONS,
-  collections,
-  modeRegistry: allModes,
-  allModeNames,
-  allSliceNames,
-  enableConsentToolSelection: false,
-  authOptions: { showReauthButton: true },
-  chainedServers: [cmsChainedServer],
+const options = createEditorHostedOptions({
   siteRouting: umbracoCloudSiteRouting({
     oauthClientId: "umbraco-cms-editor-mcp-hosted",
   }),
@@ -96,7 +64,7 @@ const options: HostedMcpServerOptions = {
   // mcp.server.init, mcp.auth.refresh). Without it the Worker only emits
   // Cloudflare's automatic spans.
   telemetry: { tracing },
-};
+});
 
 const serverOptions = getServerOptions(options);
 

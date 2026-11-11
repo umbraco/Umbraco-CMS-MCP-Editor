@@ -1,6 +1,8 @@
 /**
- * HostedMcpServerOptions for the Azure Node host.
- * Single-tenant only — Cloud /at/{alias}/ routing stays on the Cloudflare Worker.
+ * Shared HostedMcpServerOptions for the Cloudflare Worker and the Azure Node host.
+ *
+ * Azure calls this with no extras and stays single-tenant.
+ * The Worker passes Cloud `/at/{alias}/` routing and telemetry through `extras`.
  */
 
 import type {
@@ -37,6 +39,11 @@ export function createEditorHostedOptions(
   return {
     name: "umbraco-cms-editor-mcp-hosted",
     version: packageJson.version,
+    // This package's major tracks the Umbraco major it targets (18.x on
+    // dev/main, 17.x on v17/*). Tags every span with umbraco.mcp.umbraco_major
+    // and enables the hosted version check, which folds a mismatch warning into
+    // the request's instructions (never blocks). `env.UMBRACO_EXPECTED_MAJOR`
+    // overrides it per deployment.
     expectedUmbracoMajor: packageJson.version.split(".")[0],
     instructions: SERVER_INSTRUCTIONS,
     collections,

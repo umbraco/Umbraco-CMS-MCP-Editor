@@ -18,10 +18,12 @@ import { registerCmsChainedServer } from "../umbraco-api/cms-chained-server.js";
 // read, a chained tree walk and a streaming media upload, from two sessions and
 // from sessions started mid-call.
 //
-// Server options mirror src/worker.ts (minus Cloudflare's `tracing`, which only
-// exists in workerd). `init` mirrors worker.ts init(): createPerRequestServer is
-// done by the check itself, then the chained CMS server is registered. If
-// init() ever sets up anything else per session, mirror it here too.
+// Server options mirror createEditorHostedOptions (minus Cloudflare's `tracing`
+// and Cloud site routing, which only exist on the Worker). Collections are
+// inlined because this file already imports mcp-dev. `init` mirrors worker.ts
+// init(): createPerRequestServer is done by the check itself, then the chained
+// CMS server is registered. If init() ever sets up anything else per session,
+// mirror it here too.
 const serverOptions = getServerOptions({
   name: "umbraco-cms-editor-mcp-hosted",
   version: "0.0.0-test",
