@@ -6,7 +6,7 @@ MCP server template for Umbraco add-ons using the @umbraco-cms/mcp-server-sdk.
 
 ### System Prerequisites
 
-- **Node.js 22+** is required. Check your version with `node --version`.
+- **Node.js 22.23.4+, 24.22.1+ or 26.12.1+** is required. Check your version with `node --version`. Earlier releases are affected by [CVE-2026-111497](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases) (Brotli decoder out-of-bounds write), which Node's built-in `fetch` reaches when it decompresses a Brotli response from Umbraco. Upgrading Node.js is the only fix.
 
 ### 1. Install Dependencies
 
