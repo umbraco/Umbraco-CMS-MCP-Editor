@@ -152,11 +152,10 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         return publishResult.errorResult;
       }
 
-      const savedPart = saved ? `Saved ${fieldNames.length} field(s) and ` : "";
-
       if (!publishResult.complete) {
+        const savedPrefix = saved ? `Saved ${fieldNames.length} field(s) on "${pageName}". ` : "";
         return createToolResult({
-          message: `${savedPart}"${pageName}" and its descendants are a large tree — publishing is still running in the background. Check again shortly.`,
+          message: `${savedPrefix}"${pageName}" and its descendants are a large tree — publishing is still running in the background. Check again shortly.`,
           id,
           name: pageName,
           saved,
@@ -166,6 +165,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         });
       }
 
+      const savedPart = saved ? `Saved ${fieldNames.length} field(s) and ` : "";
       return createToolResult({
         message: `${savedPart}published "${pageName}" and all descendants`,
         id,

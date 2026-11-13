@@ -25,6 +25,7 @@ const outputSchema = z.object({
     previousVersionId: z.string().optional(),
     error: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
     publishedUrls: publishedUrlsSchema.optional(),
+    publishPending: z.boolean().optional().describe("True when includeDescendants was requested and the CMS couldn't confirm the tree finished publishing in time — the operation is still running, not failed."),
   })),
   successCount: z.number(),
   failureCount: z.number(),
@@ -77,10 +78,15 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       // an empty array silently no-ops in Umbraco. Derive from the doc's variants.
       const cultures = item.cultures ?? [null];
       if (includeDescendants) {
-        const result = await publishWithDescendants(item.id, {
-          includeUnpublishedDescendants: false,
-          cultures: cultures.filter((c): c is string => c !== null),
-        });
+        // No follow-up polling here (unlike publish-page/save-and-publish):
+        // this runs sequentially per item, so stacking another ~60s wait per
+        // tree on top of the CMS's own ~60s internal wait could block a single
+        // bulk call for minutes. Report "still running" immediately instead.
+        const result = await publishWithDescendants(
+          item.id,
+          { includeUnpublishedDescendants: false, cultures: cultures.filter((c): c is string => c !== null) },
+          { followUp: false },
+        );
         if (!result.ok) return result.errorResult;
         if (!result.complete) stillPublishing.add(item.id);
         return null;
@@ -99,7 +105,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // except rows whose large-tree descendants publish is still running, where
     // there's no confirmed end state to resolve a URL from yet.
     for (const row of results) {
-      if (!row.success || stillPublishing.has(row.id)) continue;
+      if (!row.success) continue;
+      if (stillPublishing.has(row.id)) {
+        row.publishPending = true;
+        continue;
+      }
       row.publishedUrls = await fetchPublishedUrls(row.id);
     }
 

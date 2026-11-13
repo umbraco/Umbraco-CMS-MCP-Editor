@@ -2,9 +2,12 @@ import type { CmsTools, CmsToolsName } from "@umbraco-cms/mcp-dev/tool-types";
 import { createToolResultError, extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { mcpClientManager } from "./mcp-client.js";
 
+/** A chained tool call's failure arm — doesn't depend on the tool name, so other chained result types (e.g. `publishWithDescendants`'s) reuse it instead of hand-duplicating the shape. */
+export type ChainError = { ok: false; errorResult: ReturnType<typeof createToolResultError> };
+
 type CmsChainResult<TName extends CmsToolsName> =
   | { ok: true; data: CmsTools[TName]["output"] }
-  | { ok: false; errorResult: ReturnType<typeof createToolResultError> };
+  | ChainError;
 
 /**
  * Pull the ProblemDetails-shaped payload out of a chained `CallToolResult`
