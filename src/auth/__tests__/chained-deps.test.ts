@@ -37,6 +37,7 @@ describe("chained-deps generated map", () => {
   it("filtering logic: a tool with one missing dep is excluded", () => {
     const availableDevTools = new Set<string>([
       "get-document-by-id",
+      "get-document-publish-with-descendants-result",
       "publish-document",
       "publish-document-with-descendants",
       // intentionally missing get-document-type-by-id

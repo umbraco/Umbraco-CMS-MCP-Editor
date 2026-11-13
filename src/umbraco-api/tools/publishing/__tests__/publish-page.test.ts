@@ -1,13 +1,17 @@
-import { describe, it, expect, beforeAll } from "@jest/globals";
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   getStructuredContent,
   initPublishingTestState,
+  createElicitation,
   NON_EXISTENT_UUID,
 } from "./setup.js";
 import publishPageTool from "../post/publish-page.js";
 import { expectPublished } from "../../../../testing/state-assertions.js";
+import { callTool } from "../../../../testing/call-tool-with-validation.js";
+
+const elicitation = createElicitation();
 
 describe("publish-page", () => {
   setupTestEnvironment();
@@ -19,6 +23,9 @@ describe("publish-page", () => {
     const state = await initPublishingTestState(extra);
     testPageId = state.testPageId;
   }, 60000);
+
+  beforeEach(() => { elicitation.reset(); });
+  afterAll(() => { elicitation.cleanup(); });
 
   it("should publish a page", async () => {
     const result = await publishPageTool.handler(
@@ -50,4 +57,17 @@ describe("publish-page", () => {
     );
     expect(result.isError).toBeTruthy();
   }, 30000);
+
+  it("publishes a page with includeDescendants (exercises the publish-document-with-descendants call path)", async () => {
+    const result = await callTool(
+      publishPageTool,
+      { id: testPageId, includeDescendants: true },
+      extra,
+    );
+
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    expect(data.message).toContain("and all child pages");
+    await expectPublished(testPageId, extra);
+  }, 60000);
 });
