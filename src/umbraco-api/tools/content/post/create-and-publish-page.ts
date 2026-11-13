@@ -22,12 +22,13 @@ const outputSchema = z.object({
   message: z.string(),
   id: z.string(),
   name: z.string(),
+  culture: z.string().nullable().describe("The culture the page was created in — the requested `culture`, or the site's default language when none was given. Null when the document type does not vary by culture."),
   publishedUrls: publishedUrlsSchema,
 });
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "create-and-publish-page",
-  description: "Create a new content page and publish it in one atomic operation — mirrors clicking 'Save and publish' (instead of 'Save') on the create screen in the Umbraco backoffice. Call list-document-types first to find a valid documentTypeId. Use this as a starting point: pass `name`, `documentTypeId`, optional `parentId`, and at most a small number of simple initial values. If the document type requires properties this doesn't set, or if the values fail validation, the whole operation fails and no page is created — use create-page followed by save-and-publish instead when you need to build up content across multiple calls before publishing. On a multilingual site, a document type that varies by culture is created in `culture` (default: the site's default language); values without a culture on culture-variant properties are stored in that culture too.",
+  description: "Create a new content page and publish it in one atomic operation — mirrors clicking 'Save and publish' (instead of 'Save') on the create screen in the Umbraco backoffice. Call list-document-types first to find a valid documentTypeId. Use this as a starting point: pass `name`, `documentTypeId`, optional `parentId`, and at most a small number of simple initial values. If the document type requires properties this doesn't set, or if the values fail validation, the whole operation fails and no page is created — use create-page followed by save-and-publish instead when you need to build up content across multiple calls before publishing. On a multilingual site, a document type that varies by culture is created in `culture` (default: the site's default language); values without a culture on culture-variant properties are stored in that culture too. If the site has a mandatory language other than that culture, the page can't be published from a single call — the tool says so and creates nothing; use create-page, create-variant, then publish instead.",
   inputSchema,
   outputSchema,
   slices: ["create", "publish"],
@@ -35,10 +36,11 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   handler: async ({ name, documentTypeId, parentId, culture, values }) => {
     // A culture-variant document type must be created with a culture variant —
     // without `cultures` the CMS tool sends a single `culture: null` variant,
-    // which Umbraco rejects. See resolve-page-culture.ts.
-    const cultureResult = await resolvePageCulture(documentTypeId, culture);
+    // which Umbraco rejects. `forPublish` also rejects, up front, a page that
+    // would be missing a mandatory language. See resolve-page-culture.ts.
+    const cultureResult = await resolvePageCulture(documentTypeId, culture, { forPublish: true });
     if (!cultureResult.ok) return cultureResult.errorResult;
-    const pageCulture = cultureResult.culture;
+    const { culture: pageCulture, documentType, siteCultures } = cultureResult;
 
     // CreateAndPublishDocumentInput requires editorAlias on each value, same as
     // create-document. The LLM only supplies the property alias, so resolve
@@ -46,7 +48,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // properties -> data types -> editorAlias. Fails fast (before calling
     // Umbraco) when an alias isn't a property on this document type at all —
     // see #201.
-    const resolved = await resolveEditorAliases(documentTypeId, values, pageCulture);
+    const resolved = await resolveEditorAliases(documentTypeId, values, { defaultCulture: pageCulture, documentType, siteCultures });
     if (!resolved.ok) return resolved.errorResult;
 
     const createResult = await chainCms("create-and-publish-document", {
@@ -63,6 +65,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       message: `Created and published "${name}"`,
       id: createdId,
       name,
+      culture: pageCulture,
       publishedUrls: createdId ? await fetchPublishedUrls(createdId) : [],
     });
   },

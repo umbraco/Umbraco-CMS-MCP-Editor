@@ -23,6 +23,7 @@ const outputSchema = z.object({
   message: z.string(),
   id: z.string(),
   name: z.string(),
+  culture: z.string().nullable().describe("The culture the page was created in — the requested `culture`, or the site's default language when none was given. Null when the document type does not vary by culture."),
   previewUrl: previewUrlSchema,
   validation: validationResultSchema,
 });
@@ -40,14 +41,14 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // which Umbraco rejects. See resolve-page-culture.ts.
     const cultureResult = await resolvePageCulture(documentTypeId, culture);
     if (!cultureResult.ok) return cultureResult.errorResult;
-    const pageCulture = cultureResult.culture;
+    const { culture: pageCulture, documentType, siteCultures } = cultureResult;
 
     // CreateDocumentInput requires editorAlias on each value. The LLM only
     // supplies the property alias, so resolve editorAlias by looking up the
     // document type's own + composition-inherited properties → their data
     // types → editorAlias. Fails fast (before calling Umbraco) when an alias
     // isn't a property on this document type at all — see #201.
-    const resolved = await resolveEditorAliases(documentTypeId, values, pageCulture);
+    const resolved = await resolveEditorAliases(documentTypeId, values, { defaultCulture: pageCulture, documentType, siteCultures });
     if (!resolved.ok) return resolved.errorResult;
 
     const createResult = await chainCms("create-document", {
@@ -72,6 +73,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       message,
       id: createdId,
       name,
+      culture: pageCulture,
       previewUrl: createdId ? await fetchPreviewUrl(createdId) : null,
       validation,
     });

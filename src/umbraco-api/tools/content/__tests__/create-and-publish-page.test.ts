@@ -182,6 +182,7 @@ describe("create-and-publish-page", () => {
       lastCreatedId = data.id;
 
       const doc = await VariantPageFixture.getDocument(data.id);
+      expect(data.culture).toBe(defaultCulture);
       expect(doc.variants.map((v: any) => v.culture)).toEqual([defaultCulture]);
       const variant = doc.variants.find((v: any) => v.culture === defaultCulture);
       expect(variant?.name).toBe("_Test Create And Publish Page Variant Default");
@@ -210,7 +211,66 @@ describe("create-and-publish-page", () => {
       lastCreatedId = data.id;
 
       const doc = await VariantPageFixture.getDocument(data.id);
+      expect(data.culture).toBe(secondaryCulture);
       expect(doc.variants.map((v: any) => v.culture)).toEqual([secondaryCulture]);
+    }, 30000);
+
+    it("matches the requested culture case-insensitively", async () => {
+      const result = await callTool(
+        createAndPublishPageTool,
+        {
+          name: "_Test Create And Publish Page Variant Lowercase Culture",
+          documentTypeId,
+          parentId: undefined,
+          culture: secondaryCulture.toLowerCase(),
+          values: undefined,
+        },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      lastCreatedId = data.id;
+
+      const doc = await VariantPageFixture.getDocument(data.id);
+      expect(data.culture).toBe(secondaryCulture);
+      expect(doc.variants.map((v: any) => v.culture)).toEqual([secondaryCulture]);
+    }, 30000);
+
+    it("rejects a culture that is not a language on the site, listing the available ones", async () => {
+      const name = "_Test Create And Publish Page Variant Unknown Culture";
+      const result = await callTool(
+        createAndPublishPageTool,
+        { name, documentTypeId, parentId: undefined, culture: "xx-XX", values: undefined },
+        extra,
+      );
+
+      expect(result.isError).toBe(true);
+      const text = JSON.stringify(result);
+      expect(text).toContain('xx-XX\\" is not a language on this site');
+      expect(text).toContain(defaultCulture);
+      expect(text).toContain(secondaryCulture);
+      expect(await ContentTestHelper.findDocument(name)).toBeUndefined();
+    }, 30000);
+
+    it("rejects a value whose culture is not a language on the site", async () => {
+      const name = "_Test Create And Publish Page Variant Unknown Value Culture";
+      const result = await callTool(
+        createAndPublishPageTool,
+        {
+          name,
+          documentTypeId,
+          parentId: undefined,
+          values: [{ alias: propertyAlias, value: "Nowhere title", culture: "xx-XX" }],
+        },
+        extra,
+      );
+
+      expect(result.isError).toBe(true);
+      const text = JSON.stringify(result);
+      expect(text).toContain("value culture(s) are not languages on this site: xx-XX");
+      expect(text).toContain(defaultCulture);
+      expect(await ContentTestHelper.findDocument(name)).toBeUndefined();
     }, 30000);
 
     it("ignores culture for a document type that does not vary by culture", async () => {
@@ -231,6 +291,7 @@ describe("create-and-publish-page", () => {
       lastCreatedId = data.id;
 
       const doc = await VariantPageFixture.getDocument(data.id);
+      expect(data.culture).toBeNull();
       expect(doc.variants.map((v: any) => v.culture)).toEqual([null]);
     }, 30000);
   });
