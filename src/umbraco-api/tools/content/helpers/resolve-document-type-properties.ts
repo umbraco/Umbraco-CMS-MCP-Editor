@@ -59,13 +59,22 @@ export type ResolveDocumentTypePropertiesResult =
  * "Inheritance"`) can have compositions of its own. Own properties win on
  * alias collision, then the earliest (closest) level wins over deeper ones.
  * A `visited` set guards against cycles and refetching a shared composition.
+ *
+ * Pass `documentType` when the caller has already fetched `documentTypeId`
+ * (e.g. resolve-page-culture.ts) to skip fetching it a second time.
  */
 export async function resolveDocumentTypeProperties(
   documentTypeId: string,
+  documentType?: GetDocumentTypeByIdOutput,
 ): Promise<ResolveDocumentTypePropertiesResult> {
-  const docTypeResult = await chainCms("get-document-type-by-id", { id: documentTypeId });
-  if (!docTypeResult.ok) return { ok: false, errorResult: docTypeResult.errorResult };
-  const data = docTypeResult.data;
+  let data: GetDocumentTypeByIdOutput;
+  if (documentType) {
+    data = documentType;
+  } else {
+    const docTypeResult = await chainCms("get-document-type-by-id", { id: documentTypeId });
+    if (!docTypeResult.ok) return { ok: false, errorResult: docTypeResult.errorResult };
+    data = docTypeResult.data;
+  }
 
   const collected = new Map<string, DocumentTypeProperty>();
   function addProperties(props: DocumentTypeProperty[]): void {

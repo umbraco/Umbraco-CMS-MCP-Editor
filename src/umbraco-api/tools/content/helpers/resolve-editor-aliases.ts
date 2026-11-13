@@ -19,9 +19,19 @@
  * composition failed to load and an alias doesn't resolve, that alias might
  * live on the composition we couldn't fetch — the error says so rather than
  * wrongly calling it "not a property".
+ *
+ * When `defaultCulture` is given (the culture the page is created in, see
+ * resolve-page-culture.ts), a value without an explicit culture for a property
+ * that varies by culture gets that culture — Umbraco rejects a `culture: null`
+ * value on a culture-variant property.
+ *
+ * When `siteCultures` is given, a value's explicit culture is matched against
+ * it case-insensitively and rejected when it isn't a language on the site —
+ * Umbraco answers an unknown value culture with an opaque 500.
  */
 
 import { createToolResultError } from "@umbraco-cms/mcp-server-sdk";
+import type { GetDocumentTypeByIdOutput } from "@umbraco-cms/mcp-dev/tool-types";
 import { chainCms } from "../../../cms-chain.js";
 import { resolveDocumentTypeProperties } from "./resolve-document-type-properties.js";
 
@@ -44,21 +54,32 @@ export type ResolveEditorAliasesResult =
   | { ok: true; values: ResolvedPageValue[] }
   | { ok: false; errorResult: ReturnType<typeof createToolResultError> };
 
+export interface ResolveEditorAliasesOptions {
+  /** Culture given to culture-less values on culture-variant properties. */
+  defaultCulture?: string | null;
+  /** `documentTypeId`, already fetched — skips fetching it again. */
+  documentType?: GetDocumentTypeByIdOutput;
+  /** The site's cultures; when given, explicit value cultures are validated against them. */
+  siteCultures?: string[];
+}
+
 /**
  * Resolve `editorAlias` for every value against `documentTypeId`'s own and
  * composition-inherited properties. Returns a tool error — never a partial
  * resolution — when one or more aliases don't match any property on the
- * document type.
+ * document type. Values on culture-variant properties without an explicit
+ * culture get `defaultCulture`.
  */
 export async function resolveEditorAliases(
   documentTypeId: string,
   values: PageValueInput[] | undefined,
+  { defaultCulture = null, documentType, siteCultures }: ResolveEditorAliasesOptions = {},
 ): Promise<ResolveEditorAliasesResult> {
   if (!values || values.length === 0) {
     return { ok: true, values: [] };
   }
 
-  const docTypeResult = await resolveDocumentTypeProperties(documentTypeId);
+  const docTypeResult = await resolveDocumentTypeProperties(documentTypeId, documentType);
   if (!docTypeResult.ok) return docTypeResult;
 
   const dataTypeIds = Array.from(
@@ -83,9 +104,11 @@ export async function resolveEditorAliases(
   );
 
   const editorAliasByPropertyAlias = new Map<string, string>();
+  const cultureVariantAliases = new Set<string>();
   for (const prop of docTypeResult.properties) {
     const editorAlias = prop.dataType?.id ? editorAliasByDataTypeId.get(prop.dataType.id) : undefined;
     if (prop.alias && editorAlias) editorAliasByPropertyAlias.set(prop.alias, editorAlias);
+    if (prop.alias && prop.variesByCulture) cultureVariantAliases.add(prop.alias);
   }
 
   // Two distinct failure modes get two distinct messages: an alias that isn't
@@ -94,16 +117,24 @@ export async function resolveEditorAliases(
   // not something the caller can fix by picking a different alias).
   const notAProperty = new Set<string>();
   const missingEditorAlias = new Set<string>();
+  const unknownCultures = new Set<string>();
   const resolved: ResolvedPageValue[] = values.map((v) => {
     const editorAlias = editorAliasByPropertyAlias.get(v.alias);
     if (!editorAlias) {
       if (propertyAliases.has(v.alias)) missingEditorAlias.add(v.alias);
       else notAProperty.add(v.alias);
     }
+    let culture = v.culture ?? (cultureVariantAliases.has(v.alias) ? defaultCulture : null);
+    if (v.culture && siteCultures) {
+      const requested = v.culture.toLowerCase();
+      const match = siteCultures.find((c) => c.toLowerCase() === requested);
+      if (match) culture = match;
+      else unknownCultures.add(v.culture);
+    }
     return {
       alias: v.alias,
       value: v.value,
-      culture: v.culture ?? null,
+      culture,
       segment: v.segment ?? null,
       editorAlias: editorAlias ?? "",
     };
@@ -138,6 +169,15 @@ export async function resolveEditorAliases(
       ok: false,
       errorResult: createToolResultError(
         `The following value alias(es) could not be resolved — ${messages.join("; ")}. Call get-document-type to see the valid property aliases for this document type.`,
+      ),
+    };
+  }
+
+  if (unknownCultures.size > 0 && siteCultures) {
+    return {
+      ok: false,
+      errorResult: createToolResultError(
+        `The following value culture(s) are not languages on this site: ${Array.from(unknownCultures).join(", ")}. Available cultures: ${siteCultures.join(", ")}.`,
       ),
     };
   }
