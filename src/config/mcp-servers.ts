@@ -10,7 +10,18 @@
  * connections instead of stdio subprocesses.
  */
 
-import type { McpServerConfig } from "@umbraco-cms/mcp-server-sdk";
+import { isLoopbackUrl, type McpServerConfig } from "@umbraco-cms/mcp-server-sdk";
+
+/**
+ * Only disable TLS verification for a loopback Umbraco (the demo site's
+ * self-signed dev cert). The chained SDK refuses to start when it's disabled
+ * for a remote base URL, so setting it unconditionally broke every chained
+ * call against Umbraco Cloud and other remote sites (#274). Remote sites with
+ * a private CA should use NODE_EXTRA_CA_CERTS instead.
+ */
+export function chainedTlsEnv(baseUrl: string): Record<string, string> {
+  return isLoopbackUrl(baseUrl) ? { NODE_TLS_REJECT_UNAUTHORIZED: "0" } : {};
+}
 
 async function buildServers(): Promise<McpServerConfig[]> {
   // Guard: Workers runtime doesn't have process.env in the same way. We bail
@@ -57,14 +68,15 @@ async function buildServers(): Promise<McpServerConfig[]> {
       : undefined;
   if (!binEntry) throw new Error("@umbraco-cms/mcp-dev has no bin entry");
   const binAbs = path.resolve(path.dirname(pkgPath), binEntry);
+  const baseUrl = process.env.UMBRACO_BASE_URL || "http://localhost:44391";
 
   return [{
     name: "cms",
     command: process.execPath,
     args: [binAbs],
     env: {
-      NODE_TLS_REJECT_UNAUTHORIZED: "0",
-      UMBRACO_BASE_URL: process.env.UMBRACO_BASE_URL || "http://localhost:44391",
+      ...chainedTlsEnv(baseUrl),
+      UMBRACO_BASE_URL: baseUrl,
       UMBRACO_CLIENT_ID: process.env.UMBRACO_CLIENT_ID || "",
       UMBRACO_CLIENT_SECRET: process.env.UMBRACO_CLIENT_SECRET || "",
       // Clear tool filters so our editor tool names (search-content etc.) don't
