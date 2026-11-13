@@ -9,6 +9,7 @@ import {
   type BulkOperationOutput,
 } from "../../helpers/bulk-handler.js";
 import { fetchPublishedUrls, publishedUrlsSchema } from "../../helpers/preview-url.js";
+import { publishWithDescendants } from "../../helpers/publish-with-descendants.js";
 
 const inputSchema = {
   ids: z.array(z.string().uuid()).min(1).max(10).describe("The IDs of the pages to publish (max 10)"),
@@ -36,7 +37,12 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   inputSchema,
   outputSchema,
   slices: ["publish"],
-  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  // includeDescendants delegates to publish-document-with-descendants, which
+  // the chained CMS tool annotates idempotentHint: false — a retry fires a
+  // second concurrent recursive publish job rather than converging to the
+  // same end state. That makes this tool non-idempotent as a whole, since
+  // includeDescendants is a valid input, not a separate tool.
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   handler: async ({ ids, includeDescendants }, extra) => {
     const validationError = validateBulkIds(ids);
     if (validationError) return createToolResult(validationError as BulkOperationOutput);
@@ -65,35 +71,44 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       });
     }
 
+    const stillPublishing = new Set<string>();
     const results = await executeBulkSequentially(items, async (item) => {
       // publish-document needs one publishSchedules entry per culture — passing
       // an empty array silently no-ops in Umbraco. Derive from the doc's variants.
       const cultures = item.cultures ?? [null];
-      const result = includeDescendants
-        ? await chainCms("publish-document-with-descendants", {
-            id: item.id,
-            data: {
-              includeUnpublishedDescendants: false,
-              cultures: cultures.filter((c): c is string => c !== null),
-            },
-          })
-        : await chainCms("publish-document", {
-            id: item.id,
-            data: { publishSchedules: cultures.map((c) => ({ culture: c })) },
-          });
+      if (includeDescendants) {
+        const result = await publishWithDescendants(item.id, {
+          includeUnpublishedDescendants: false,
+          cultures: cultures.filter((c): c is string => c !== null),
+        });
+        if (!result.ok) return result.errorResult;
+        if (!result.complete) stillPublishing.add(item.id);
+        return null;
+      }
+      const result = await chainCms("publish-document", {
+        id: item.id,
+        data: { publishSchedules: cultures.map((c) => ({ culture: c })) },
+      });
       if (!result.ok) {
         return result.errorResult;
       }
       return null;
     });
 
-    // Surface live URLs per successful row so the editor knows what's now live.
+    // Surface live URLs per successful row so the editor knows what's now live —
+    // except rows whose large-tree descendants publish is still running, where
+    // there's no confirmed end state to resolve a URL from yet.
     for (const row of results) {
-      if (!row.success) continue;
+      if (!row.success || stillPublishing.has(row.id)) continue;
       row.publishedUrls = await fetchPublishedUrls(row.id);
     }
 
-    return createToolResult(buildBulkOutput("Published", results));
+    const output = buildBulkOutput("Published", results);
+    if (stillPublishing.size > 0) {
+      const names = results.filter((r) => stillPublishing.has(r.id)).map((r) => r.name);
+      output.message += ` (${names.join(", ")} ${names.length === 1 ? "is" : "are"} a large tree — descendants still publishing in the background; check again shortly)`;
+    }
+    return createToolResult(output);
   },
 };
 

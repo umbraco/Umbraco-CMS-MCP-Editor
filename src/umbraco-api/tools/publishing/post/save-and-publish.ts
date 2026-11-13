@@ -3,6 +3,7 @@ import { withStandardDecorators, createToolResult, createToolResultError, ToolDe
 import { chainCms, extractInnerProblemDetails } from "../../../cms-chain.js";
 import { fetchPublishedUrls, publishedUrlsSchema } from "../../helpers/preview-url.js";
 import { verifyDocumentPublished } from "../../helpers/verify-published.js";
+import { publishWithDescendants } from "../../helpers/publish-with-descendants.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to save and publish"),
@@ -132,12 +133,9 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         saved = true;
       }
 
-      const publishResult = await chainCms("publish-document-with-descendants", {
-        id,
-        data: {
-          includeUnpublishedDescendants: false,
-          cultures: variantCultures.filter((c): c is string => c !== null),
-        },
+      const publishResult = await publishWithDescendants(id, {
+        includeUnpublishedDescendants: false,
+        cultures: variantCultures.filter((c): c is string => c !== null),
       });
       if (!publishResult.ok) {
         if (saved) {
@@ -154,9 +152,20 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         return publishResult.errorResult;
       }
 
-      // No verify step here — publishing descendants runs asynchronously via a
-      // background task, so the state right after the call is not meaningful.
       const savedPart = saved ? `Saved ${fieldNames.length} field(s) and ` : "";
+
+      if (!publishResult.complete) {
+        return createToolResult({
+          message: `${savedPart}"${pageName}" and its descendants are a large tree — publishing is still running in the background. Check again shortly.`,
+          id,
+          name: pageName,
+          saved,
+          published: false,
+          updatedFields: fieldNames,
+          publishedUrls: [],
+        });
+      }
+
       return createToolResult({
         message: `${savedPart}published "${pageName}" and all descendants`,
         id,

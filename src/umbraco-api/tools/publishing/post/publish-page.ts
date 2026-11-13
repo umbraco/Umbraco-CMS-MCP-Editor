@@ -3,6 +3,7 @@ import { withStandardDecorators, createToolResult, createToolResultError, ToolDe
 import { chainCms } from "../../../cms-chain.js";
 import { verifyDocumentPublished } from "../../helpers/verify-published.js";
 import { fetchPublishedUrls, publishedUrlsSchema } from "../../helpers/preview-url.js";
+import { publishWithDescendants } from "../../helpers/publish-with-descendants.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to publish"),
@@ -22,7 +23,12 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   inputSchema,
   outputSchema,
   slices: ["publish"],
-  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  // includeDescendants delegates to publish-document-with-descendants, which
+  // the chained CMS tool annotates idempotentHint: false — a retry fires a
+  // second concurrent recursive publish job rather than converging to the
+  // same end state. That makes this tool non-idempotent as a whole, since
+  // includeDescendants is a valid input, not a separate tool.
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   handler: async ({ id, includeDescendants }, extra) => {
     const docResult = await chainCms("get-document-by-id", { id });
     if (!docResult.ok) return docResult.errorResult;
@@ -41,36 +47,49 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const variantCultures: Array<string | null> = (doc.variants ?? []).length
       ? doc.variants.map(v => v.culture ?? null)
       : [null];
-    const publishResult = includeDescendants
-      ? await chainCms("publish-document-with-descendants", {
+    if (includeDescendants) {
+      const result = await publishWithDescendants(id, {
+        includeUnpublishedDescendants: false,
+        cultures: variantCultures.filter((c): c is string => c !== null),
+      });
+      if (!result.ok) return result.errorResult;
+
+      if (!result.complete) {
+        return createToolResult({
+          message: `"${pageName}" and its descendants are a large tree — publishing is still running in the background. Check again shortly.`,
           id,
-          data: {
-            includeUnpublishedDescendants: false,
-            cultures: variantCultures.filter((c): c is string => c !== null),
-          },
-        })
-      : await chainCms("publish-document", {
-          id,
-          data: { publishSchedules: variantCultures.map(c => ({ culture: c })) },
+          name: pageName,
+          publishedUrls: [],
         });
+      }
+
+      return createToolResult({
+        message: `Published "${pageName}" and all child pages`,
+        id,
+        name: pageName,
+        publishedUrls: await fetchPublishedUrls(id),
+      });
+    }
+
+    const publishResult = await chainCms("publish-document", {
+      id,
+      data: { publishSchedules: variantCultures.map(c => ({ culture: c })) },
+    });
     if (!publishResult.ok) return publishResult.errorResult;
 
     // Verify the publish actually took effect — the chained call can return ok
-    // while a workflow/event handler reverts the publish. Skip for the
-    // descendants path because that runs asynchronously via a task.
-    if (!includeDescendants) {
-      const verifyError = await verifyDocumentPublished(id, variantCultures);
-      if (verifyError) {
-        return createToolResultError({
-          status: 500,
-          title: "Publish did not take effect",
-          detail: `"${pageName}": ${verifyError}`,
-        });
-      }
+    // while a workflow/event handler reverts the publish.
+    const verifyError = await verifyDocumentPublished(id, variantCultures);
+    if (verifyError) {
+      return createToolResultError({
+        status: 500,
+        title: "Publish did not take effect",
+        detail: `"${pageName}": ${verifyError}`,
+      });
     }
 
     return createToolResult({
-      message: includeDescendants ? `Published "${pageName}" and all child pages` : `Published "${pageName}"`,
+      message: `Published "${pageName}"`,
       id,
       name: pageName,
       publishedUrls: await fetchPublishedUrls(id),
