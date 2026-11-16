@@ -1,13 +1,14 @@
-import { describe, it, expect, beforeAll } from "@jest/globals";
+import { describe, it, expect, beforeAll, afterAll } from "@jest/globals";
 import {
   setupTestEnvironment,
   createMockRequestHandlerExtra,
   initContentTestState,
   NON_EXISTENT_UUID,
 } from "./setup.js";
-import { getStructuredContent } from "@umbraco-cms/mcp-server-sdk/testing";
+import { getStructuredContent, getResultText } from "@umbraco-cms/mcp-server-sdk/testing";
 import getDocumentTypeTool from "../get/get-document-type.js";
 import { callTool } from "../../../../testing/call-tool-with-validation.js";
+import { CompositionDoctypeFixture } from "./helpers/composition-doctype-fixture.js";
 
 describe("get-document-type", () => {
   setupTestEnvironment();
@@ -45,8 +46,41 @@ describe("get-document-type", () => {
     }
   }, 30000);
 
-  it("returns an error for a non-existent document type", async () => {
+  it("returns a friendly 404 for a non-existent document type, naming the id and pointing at list-document-types", async () => {
     const result = await callTool(getDocumentTypeTool, { id: NON_EXISTENT_UUID }, extra);
     expect(result.isError).toBeTruthy();
+    const problemDetails = JSON.parse(getResultText(result)) as { status?: unknown; title?: unknown; detail?: unknown };
+    expect(problemDetails).toMatchObject({
+      status: 404,
+      title: "Document type not found",
+    });
+    expect(String(problemDetails.detail)).toContain(NON_EXISTENT_UUID);
+    expect(String(problemDetails.detail)).toContain("list-document-types");
   }, 30000);
+
+  describe("with a composition", () => {
+    const fixture = new CompositionDoctypeFixture();
+    let hostDocTypeId: string;
+    let propertyAlias: string;
+
+    beforeAll(async () => {
+      const created = await fixture.create();
+      hostDocTypeId = created.hostDocTypeId;
+      propertyAlias = created.propertyAlias;
+    }, 60000);
+
+    afterAll(async () => {
+      await fixture.cleanup();
+    }, 60000);
+
+    it("merges properties inherited through a composition into the host's property list (no warnings)", async () => {
+      const result = await callTool(getDocumentTypeTool, { id: hostDocTypeId }, extra);
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      // The host doc type has NO properties of its own — this alias only
+      // appears if the composition walk actually merged it in.
+      expect(data.properties.map((p: any) => p.alias)).toContain(propertyAlias);
+      expect(data.warnings).toBeUndefined();
+    }, 30000);
+  });
 });

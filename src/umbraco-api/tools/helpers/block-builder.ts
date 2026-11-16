@@ -1,4 +1,4 @@
-import { chainCms } from "../../cms-chain.js";
+import { chainCms, extractInnerProblemDetails } from "../../cms-chain.js";
 import { createToolResult, createToolResultError } from "@umbraco-cms/mcp-server-sdk";
 import { fetchPreviewUrl } from "./preview-url.js";
 import { validateDocumentState } from "./validate-document.js";
@@ -29,7 +29,26 @@ async function toBlockProperties(
 ): Promise<BlockPropertiesResult> {
   if (values.length === 0) return { ok: true, properties: [] };
   const docTypeResult = await chainCms("get-document-type-by-id", { id: elementTypeKey });
-  if (!docTypeResult.ok) return { ok: false, errorResult: docTypeResult.errorResult };
+  if (!docTypeResult.ok) {
+    // A stale contentTypeKey/settingsTypeKey (the block's element type was
+    // deleted, or the id came from an earlier inspect-blocks call whose data
+    // has since moved on) surfaces here as a bare chained 404 — tell the
+    // caller what to do about it instead of passing the raw ProblemDetails
+    // through. Any other status (permissions, a real server error) is a
+    // genuine failure, so it passes through unchanged.
+    const problem = extractInnerProblemDetails(docTypeResult.errorResult as unknown as Record<string, unknown>);
+    if (problem.status === 404) {
+      return {
+        ok: false,
+        errorResult: createToolResultError({
+          status: 404,
+          title: "Element type not found",
+          detail: `No element type found for contentTypeKey '${elementTypeKey}'. It may be stale — re-run inspect-blocks on the page to get a current element type id.`,
+        }),
+      };
+    }
+    return { ok: false, errorResult: docTypeResult.errorResult };
+  }
   const definitions = new Map(docTypeResult.data.properties.map(p => [p.alias, p]));
   return {
     ok: true,
