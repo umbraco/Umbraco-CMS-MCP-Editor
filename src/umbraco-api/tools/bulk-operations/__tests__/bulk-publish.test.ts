@@ -107,6 +107,28 @@ describe("bulk-publish", () => {
     await expectPublished(article2.getId(), extra);
   }, 60000);
 
+  it("publishes with includeDescendants (exercises the publish-document-with-descendants call path)", async () => {
+    const articleBuilder = new ContentBuilder()
+      .withName("_Test Bulk Publish Descendants")
+      .withDocumentType(articleDocTypeId)
+      .withParent(blogPageId);
+    for (const v of articleSeedValues) articleBuilder.withValue(v.alias, v.value, v.culture, v.segment);
+    const article = await articleBuilder.create();
+    createdIds.push(article.getId());
+
+    const result = await bulkPublishTool.handler(
+      { ids: [article.getId()], includeDescendants: true },
+      extra,
+    );
+
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    expect(data.successCount).toBe(1);
+    expect(data.failureCount).toBe(0);
+    expect(data.results[0].publishPending).toBeFalsy();
+    await expectPublished(article.getId(), extra);
+  }, 60000);
+
   it("should cancel when elicitation is rejected", async () => {
     elicitation.rejectAll();
     await expectElicitationCancel(() =>
