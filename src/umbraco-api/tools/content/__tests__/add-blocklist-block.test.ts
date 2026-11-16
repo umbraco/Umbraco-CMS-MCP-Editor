@@ -5,7 +5,9 @@ import {
   getStructuredContent,
   ContentTestHelper,
   extractChainedResult,
+  NON_EXISTENT_UUID,
 } from "./setup.js";
+import { getResultText } from "@umbraco-cms/mcp-server-sdk/testing";
 import { mcpClientManager } from "../../../mcp-client.js";
 import addBlocklistBlockTool from "../post/add-blocklist-block.js";
 import { createBlockListFixture, type BlockListFixture } from "./helpers/block-fixture.js";
@@ -239,6 +241,38 @@ describe("add-blocklist-block", () => {
     expect(typeof newEntry!.settingsKey).toBe("string");
     expect(newEntry!.settingsKey).toMatch(/^[0-9a-f-]{36}$/i);
   }, 60000);
+
+  it("returns a friendly 404 naming settingsTypeKey (not contentTypeKey) when only the settings element type is stale", async () => {
+    expect(settingsFixture?.settings).toBeTruthy();
+    const f = settingsFixture!;
+    const settings = f.settings!;
+
+    const result = await callTool(addBlocklistBlockTool,
+      {
+        id: f.pageId,
+        propertyAlias: f.propertyAlias,
+        contentTypeKey: f.elementTypeId,
+        values: [{ alias: f.blockPropertyAlias, value: "_valid-content-stale-settings" }],
+        position: undefined,
+        settingsTypeKey: NON_EXISTENT_UUID,
+        settingsValues: [{ alias: settings.settingsPropertyAlias, value: "_irrelevant" }],
+        culture: undefined,
+        segment: undefined,
+      },
+      extra,
+    );
+
+    expect(result.isError).toBe(true);
+    const problemDetails = JSON.parse(getResultText(result)) as { status?: unknown; title?: unknown; detail?: unknown };
+    expect(problemDetails).toMatchObject({
+      status: 404,
+      title: "Element type not found",
+    });
+    expect(String(problemDetails.detail)).toContain("settingsTypeKey");
+    expect(String(problemDetails.detail)).not.toContain("contentTypeKey");
+    expect(String(problemDetails.detail)).toContain(NON_EXISTENT_UUID);
+    expect(String(problemDetails.detail)).toContain("inspect-blocks");
+  }, 30000);
 
   it("adds first block to a BlockList property that has no value yet (regression: empty property)", async () => {
     expect(fixture).not.toBeNull();

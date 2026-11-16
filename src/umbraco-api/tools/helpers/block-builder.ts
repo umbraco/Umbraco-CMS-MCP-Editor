@@ -22,6 +22,7 @@ type BlockPropertiesResult =
  * by it — create-document-block rejects a culture on an invariant property.
  */
 async function toBlockProperties(
+  fieldName: "contentTypeKey" | "settingsTypeKey",
   elementTypeKey: string,
   values: ReadonlyArray<BlockValue>,
   culture: string | null,
@@ -35,7 +36,10 @@ async function toBlockProperties(
     // has since moved on) surfaces here as a bare chained 404 — tell the
     // caller what to do about it instead of passing the raw ProblemDetails
     // through. Any other status (permissions, a real server error) is a
-    // genuine failure, so it passes through unchanged.
+    // genuine failure, so it passes through unchanged. toBlockProperties is
+    // called once for contentTypeKey and, separately, once for
+    // settingsTypeKey — fieldName says which one actually failed, so the
+    // caller isn't told to re-check the wrong argument.
     const problem = extractInnerProblemDetails(docTypeResult.errorResult as unknown as Record<string, unknown>);
     if (problem.status === 404) {
       return {
@@ -43,7 +47,7 @@ async function toBlockProperties(
         errorResult: createToolResultError({
           status: 404,
           title: "Element type not found",
-          detail: `No element type found for contentTypeKey '${elementTypeKey}'. It may be stale — re-run inspect-blocks on the page to get a current element type id.`,
+          detail: `No element type found for ${fieldName} '${elementTypeKey}'. It may be stale — re-run inspect-blocks on the page to get a current element type id.`,
         }),
       };
     }
@@ -82,10 +86,10 @@ export async function toNewBlockProperties(
   culture: string | null,
   segment: string | null,
 ): Promise<NewBlockPropertiesResult> {
-  const content = await toBlockProperties(contentTypeKey, values, culture, segment);
+  const content = await toBlockProperties("contentTypeKey", contentTypeKey, values, culture, segment);
   if (!content.ok) return content;
   if (!settingsTypeKey || !settingsValues) return { ok: true, properties: content.properties };
-  const settings = await toBlockProperties(settingsTypeKey, settingsValues, culture, segment);
+  const settings = await toBlockProperties("settingsTypeKey", settingsTypeKey, settingsValues, culture, segment);
   if (!settings.ok) return settings;
   return { ok: true, properties: content.properties, settings: { properties: settings.properties } };
 }

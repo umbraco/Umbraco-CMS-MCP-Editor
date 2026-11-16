@@ -1,17 +1,20 @@
 /**
- * Unit test for get-document-type's `warnings` field (Umbraco-CMS-MCP-Editor#200).
+ * Unit tests for get-document-type's `warnings` field and its non-404 error
+ * passthrough (Umbraco-CMS-MCP-Editor#200).
  *
  * resolveDocumentTypeProperties reports a composition that failed to load via
  * `failedCompositionIds`/`failedCompositionDetails` (#201), but a composition
  * fetch failure isn't practically constructible against a real Umbraco
  * instance (see resolve-document-type-properties.test.ts's header for why).
  * So, like that file and resolve-editor-aliases.test.ts, this stubs
- * mcpClientManager.callTool directly rather than running against a live CMS.
+ * mcpClientManager.callTool directly rather than running against a live CMS —
+ * the same stub also lets the last test below force a non-404 status, which
+ * is equally impractical to provoke from a real Umbraco instance.
  */
 
 import { describe, it, expect, jest, beforeEach, afterEach } from "@jest/globals";
 import { mcpClientManager } from "../../../mcp-client.js";
-import { getStructuredContent } from "@umbraco-cms/mcp-server-sdk/testing";
+import { getStructuredContent, getResultText } from "@umbraco-cms/mcp-server-sdk/testing";
 import getDocumentTypeTool from "../get/get-document-type.js";
 import { callTool } from "../../../../testing/call-tool-with-validation.js";
 import type { GetDocumentTypeByIdOutput } from "@umbraco-cms/mcp-dev/tool-types";
@@ -124,5 +127,25 @@ describe("get-document-type warnings", () => {
     const data = getStructuredContent(result) as any;
     expect(data.properties.map((p: any) => p.alias)).toContain("seoTitle");
     expect(data.warnings).toBeUndefined();
+  });
+
+  it("passes a non-404 error from the top-level id lookup through unchanged, rather than the friendly 404", async () => {
+    spy.mockImplementation(async (_server: unknown, toolName: unknown) => {
+      if (toolName !== "get-document-type-by-id") throw new Error(`unexpected tool call: ${String(toolName)}`);
+      return {
+        isError: true,
+        content: [{ type: "text" as const, text: JSON.stringify({ type: "Error", title: "Internal Server Error", status: 500, detail: "The server encountered an unexpected error" }) }],
+      };
+    });
+
+    const result = await callTool(getDocumentTypeTool, { id: "host" }, {});
+
+    expect(result.isError).toBe(true);
+    const problemDetails = JSON.parse(getResultText(result)) as { status?: unknown; title?: unknown; detail?: unknown };
+    // Not reclassified as the friendly "Document type not found" 404 —
+    // the real status/title/detail reach the caller unchanged.
+    expect(problemDetails.status).toBe(500);
+    expect(problemDetails.title).toBe("Internal Server Error");
+    expect(problemDetails.detail).toBe("The server encountered an unexpected error");
   });
 });
