@@ -44,7 +44,6 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.2.87",
     "@cfworker/json-schema": "^4.1.1",
     "@cloudflare/workers-oauth-provider": "^0.2.3",
     "@modelcontextprotocol/sdk": "^1.25.1",
@@ -58,6 +57,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.2.87",
     "@jest/types": "^29.6.3",
     "@modelcontextprotocol/inspector": "^1.0.1",
     "@playwright/test": "^1.52.0",
