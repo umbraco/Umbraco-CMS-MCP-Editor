@@ -10,6 +10,7 @@ import {
 } from "./setup.js";
 import listVersionsTool from "../get/list-versions.js";
 import rollbackPageTool from "../post/rollback-page.js";
+import { callTool } from "../../../../testing/call-tool-with-validation.js";
 
 const elicitation = createElicitation();
 
@@ -27,14 +28,23 @@ describe("rollback-page", () => {
   afterAll(() => { elicitation.cleanup(); });
   beforeEach(() => { elicitation.reset(); });
 
+  // Regression coverage for issue #307: the confirmation prompt resolves the
+  // target version's author via get-user-by-id, now gated behind a Users-
+  // section access check (checkUsersAccess). The API user these integration
+  // tests authenticate as is a full admin, so it always has that access —
+  // this exercises the unchanged happy path only. The "no Users access →
+  // raw ID, no get-user-by-id call" branch can't be forced against a real
+  // admin user and is covered instead by the mocked unit tests in
+  // helpers/__tests__/users-access.test.ts.
   it("should rollback to a previous version", async () => {
-    const versionsResult = await listVersionsTool.handler({ id: testPageId }, extra);
+    const versionsResult = await callTool(listVersionsTool, { id: testPageId }, extra);
     const versionsData = getStructuredContent(versionsResult) as any;
 
     if (!versionsData?.versions?.length || versionsData.versions.length < 2) {    }
 
     const targetVersion = versionsData.versions[1];
-    const result = await rollbackPageTool.handler(
+    const result = await callTool(
+      rollbackPageTool,
       { id: testPageId, versionId: targetVersion.versionId, culture: undefined },
       extra,
     );
@@ -79,14 +89,15 @@ describe("rollback-page", () => {
   });
 
   it("should cancel rollback when elicitation is rejected", async () => {
-    const versionsResult = await listVersionsTool.handler({ id: testPageId }, extra);
+    const versionsResult = await callTool(listVersionsTool, { id: testPageId }, extra);
     const versionsData = getStructuredContent(versionsResult) as any;
 
     elicitation.rejectAll();
 
     const targetVersion = versionsData.versions[0];
     await expectElicitationCancel(() =>
-      rollbackPageTool.handler(
+      callTool(
+        rollbackPageTool,
         { id: testPageId, versionId: targetVersion.versionId, culture: undefined },
         extra,
       ),

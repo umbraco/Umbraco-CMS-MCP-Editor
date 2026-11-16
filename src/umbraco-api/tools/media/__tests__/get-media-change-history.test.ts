@@ -7,6 +7,7 @@ import {
 } from "./setup.js";
 import { encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 import getMediaChangeHistoryTool from "../get/get-media-change-history.js";
+import { callTool } from "../../../../testing/call-tool-with-validation.js";
 
 describe("get-media-change-history", () => {
   setupTestEnvironment();
@@ -19,8 +20,12 @@ describe("get-media-change-history", () => {
     testMediaId = state.testMediaId;
   }, 60000);
 
+  // Regression coverage for issue #307 — see the equivalent comment in
+  // versioning/__tests__/get-page-change-history.test.ts. The permission-gated
+  // branch (no Users access → raw ID, no get-user-by-id call) is covered by
+  // the mocked unit tests in helpers/__tests__/resolve-user-names.test.ts.
   it("should return change history entries for a media item", async () => {
-    const result = await getMediaChangeHistoryTool.handler({ id: testMediaId }, extra);
+    const result = await callTool(getMediaChangeHistoryTool, { id: testMediaId }, extra);
 
     expect(result.isError).toBeFalsy();
     const data = getStructuredContent(result) as any;
@@ -43,7 +48,8 @@ describe("get-media-change-history", () => {
   }, 30000);
 
   it("should honour pagination limits via cursor", async () => {
-    const result = await getMediaChangeHistoryTool.handler(
+    const result = await callTool(
+      getMediaChangeHistoryTool,
       { id: testMediaId, cursor: encodeCursor({ s: 0, t: 1 }) },
       extra,
     );
@@ -54,7 +60,8 @@ describe("get-media-change-history", () => {
   }, 30000);
 
   it("should return error for non-existent media item", async () => {
-    const result = await getMediaChangeHistoryTool.handler(
+    const result = await callTool(
+      getMediaChangeHistoryTool,
       { id: "00000000-0000-0000-0000-000000000000" },
       extra,
     );

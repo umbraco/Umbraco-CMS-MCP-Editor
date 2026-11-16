@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { resolveUserNames } from "../../helpers/resolve-user-names.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page to get change history for"),
@@ -18,22 +19,6 @@ const outputSchema = z.object({
   })),
   total: z.number(),
 });
-
-async function resolveUserNames(userIds: string[]): Promise<Map<string, string>> {
-  const uniqueIds = Array.from(new Set(userIds));
-  const results = await Promise.all(
-    uniqueIds.map(async (id) => {
-      try {
-        const userResult = await chainCms("get-user-by-id", { id });
-        if (!userResult.ok) return [id, id] as const;
-        return [id, userResult.data.name ?? id] as const;
-      } catch {
-        return [id, id] as const;
-      }
-    }),
-  );
-  return new Map(results);
-}
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "get-page-change-history",
