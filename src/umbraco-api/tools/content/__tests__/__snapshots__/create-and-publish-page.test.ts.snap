@@ -4,6 +4,7 @@ exports[`create-and-publish-page should create and publish a page in one call 1`
 {
   "content": [],
   "structuredContent": {
+    "culture": null,
     "id": "00000000-0000-0000-0000-000000000000",
     "message": "Created and published "_Test Create And Publish Page"",
     "name": "_Test Create And Publish Page",
