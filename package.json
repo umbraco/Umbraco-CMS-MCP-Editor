@@ -58,6 +58,7 @@
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.87",
+    "@cloudflare/workers-types": "^5.20261113.1",
     "@jest/types": "^29.6.3",
     "@modelcontextprotocol/inspector": "^1.0.1",
     "@playwright/test": "^1.52.0",
