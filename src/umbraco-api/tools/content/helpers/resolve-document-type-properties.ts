@@ -37,8 +37,8 @@ export type ResolveDocumentTypePropertiesResult =
        * is incomplete — a caller that needs certainty (e.g. validating an
        * alias actually doesn't exist) must treat this as "unverifiable",
        * not "doesn't exist". A caller that only wants a best-effort read
-       * (e.g. `get-document-type`) can ignore it, matching the old
-       * behaviour of silently skipping a composition that failed to load.
+       * (e.g. `get-document-type`) can treat the ids as informational —
+       * surfaced as a non-fatal warning rather than failing the read.
        */
       failedCompositionIds: string[];
       /**

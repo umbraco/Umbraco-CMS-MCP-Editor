@@ -5,7 +5,9 @@ import {
   getStructuredContent,
   ContentTestHelper,
   extractChainedResult,
+  NON_EXISTENT_UUID,
 } from "./setup.js";
+import { getResultText } from "@umbraco-cms/mcp-server-sdk/testing";
 import { mcpClientManager } from "../../../mcp-client.js";
 import addRteBlockTool from "../post/add-rte-block.js";
 import inspectBlocksTool from "../get/inspect-blocks.js";
@@ -161,6 +163,32 @@ describe("add-rte-block", () => {
       extra,
     );
     expect(result.isError).toBe(true);
+  }, 30000);
+
+  it("returns a friendly 404 for a stale/unknown contentTypeKey, naming it and pointing at inspect-blocks", async () => {
+    expect(fixture).not.toBeNull();
+    const f = fixture!;
+
+    const result = await callTool(addRteBlockTool, {
+      id: f.pageId,
+      propertyAlias: f.propertyAlias,
+      contentTypeKey: NON_EXISTENT_UUID,
+      values: [{ alias: f.blockPropertyAlias, value: "_unknown-element-type" }],
+      position: undefined,
+      settingsTypeKey: undefined,
+      settingsValues: undefined,
+      culture: undefined,
+      segment: undefined,
+    }, extra);
+
+    expect(result.isError).toBe(true);
+    const problemDetails = JSON.parse(getResultText(result)) as { status?: unknown; title?: unknown; detail?: unknown };
+    expect(problemDetails).toMatchObject({
+      status: 404,
+      title: "Element type not found",
+    });
+    expect(String(problemDetails.detail)).toContain(NON_EXISTENT_UUID);
+    expect(String(problemDetails.detail)).toContain("inspect-blocks");
   }, 30000);
 
   it("rejects when targeted property is not a Rich Text with blocks", async () => {
