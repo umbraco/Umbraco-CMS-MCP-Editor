@@ -30,7 +30,7 @@ const URL_BATCH_CHUNK_SIZE = 40;
  * `block-inspector.ts` and `bulk-handler.ts`'s `parseBulkError` already use
  * around `extractInnerProblemDetails`.
  */
-function describeChainError(errorResult: ReturnType<typeof createToolResultError>): string {
+export function describeChainError(errorResult: ReturnType<typeof createToolResultError>): string {
   const problem = extractInnerProblemDetails(errorResult as Record<string, unknown>);
   const title = typeof problem.title === "string" ? problem.title : undefined;
   const detail = typeof problem.detail === "string" ? problem.detail : undefined;

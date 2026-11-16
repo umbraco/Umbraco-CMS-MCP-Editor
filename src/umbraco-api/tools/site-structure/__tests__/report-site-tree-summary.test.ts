@@ -7,6 +7,7 @@ import {
 import { ContentBuilder } from "../../content/__tests__/helpers/content-builder.js";
 import { ContentTestHelper } from "../../content/__tests__/helpers/content-test-helper.js";
 import { initContentTestState } from "../../content/__tests__/setup.js";
+import { callTool } from "../../../../testing/call-tool-with-validation.js";
 import reportSiteTreeSummaryTool from "../get/report-site-tree-summary.js";
 
 const TEST_PAGE_NAME = "_Test Site Tree Summary";
@@ -45,8 +46,9 @@ describe("report-site-tree-summary", () => {
   }, 30000);
 
   it("should return tree structure with pages", async () => {
-    const result = await reportSiteTreeSummaryTool.handler(
-      { parentId: undefined, maxDepth: 3 },
+    const result = await callTool(
+      reportSiteTreeSummaryTool,
+      { parentId: undefined, maxDepth: 3, includeUrls: true },
       extra,
     );
 
@@ -57,6 +59,7 @@ describe("report-site-tree-summary", () => {
     expect(data.totalPages).toBeGreaterThan(0);
     expect(typeof data.pagesPerLevel).toBe("object");
     expect(typeof data.maxDepthFound).toBe("number");
+    expect(data.truncated).toBe(false);
 
     if (data.tree.length > 0) {
       expect(data.tree[0]).toHaveProperty("id");
@@ -67,8 +70,9 @@ describe("report-site-tree-summary", () => {
   }, 30000);
 
   it("reports '' for a draft-only page and a real URL for a published page (regression for #233)", async () => {
-    const result = await reportSiteTreeSummaryTool.handler(
-      { parentId: testPageId, maxDepth: 1 },
+    const result = await callTool(
+      reportSiteTreeSummaryTool,
+      { parentId: testPageId, maxDepth: 1, includeUrls: true },
       extra,
     );
 
@@ -90,5 +94,29 @@ describe("report-site-tree-summary", () => {
     expect(draftNode?.url).toBe("");
     expect(typeof publishedNode?.url).toBe("string");
     expect(publishedNode?.url.length).toBeGreaterThan(0);
+  }, 30000);
+
+  it("reports '' for every node's url when includeUrls is false, even for a published page (#306)", async () => {
+    const result = await callTool(
+      reportSiteTreeSummaryTool,
+      { parentId: testPageId, maxDepth: 1, includeUrls: false },
+      extra,
+    );
+
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+
+    const findNode = (nodes: any[], id: string): any => {
+      for (const node of nodes) {
+        if (node.id === id) return node;
+        const found = findNode(node.children ?? [], id);
+        if (found) return found;
+      }
+      return undefined;
+    };
+
+    const publishedNode = findNode(data.tree, publishedId!);
+    expect(publishedNode).toBeDefined();
+    expect(publishedNode?.url).toBe("");
   }, 30000);
 });
