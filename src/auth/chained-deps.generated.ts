@@ -23,7 +23,7 @@ export const CHAINED_DEPS: Record<string, readonly string[]> = {
   "create-media-folder": ["create-media-folder", "get-media-by-id"],
   "create-member": ["create-member", "get-member", "update-member"],
   "create-member-group": ["create-member-group"],
-  "create-page": ["create-document", "get-data-types-by-id-array", "get-document-type-by-id"],
+  "create-page": ["create-document", "get-data-types-by-id-array", "get-document-type-by-id", "get-language"],
   "create-variant": ["get-document-by-id", "update-document"],
   "delete-block": ["get-document-by-id", "update-document-properties"],
   "delete-language": ["delete-language", "get-language-by-iso-code"],

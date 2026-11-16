@@ -25,6 +25,7 @@ import { mcpClientManager } from "../../../mcp-client.js";
 import createAndPublishPageTool from "../post/create-and-publish-page.js";
 import getPageTool from "../get/get-page.js";
 import { CompositionDoctypeFixture } from "./helpers/composition-doctype-fixture.js";
+import { VariantPageFixture } from "./helpers/variant-page-fixture.js";
 
 const TEST_PAGE_NAME = "_Test Create And Publish Page";
 const TEST_PAGE_NAME_FALLBACK = "_Test Create And Publish Page Fallback";
@@ -265,6 +266,212 @@ describe("create-and-publish-page", () => {
       // No page should have been created — searching for it should find nothing.
       const found = await ContentTestHelper.findDocument("_Test Create And Publish Page Bogus Alias");
       expect(found).toBeUndefined();
+    }, 30000);
+  });
+  describe("culture-variant document types", () => {
+    const fixture = new VariantPageFixture();
+    let documentTypeId: string;
+    let propertyAlias: string;
+    let defaultCulture: string;
+    let secondaryCulture: string;
+
+    beforeAll(async () => {
+      ({ documentTypeId, propertyAlias, defaultCulture, secondaryCulture } = await fixture.create(extra));
+    }, 120000);
+
+    afterAll(async () => {
+      await fixture.cleanup();
+    }, 30000);
+
+    it("creates the page in the default language when no culture is given", async () => {
+      const result = await callTool(
+        createAndPublishPageTool,
+        {
+          name: "_Test Create And Publish Page Variant Default",
+          documentTypeId,
+          parentId: undefined,
+          values: [{ alias: propertyAlias, value: "Default culture title" }],
+        },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      lastCreatedId = data.id;
+
+      const doc = await VariantPageFixture.getDocument(data.id);
+      expect(data.culture).toBe(defaultCulture);
+      expect(doc.variants.map((v: any) => v.culture)).toEqual([defaultCulture]);
+      const variant = doc.variants.find((v: any) => v.culture === defaultCulture);
+      expect(variant?.name).toBe("_Test Create And Publish Page Variant Default");
+      expect(variant?.state).toBe("Published");
+      // A value without a culture on a culture-variant property lands in the page's culture.
+      const value = doc.values.find((v: any) => v.alias === propertyAlias);
+      expect(value?.culture).toBe(defaultCulture);
+      expect(value?.value).toBe("Default culture title");
+    }, 30000);
+
+    it("creates the page in the requested culture", async () => {
+      const result = await callTool(
+        createAndPublishPageTool,
+        {
+          name: "_Test Create And Publish Page Variant Secondary",
+          documentTypeId,
+          parentId: undefined,
+          culture: secondaryCulture,
+          values: undefined,
+        },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      lastCreatedId = data.id;
+
+      const doc = await VariantPageFixture.getDocument(data.id);
+      expect(data.culture).toBe(secondaryCulture);
+      expect(doc.variants.map((v: any) => v.culture)).toEqual([secondaryCulture]);
+    }, 30000);
+
+    it("matches the requested culture case-insensitively", async () => {
+      const result = await callTool(
+        createAndPublishPageTool,
+        {
+          name: "_Test Create And Publish Page Variant Lowercase Culture",
+          documentTypeId,
+          parentId: undefined,
+          culture: secondaryCulture.toLowerCase(),
+          values: undefined,
+        },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      lastCreatedId = data.id;
+
+      const doc = await VariantPageFixture.getDocument(data.id);
+      expect(data.culture).toBe(secondaryCulture);
+      expect(doc.variants.map((v: any) => v.culture)).toEqual([secondaryCulture]);
+    }, 30000);
+
+    it("rejects a culture that is not a language on the site, listing the available ones", async () => {
+      const name = "_Test Create And Publish Page Variant Unknown Culture";
+      const result = await callTool(
+        createAndPublishPageTool,
+        { name, documentTypeId, parentId: undefined, culture: "xx-XX", values: undefined },
+        extra,
+      );
+
+      expect(result.isError).toBe(true);
+      const text = JSON.stringify(result);
+      expect(text).toContain('xx-XX\\" is not a language on this site');
+      expect(text).toContain(defaultCulture);
+      expect(text).toContain(secondaryCulture);
+      expect(await ContentTestHelper.findDocument(name)).toBeUndefined();
+    }, 30000);
+
+    it("rejects a value whose culture is not a language on the site", async () => {
+      const name = "_Test Create And Publish Page Variant Unknown Value Culture";
+      const result = await callTool(
+        createAndPublishPageTool,
+        {
+          name,
+          documentTypeId,
+          parentId: undefined,
+          values: [{ alias: propertyAlias, value: "Nowhere title", culture: "xx-XX" }],
+        },
+        extra,
+      );
+
+      expect(result.isError).toBe(true);
+      const text = JSON.stringify(result);
+      expect(text).toContain("value culture(s) are not languages on this site: xx-XX");
+      expect(text).toContain(defaultCulture);
+      expect(await ContentTestHelper.findDocument(name)).toBeUndefined();
+    }, 30000);
+
+    it("ignores culture for a document type that does not vary by culture", async () => {
+      const result = await callTool(
+        createAndPublishPageTool,
+        {
+          name: "_Test Create And Publish Page Invariant With Culture",
+          documentTypeId: testDocumentTypeId,
+          parentId: testPageId,
+          culture: secondaryCulture,
+          values: TEST_VALUES,
+        },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      lastCreatedId = data.id;
+
+      const doc = await VariantPageFixture.getDocument(data.id);
+      expect(data.culture).toBeNull();
+      expect(doc.variants.map((v: any) => v.culture)).toEqual([null]);
+    }, 30000);
+
+    it("creates and publishes the page in its culture on the create-document + publish-document fallback", async () => {
+      // Same listTools mock as the #206 fallback tests above: without
+      // create-and-publish-document the tool must still create the variant in
+      // the resolved culture AND publish that culture, not a null culture.
+      const listToolsSpy = jest.spyOn(mcpClientManager, "listTools");
+      listToolsSpy.mockImplementationOnce(async () => ({
+        tools: [
+          { name: "get-document-type-by-id" },
+          { name: "get-data-types-by-id-array" },
+          { name: "get-language" },
+          { name: "create-document" },
+          { name: "publish-document" },
+        ],
+      }));
+
+      const originalCallTool = mcpClientManager.callTool.bind(mcpClientManager);
+      const calls: { toolName: string; args: Record<string, unknown> }[] = [];
+      const callToolSpy = jest.spyOn(mcpClientManager, "callTool");
+      callToolSpy.mockImplementation(async (server: string, toolName: string, args: Record<string, unknown>) => {
+        calls.push({ toolName, args });
+        return originalCallTool(server, toolName, args);
+      });
+
+      try {
+        const result = await callTool(
+          createAndPublishPageTool,
+          {
+            name: "_Test Create And Publish Page Variant Fallback",
+            documentTypeId,
+            parentId: undefined,
+            culture: secondaryCulture,
+            values: [{ alias: propertyAlias, value: "Fallback title" }],
+          },
+          extra,
+        );
+
+        expect(result.isError).toBeFalsy();
+        const data = getStructuredContent(result) as any;
+        lastCreatedId = data.id;
+        expect(data.message).toBe('Created and published "_Test Create And Publish Page Variant Fallback"');
+        expect(data.culture).toBe(secondaryCulture);
+
+        const toolNames = calls.map((c) => c.toolName);
+        expect(toolNames).not.toContain("create-and-publish-document");
+        expect(calls.find((c) => c.toolName === "create-document")?.args.cultures).toEqual([secondaryCulture]);
+        expect((calls.find((c) => c.toolName === "publish-document")?.args.data as any)?.publishSchedules).toEqual([
+          { culture: secondaryCulture },
+        ]);
+      } finally {
+        callToolSpy.mockRestore();
+        listToolsSpy.mockRestore();
+      }
+
+      const doc = await VariantPageFixture.getDocument(lastCreatedId!);
+      expect(doc.variants.map((v: any) => v.culture)).toEqual([secondaryCulture]);
+      expect(doc.variants[0].state).toBe("Published");
+      const value = doc.values.find((v: any) => v.alias === propertyAlias);
+      expect(value?.culture).toBe(secondaryCulture);
+      expect(value?.value).toBe("Fallback title");
     }, 30000);
   });
 });
