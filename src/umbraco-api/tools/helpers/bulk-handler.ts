@@ -66,6 +66,14 @@ export interface BulkResult {
    * by bulk-publish so the agent can show the editor what's now live.
    */
   publishedUrls?: string[];
+  /**
+   * Set by bulk-publish when `includeDescendants` was requested and the CMS
+   * couldn't confirm the tree finished publishing before this call returned.
+   * The operation was accepted and is still running — not a failure — but
+   * distinct from a confirmed publish: `publishedUrls` can't be resolved yet,
+   * and the row shouldn't be read as "done" just because `success` is true.
+   */
+  publishPending?: boolean;
 }
 
 export interface BulkOperationOutput {
