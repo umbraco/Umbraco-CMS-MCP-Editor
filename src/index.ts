@@ -55,6 +55,7 @@ import { mcpServers } from "./config/mcp-servers.js";
 
 // Import registries for tool filtering
 import { allModes, allModeNames, allSliceNames, loadServerConfig, clearConfigCache } from "./config/index.js";
+import { applyFilterConfig } from "./config/apply-filter-config.js";
 
 // Server-level instructions sent to MCP clients during initialization.
 import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
@@ -149,6 +150,15 @@ async function main() {
   if (chainingEnabled) {
     console.error("MCP chaining enabled — pre-connecting to chained servers...");
     try {
+      // Pass readonly mode and slice filters to chained MCP servers. Taken
+      // from the resolved config so a CLI flag counts too: a chained server
+      // inherits this process's environment, but not its command line. Must
+      // run before the first connect() call below (the SDK throws if a
+      // connection already exists), inside the same try/catch as that loop
+      // so an ordering regression surfaces as a startup warning rather than
+      // an uncaught exception at module-evaluation time.
+      applyFilterConfig(serverConfig.umbraco, mcpClientManager);
+
       for (const srv of mcpServers) {
         await mcpClientManager.connect(srv.name);
         console.error(`Connected to chained server: ${srv.name}`);

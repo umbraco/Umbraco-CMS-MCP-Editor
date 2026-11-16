@@ -13,6 +13,7 @@
 
 import {
   getServerConfig,
+  resetServerConfig,
   type ConfigFieldDefinition,
   type UmbracoServerConfig,
 } from "@umbraco-cms/mcp-server-sdk";
@@ -105,6 +106,8 @@ export async function loadServerConfig(isStdioMode: boolean): Promise<ServerConf
  */
 export function clearConfigCache(): void {
   cachedConfig = null;
+  // Also let the SDK reload .env and re-apply dry-run/output mode on the next load.
+  resetServerConfig();
 }
 
 /**

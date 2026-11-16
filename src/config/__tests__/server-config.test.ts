@@ -14,8 +14,10 @@ import { jest, describe, it, expect, beforeEach } from "@jest/globals";
 // Mock the toolkit's getServerConfig before importing our module
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockGetServerConfig = jest.fn<(...args: any[]) => any>();
+const mockResetServerConfig = jest.fn<() => void>();
 jest.unstable_mockModule("@umbraco-cms/mcp-server-sdk", () => ({
   getServerConfig: mockGetServerConfig,
+  resetServerConfig: mockResetServerConfig,
 }));
 
 // Import our module after setting up mocks
@@ -27,6 +29,7 @@ describe("Server Config", () => {
     // Clear config cache and reset mocks before each test
     clearConfigCache();
     mockGetServerConfig.mockReset();
+    mockResetServerConfig.mockReset();
   });
 
   describe("loadServerConfig", () => {
@@ -150,6 +153,11 @@ describe("Server Config", () => {
       const second = await loadServerConfig(true);
       expect(second.umbraco.auth.clientId).toBe("second");
       expect(mockGetServerConfig).toHaveBeenCalledTimes(2);
+    });
+
+    it("should call the SDK's resetServerConfig on clearConfigCache so .env and dry-run/output mode are re-applied", () => {
+      clearConfigCache();
+      expect(mockResetServerConfig).toHaveBeenCalledTimes(1);
     });
   });
 

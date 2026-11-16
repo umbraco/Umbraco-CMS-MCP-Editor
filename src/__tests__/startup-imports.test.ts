@@ -16,6 +16,18 @@ const staticMcpDevImport = new RegExp(
   "m",
 );
 
+// Umbraco-MCP-Base's OAuthProvider now enforces PKCE S256 in its authorize
+// handler; allowPlainPKCE: false keeps this Worker's own discovery metadata
+// in step (otherwise it would still advertise "plain" as accepted). worker.ts
+// constructs OAuthProvider at module scope with cloudflare:workers imports,
+// so it can't safely be imported in Jest — assert on the source text instead,
+// the same way the mcp-dev import guard above does.
+describe("worker startup: OAuthProvider enforces PKCE S256 only", () => {
+  it("sets allowPlainPKCE: false on the OAuthProvider construction", () => {
+    expect(read("../worker.ts")).toMatch(/allowPlainPKCE:\s*false/);
+  });
+});
+
 describe("worker startup: mcp-dev is not imported at module scope", () => {
   it.each(["../worker.ts", "../umbraco-api/cms-chained-server.ts"])("%s has no static mcp-dev value import", (file) => {
     expect(read(file)).not.toMatch(staticMcpDevImport);
