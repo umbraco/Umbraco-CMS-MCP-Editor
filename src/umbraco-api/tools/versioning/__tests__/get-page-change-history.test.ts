@@ -50,6 +50,10 @@ describe("get-page-change-history", () => {
       expect(typeof entry.timestamp).toBe("string");
       expect(typeof entry.action).toBe("string");
       expect(typeof entry.description).toBe("string");
+      // The test API user is an admin, so resolveUserNames() must have resolved this
+      // to a display name, not fallen back to the raw GUID — proves the fix's happy
+      // path is actually wired into the live call, not just unit-tested in isolation.
+      expect(entry.user).not.toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
     }
   }, 30000);
 

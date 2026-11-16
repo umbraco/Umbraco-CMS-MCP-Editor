@@ -3,7 +3,7 @@ import { withStandardDecorators, createToolResult, createToolResultError, ToolDe
 import { chainCms } from "../../../cms-chain.js";
 import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 import { validateDocumentState, validationResultSchema } from "../../helpers/validate-document.js";
-import { checkUsersAccess } from "../../helpers/users-access.js";
+import { resolveUserNames } from "../../helpers/resolve-user-names.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The page ID to rollback"),
@@ -63,22 +63,14 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // runtime locale (en-GB falls through to ISO-style ordering on most runtimes
     // and produces "20 April 2026 at 15:32" rather than the raw UTC ISO string).
     //
-    // Skip the get-user-by-id call entirely when the caller has no access to
-    // the Users section — it would 403 and that's recorded as an api_error on
-    // the chained call (see issue #307). A failed access check fails closed
-    // the same way, since this is a degraded-display fallback, not a hard gate.
+    // resolveUserNames skips the get-user-by-id call entirely when the caller has
+    // no access to the Users section — it would 403 and that's recorded as an
+    // api_error on the chained call (see issue #307).
     const versionDate = targetVersion?.versionDate ?? null;
     const versionUserId = targetVersion?.user?.id ?? null;
-    let versionUserName: string | null = null;
-    if (versionUserId) {
-      const accessCheck = await checkUsersAccess();
-      if (accessCheck.ok && accessCheck.hasAccess) {
-        const userResult = await chainCms("get-user-by-id", { id: versionUserId });
-        versionUserName = userResult.ok ? (userResult.data.name ?? versionUserId) : versionUserId;
-      } else {
-        versionUserName = versionUserId;
-      }
-    }
+    const versionUserName = versionUserId
+      ? (await resolveUserNames([versionUserId])).get(versionUserId) ?? versionUserId
+      : null;
     const versionDateFriendly = versionDate
       ? new Date(versionDate).toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" })
       : null;

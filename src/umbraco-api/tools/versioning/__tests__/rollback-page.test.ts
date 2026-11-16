@@ -54,6 +54,17 @@ describe("rollback-page", () => {
     expect(data.message).toContain("Rolled back");
     expect(data.id).toBe(testPageId);
     expect(data.versionId).toBe(targetVersion.versionId);
+
+    // The confirmation prompt (sent before the rollback above) should read
+    // "by <name>", not "by <raw GUID>" when the version has an author — the
+    // test API user is an admin, so resolveUserNames() must have resolved
+    // it. Proves the fix is actually wired into this call site, not just
+    // unit-tested in isolation (see helpers/__tests__/resolve-user-names.test.ts).
+    const confirmMessage = elicitation.mock.mock.calls.at(-1)?.[0]?.message as string;
+    const byMatch = confirmMessage.match(/by ([^?]+)\?/);
+    if (byMatch) {
+      expect(byMatch[1]).not.toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    }
   }, 30000);
 
   it("input schema accepts Umbraco sequential GUID versionId format", async () => {
