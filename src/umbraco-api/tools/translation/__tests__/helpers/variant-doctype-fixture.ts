@@ -17,11 +17,25 @@ import { mcpClientManager } from "../../../../mcp-client.js";
 import { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import { ContentTestHelper } from "../../../content/__tests__/helpers/content-test-helper.js";
 
+/** A property to create on the fixture's doctype. */
+export interface VariantDoctypeProperty {
+  name: string;
+  alias: string;
+  dataTypeId: string;
+  group?: string;
+}
+
 export class VariantDoctypeFixture {
   private createdId: string | null = null;
 
-  /** Creates the doctype and returns its ID. */
-  async create(): Promise<string> {
+  /**
+   * Creates the doctype and returns its ID.
+   *
+   * Pass `properties` to give the doctype culture-varying properties — each one
+   * is flipped to `variesByCulture: true` alongside the doctype itself, so
+   * per-culture values actually stick. Omit for a bare doctype.
+   */
+  async create(options?: { properties?: readonly VariantDoctypeProperty[] }): Promise<string> {
     const alias = `_test_variant_doctype_${Date.now()}`;
 
     // Step 1: create a minimal doctype (create-document-type does not expose
@@ -33,7 +47,7 @@ export class VariantDoctypeFixture {
       allowedAsRoot: true,
       compositions: [],
       allowedDocumentTypes: [],
-      properties: [],
+      properties: (options?.properties ?? []).map((p) => ({ ...p })),
     });
 
     if (createResult.isError) {
@@ -68,7 +82,9 @@ export class VariantDoctypeFixture {
         variesBySegment: dt.variesBySegment,
         collection: dt.collection ?? null,
         isElement: dt.isElement,
-        properties: dt.properties ?? [],
+        // A property only holds per-culture values when it varies by culture too
+        // — the doctype flag alone is not enough.
+        properties: (dt.properties ?? []).map((p: any) => ({ ...p, variesByCulture: true })),
         containers: dt.containers ?? [],
         allowedTemplates: dt.allowedTemplates ?? [],
         defaultTemplate: dt.defaultTemplate ?? null,
