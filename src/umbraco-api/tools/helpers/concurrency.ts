@@ -43,3 +43,35 @@ export async function mapWithConcurrency<T, R>(
   await Promise.all(Array.from({ length: effectiveLimit }, () => worker()));
   return results;
 }
+
+/**
+ * A global concurrency cap, independent of call-site nesting. Unlike
+ * `mapWithConcurrency` — which only bounds concurrency within a single call
+ * (so recursive call sites, e.g. a tree walk, each get their own independent
+ * pool, multiplying the effective ceiling by depth) — a single `Semaphore`
+ * instance shared across an entire operation caps real concurrent work at
+ * exactly `limit`, however many call sites `acquire()` it. FIFO queue: callers
+ * that block wait their turn in the order they called `acquire()`.
+ */
+export class Semaphore {
+  private current = 0;
+  private readonly queue: Array<() => void> = [];
+  constructor(private readonly limit: number) {}
+
+  async acquire(): Promise<void> {
+    if (this.current < this.limit) {
+      this.current++;
+      return;
+    }
+    return new Promise<void>((resolve) => this.queue.push(resolve));
+  }
+
+  release(): void {
+    const next = this.queue.shift();
+    if (next) {
+      next();
+    } else {
+      this.current--;
+    }
+  }
+}

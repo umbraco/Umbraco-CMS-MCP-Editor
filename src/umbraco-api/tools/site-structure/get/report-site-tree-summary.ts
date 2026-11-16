@@ -1,11 +1,18 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { fetchPrimaryPublishedUrlsBatch } from "../../helpers/preview-url.js";
-import { mapWithConcurrency } from "../../helpers/concurrency.js";
+import { fetchPrimaryPublishedUrlsBatch, describeChainError } from "../../helpers/preview-url.js";
+import { mapWithConcurrency, Semaphore } from "../../helpers/concurrency.js";
 
-// Sibling subtrees are fetched this many at a time (never one at a time, and
-// never fully unbounded) — see https://github.com/umbraco/Umbraco-CMS-MCP-Editor/issues/306.
+// Real outbound chained-CMS calls are capped at this many in flight at once,
+// globally across the whole walk (never one at a time, and never fully
+// unbounded) — see https://github.com/umbraco/Umbraco-CMS-MCP-Editor/issues/306.
+// Enforced by a single `Semaphore` instance per tool invocation (see
+// `WalkBudget.semaphore`), not by `mapWithConcurrency` alone: that helper only
+// bounds concurrency within one call, so the recursive call back into
+// `buildTreeNodes` for each item's children would otherwise spin up its own
+// independent 5-worker pool per recursion level, multiplying the effective
+// ceiling to 5^depth.
 const CONCURRENCY_LIMIT = 5;
 
 // Stop the walk once either budget is hit and report what was collected so
@@ -33,7 +40,7 @@ export function _resetBudgetOverridesForTests(): void {
 
 const inputSchema = {
   parentId: z.string().uuid().optional().describe("Scope to a subtree by parent page ID. Omit to start from root."),
-  maxDepth: z.number().optional().default(5).describe("How many levels deep to scan (default 5)"),
+  maxDepth: z.number().int().positive().max(10).optional().default(5).describe("How many levels deep to scan (default 5, max 10)"),
   includeUrls: z
     .boolean()
     .optional()
@@ -82,20 +89,47 @@ interface WalkBudget {
   maxDepthRef: { value: number };
   truncatedRef: { value: boolean };
   deadline: number;
+  // One instance per tool invocation, shared across every recursion level —
+  // see CONCURRENCY_LIMIT's comment for why a per-call mapWithConcurrency
+  // pool alone isn't enough.
+  semaphore: Semaphore;
 }
 
 function budgetExceeded(budget: WalkBudget): boolean {
   return budget.totalRef.count >= NODE_BUDGET || Date.now() >= budget.deadline;
 }
 
-async function fetchTreeLevel(parentId: string | undefined): Promise<any[]> {
-  const result = parentId
-    ? await chainCms("get-document-children", { parentId, cursor: encodeCursor({ s: 0, t: 100 }) })
-    : await chainCms("get-document-root", { cursor: encodeCursor({ s: 0, t: 100 }) });
+async function fetchTreeLevel(parentId: string | undefined, budget: WalkBudget): Promise<any[]> {
+  await budget.semaphore.acquire();
+  let result;
+  try {
+    result = parentId
+      ? await chainCms("get-document-children", { parentId, cursor: encodeCursor({ s: 0, t: 100 }) })
+      : await chainCms("get-document-root", { cursor: encodeCursor({ s: 0, t: 100 }) });
+  } finally {
+    budget.semaphore.release();
+  }
 
-  if (!result.ok) return [];
+  if (!result.ok) {
+    // Indistinguishable from "this node has no children" otherwise — a
+    // failed call must not be reported as a complete, empty level.
+    console.warn(
+      `report-site-tree-summary: fetchTreeLevel failed for parentId ${parentId ?? "<root>"} — ${describeChainError(result.errorResult)}`,
+    );
+    budget.truncatedRef.value = true;
+    return [];
+  }
+
   const data = result.data;
-  return data?.items ?? [];
+  const items = data?.items ?? [];
+  const total = data?.total ?? items.length;
+  // The cursor is capped at 100 items per level (see encodeCursor call
+  // above); a level with more children than that is itself a partial result,
+  // even though this call succeeded.
+  if (total > items.length) {
+    budget.truncatedRef.value = true;
+  }
+  return items;
 }
 
 async function buildTreeNodes(
@@ -111,15 +145,21 @@ async function buildTreeNodes(
     return [];
   }
 
-  const items = await fetchTreeLevel(parentId);
+  const items = await fetchTreeLevel(parentId, budget);
 
   // One get-document-urls request per parent's children fetched here — never
   // per item — and skipped entirely when the caller doesn't need URLs.
-  const urlsById = includeUrls
-    ? await fetchPrimaryPublishedUrlsBatch(
+  let urlsById = new Map<string, string>();
+  if (includeUrls) {
+    await budget.semaphore.acquire();
+    try {
+      urlsById = await fetchPrimaryPublishedUrlsBatch(
         items.map((item) => item.id).filter((id): id is string => typeof id === "string"),
-      )
-    : new Map<string, string>();
+      );
+    } finally {
+      budget.semaphore.release();
+    }
+  }
 
   // Sibling subtrees fan out with a concurrency cap instead of one at a time
   // (the root cause of #306) and instead of fully unbounded (which would hit
@@ -171,6 +211,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       maxDepthRef: { value: 0 },
       truncatedRef: { value: false },
       deadline: Date.now() + TIME_BUDGET_MS,
+      semaphore: new Semaphore(CONCURRENCY_LIMIT),
     };
 
     const startDepth = parentId ? 1 : 0;
