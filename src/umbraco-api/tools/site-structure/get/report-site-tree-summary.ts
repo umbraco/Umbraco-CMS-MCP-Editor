@@ -6,10 +6,14 @@ import { fetchPrimaryPublishedUrlsBatch } from "../../helpers/preview-url.js";
 // #306: siblings used to be walked strictly serially (await the recursive
 // subtree call for one child before moving to the next), so total run time
 // summed every Umbraco round trip across the whole tree — seen in prod up to
-// 256s. Sibling subtrees are now fetched with bounded concurrency (below),
-// plus a wall-clock/node budget so a pathological tree returns a partial,
-// clearly-marked result instead of running unbounded.
-const SUBTREE_FETCH_CONCURRENCY = 5;
+// 256s. Sibling subtrees are now fanned out with a plain Promise.all, while
+// the actual CMS calls (fetchTreeLevel, the per-level URL batch lookup) are
+// gated through a single shared ConcurrencyLimiter threaded through the
+// whole recursion — so the total number of in-flight CMS calls across the
+// entire traversal is bounded at MAX_CONCURRENT_CMS_CALLS, regardless of
+// tree depth or width. Plus a wall-clock/node budget so a pathological tree
+// returns a partial, clearly-marked result instead of running unbounded.
+const MAX_CONCURRENT_CMS_CALLS = 5;
 const DEFAULT_NODE_BUDGET = 500;
 const DEFAULT_TIME_BUDGET_MS = 20_000;
 
@@ -81,7 +85,7 @@ const outputSchema = z.object({
   truncated: z
     .boolean()
     .describe(
-      "True when the scan hit its node or time budget before the whole requested tree was walked, so `tree` is a partial result. Narrow a truncated request with `parentId` to scope to a smaller subtree, or lower `maxDepth`."
+      "True when the scan hit its node or time budget before the whole requested tree was walked, so `tree` is a partial result. Narrow a truncated request with `parentId` to scope to a smaller subtree, lower `maxDepth`, or set `includeUrls: false` to skip URL lookups."
     ),
 });
 
@@ -91,46 +95,55 @@ interface TraversalBudget {
   truncated: boolean;
 }
 
+// Side-effecting on purpose: this is the single decision point for "has the
+// traversal run out of room", so every call site that checks the budget
+// also correctly flags the output as truncated, including the recursion
+// call site where an `&&` short-circuit previously skipped setting the flag
+// (see #306 finding 1 — a tree could come back silently incomplete with
+// `truncated: false`).
 function isBudgetExceeded(budget: TraversalBudget, totalRef: { count: number }): boolean {
-  return totalRef.count >= budget.maxNodes || Date.now() >= budget.deadlineMs;
+  const exceeded = totalRef.count >= budget.maxNodes || Date.now() >= budget.deadlineMs;
+  if (exceeded) budget.truncated = true;
+  return exceeded;
 }
 
 /**
- * Run `fn` over `items` with at most `limit` calls in flight at once.
- * Returns results in the same order as `items`. Used to fetch sibling
- * subtrees in parallel (bounded) instead of either unbounded `Promise.all`
- * (could fire hundreds of concurrent requests at a wide level) or the fully
- * serial `for...of await` this replaces (see #306).
+ * Bounds the number of CMS calls in flight at once, across the whole
+ * traversal (not per recursion frame — see #306 finding 2). Callers await
+ * `run(fn)`; if the limiter is already at capacity, the call queues until a
+ * slot frees up.
  */
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let nextIndex = 0;
+class ConcurrencyLimiter {
+  private active = 0;
+  private readonly queue: Array<() => void> = [];
 
-  async function worker(): Promise<void> {
-    while (true) {
-      const current = nextIndex++;
-      if (current >= items.length) return;
-      results[current] = await fn(items[current], current);
+  constructor(private readonly limit: number) {}
+
+  async run<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.active >= this.limit) {
+      await new Promise<void>((resolve) => this.queue.push(resolve));
+    }
+    this.active++;
+    try {
+      return await fn();
+    } finally {
+      this.active--;
+      const next = this.queue.shift();
+      next?.();
     }
   }
-
-  const workerCount = Math.max(1, Math.min(limit, items.length));
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
-  return results;
 }
 
-async function fetchTreeLevel(parentId: string | undefined, depth: number): Promise<any[]> {
+async function fetchTreeLevel(parentId: string | undefined, depth: number): Promise<{ items: any[]; failed: boolean }> {
   const result = parentId
     ? await chainCms("get-document-children", { parentId, cursor: encodeCursor({ s: 0, t: 100 }) })
     : await chainCms("get-document-root", { cursor: encodeCursor({ s: 0, t: 100 }) });
 
-  if (!result.ok) return [];
-  const data = result.data;
-  return data?.items ?? [];
+  if (!result.ok) {
+    console.warn(`report-site-tree-summary: failed to fetch children of ${parentId ?? "<root>"} at depth ${depth}`);
+    return { items: [], failed: true };
+  }
+  return { items: result.data?.items ?? [], failed: false };
 }
 
 async function buildTreeNodes(
@@ -142,19 +155,24 @@ async function buildTreeNodes(
   totalRef: { count: number },
   maxDepthRef: { value: number },
   budget: TraversalBudget,
+  limiter: ConcurrencyLimiter,
 ): Promise<TreeNode[]> {
   if (isBudgetExceeded(budget, totalRef)) {
-    budget.truncated = true;
     return [];
   }
 
-  const items = await fetchTreeLevel(parentId, depth);
+  const { items, failed } = await limiter.run(() => fetchTreeLevel(parentId, depth));
+  if (failed) {
+    budget.truncated = true;
+  }
 
   // One get-document-urls request per tree level fetched — never per item —
   // and skippable entirely via includeUrls:false for large/slow trees.
   const urlsById = includeUrls
-    ? await fetchPrimaryPublishedUrlsBatch(
-        items.map((item) => item.id).filter((id): id is string => typeof id === "string"),
+    ? await limiter.run(() =>
+        fetchPrimaryPublishedUrlsBatch(
+          items.map((item) => item.id).filter((id): id is string => typeof id === "string"),
+        ),
       )
     : new Map<string, string>();
 
@@ -166,7 +184,6 @@ async function buildTreeNodes(
   const included: typeof items = [];
   for (const item of items) {
     if (isBudgetExceeded(budget, totalRef)) {
-      budget.truncated = true;
       break;
     }
     totalRef.count++;
@@ -178,15 +195,29 @@ async function buildTreeNodes(
     included.push(item);
   }
 
-  // Second pass: fetch each included item's subtree. This is the expensive,
-  // round-trip-heavy part — run it with bounded concurrency so sibling
-  // subtrees overlap instead of serializing (#306).
-  const childrenByIndex = await mapWithConcurrency(included, SUBTREE_FETCH_CONCURRENCY, async (item) => {
-    if (item.hasChildren && depth < maxDepth && !isBudgetExceeded(budget, totalRef)) {
-      return buildTreeNodes(item.id, depth + 1, maxDepth, includeUrls, pagesPerLevel, totalRef, maxDepthRef, budget);
-    }
-    return [] as TreeNode[];
-  });
+  // Second pass: fetch each included item's subtree. Sibling fan-out is a
+  // plain Promise.all — the real throttling happens inside each recursive
+  // call, at the limiter.run() call sites above, which bound total in-flight
+  // CMS calls across the whole traversal rather than per recursion frame
+  // (#306 finding 2).
+  const childrenByIndex = await Promise.all(
+    included.map((item) => {
+      if (item.hasChildren && depth < maxDepth && !isBudgetExceeded(budget, totalRef)) {
+        return buildTreeNodes(
+          item.id,
+          depth + 1,
+          maxDepth,
+          includeUrls,
+          pagesPerLevel,
+          totalRef,
+          maxDepthRef,
+          budget,
+          limiter,
+        );
+      }
+      return Promise.resolve([] as TreeNode[]);
+    }),
+  );
 
   return included.map((item, i) => {
     const children = childrenByIndex[i];
@@ -226,6 +257,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       truncated: false,
     };
 
+    const limiter = new ConcurrencyLimiter(MAX_CONCURRENT_CMS_CALLS);
     const startDepth = parentId ? 1 : 0;
     const tree = await buildTreeNodes(
       parentId,
@@ -236,6 +268,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       totalRef,
       maxDepthRef,
       budget,
+      limiter,
     );
 
     return createToolResult({
