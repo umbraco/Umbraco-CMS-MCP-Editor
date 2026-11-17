@@ -121,15 +121,21 @@ class ConcurrencyLimiter {
 
   async run<T>(fn: () => Promise<T>): Promise<T> {
     if (this.active >= this.limit) {
+      // Slot is handed directly to this waiter by the releaser below —
+      // don't increment here, it's already been incremented on our behalf.
       await new Promise<void>((resolve) => this.queue.push(resolve));
+    } else {
+      this.active++;
     }
-    this.active++;
     try {
       return await fn();
     } finally {
-      this.active--;
       const next = this.queue.shift();
-      next?.();
+      if (next) {
+        next(); // hand our slot straight to the next waiter — active stays the same
+      } else {
+        this.active--; // no one waiting, actually free the slot
+      }
     }
   }
 }
