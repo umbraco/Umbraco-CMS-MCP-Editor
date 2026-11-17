@@ -26,6 +26,10 @@ describe("worker startup: OAuthProvider enforces PKCE S256 only", () => {
   it("sets allowPlainPKCE: false on the OAuthProvider construction", () => {
     expect(read("../worker.ts")).toMatch(/allowPlainPKCE:\s*false/);
   });
+
+  it("sets clientRegistrationTTL: undefined on the OAuthProvider construction", () => {
+    expect(read("../worker.ts")).toMatch(/clientRegistrationTTL:\s*undefined/);
+  });
 });
 
 describe("worker startup: mcp-dev is not imported at module scope", () => {
