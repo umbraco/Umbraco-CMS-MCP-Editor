@@ -27,8 +27,29 @@ export async function resolveUserNames(userIds: string[]): Promise<Map<string, s
   const uniqueIds = Array.from(new Set(userIds));
   if (uniqueIds.length === 0) return new Map();
 
-  const accessCheck = await checkUsersAccess();
-  if (!accessCheck.ok || !accessCheck.hasAccess) {
+  let accessCheck;
+  try {
+    accessCheck = await checkUsersAccess();
+  } catch (error) {
+    // checkUsersAccess() delegates to chainCms, which normally never throws
+    // (it normalizes failures to { ok: false }) — but guard against an
+    // unexpected throw anyway, since this helper only ever degrades to the
+    // raw-ID fallback and must never itself throw.
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `resolveUserNames: users-access check threw unexpectedly, falling back to raw IDs: ${message}`,
+    );
+    return new Map(uniqueIds.map((id) => [id, id] as const));
+  }
+  if (!accessCheck.ok) {
+    console.warn(
+      `resolveUserNames: users-access check failed, falling back to raw IDs: ${JSON.stringify(accessCheck.errorResult)}`,
+    );
+    return new Map(uniqueIds.map((id) => [id, id] as const));
+  }
+  if (!accessCheck.hasAccess) {
+    // Expected/routine path — the editor genuinely lacks Users access. This
+    // is exactly the case issue #307 exists to keep quiet, so no logging here.
     return new Map(uniqueIds.map((id) => [id, id] as const));
   }
 
@@ -38,7 +59,11 @@ export async function resolveUserNames(userIds: string[]): Promise<Map<string, s
         const userResult = await chainCms("get-user-by-id", { id });
         if (!userResult.ok) return [id, id] as const;
         return [id, userResult.data.name ?? id] as const;
-      } catch {
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(
+          `resolveUserNames: unexpected error resolving user ${id} — falling back to raw ID: ${message}`,
+        );
         return [id, id] as const;
       }
     }),

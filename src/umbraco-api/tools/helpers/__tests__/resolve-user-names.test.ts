@@ -101,6 +101,33 @@ describe("resolveUserNames", () => {
     expect(result.get("user-1")).toBe("user-1");
   });
 
+  it("falls back to the raw ID (without throwing) when get-user-by-id throws", async () => {
+    mockChainCms.mockImplementation(async (toolName: string) => {
+      if (toolName === "get-user-current") {
+        return { ok: true, data: { allowedSections: ["Umb.Section.Users"] } };
+      }
+      if (toolName === "get-user-by-id") {
+        throw new Error("boom");
+      }
+      throw new Error(`unexpected chainCms call: ${toolName}`);
+    });
+
+    const result = await resolveUserNames(["user-1"]);
+    expect(result.get("user-1")).toBe("user-1");
+  });
+
+  it("falls back to raw IDs (without throwing) when the underlying get-user-current call throws", async () => {
+    mockChainCms.mockImplementation(async (toolName: string) => {
+      if (toolName === "get-user-current") {
+        throw new Error("network blip");
+      }
+      throw new Error(`unexpected chainCms call: ${toolName}`);
+    });
+
+    const result = await resolveUserNames(["user-1"]);
+    expect(result.get("user-1")).toBe("user-1");
+  });
+
   it("short-circuits before any chained call when given no IDs", async () => {
     const result = await resolveUserNames([]);
     expect(result.size).toBe(0);
