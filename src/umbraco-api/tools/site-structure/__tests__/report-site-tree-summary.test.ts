@@ -155,6 +155,16 @@ describe("report-site-tree-summary", () => {
           .create();
         childIds.push(child.getId());
 
+        if (label === "A") {
+          // Publish this sibling so it has a real, non-empty URL when
+          // includeUrls: true — otherwise an unpublished draft also reports
+          // url === "", and the includeUrls: false test below can't tell
+          // "lookup skipped" from "lookup ran and returned empty because
+          // the page is a draft" (mirrors the #233 regression test's
+          // publish pattern further up this file).
+          await child.publish();
+        }
+
         const grandchild = await new ContentBuilder()
           .withName(`_Test STS Concurrency ${label}1`)
           .withDocumentType(leafTypeId)
@@ -191,6 +201,23 @@ describe("report-site-tree-summary", () => {
     }, 30000);
 
     it("skips URL lookups entirely when includeUrls is false", async () => {
+      // childIds[0] ("A") was published in beforeAll, so it has a real,
+      // non-empty URL — prove the lookup actually runs and finds it with
+      // includeUrls: true first, so the includeUrls: false assertion below
+      // can only be explained by the lookup being skipped, not by the page
+      // being an unpublished draft (which would also report url === "").
+      const publishedResult = await callTool(
+        reportSiteTreeSummaryTool,
+        { parentId: testPageId, maxDepth: 2, includeUrls: true },
+        extra,
+      );
+      expect(publishedResult.isError).toBeFalsy();
+      const publishedData = getStructuredContent(publishedResult) as any;
+      const publishedChild = findNode(publishedData.tree, childIds[0]);
+      expect(publishedChild).toBeDefined();
+      expect(typeof publishedChild.url).toBe("string");
+      expect(publishedChild.url.length).toBeGreaterThan(0);
+
       const result = await callTool(
         reportSiteTreeSummaryTool,
         { parentId: testPageId, maxDepth: 2, includeUrls: false },
@@ -279,6 +306,100 @@ describe("report-site-tree-summary", () => {
 
         expect(data.truncated).toBe(false);
         expect(data.totalPages).toBe(3);
+      } finally {
+        _resetTraversalBudgetForTests();
+      }
+    }, 30000);
+
+    it("stops immediately and reports truncated: true once the time budget has already expired", async () => {
+      // timeBudgetMs is the other half of the safety mechanism (and the one
+      // most directly tied to #306's motivating 256s-in-prod incident), but
+      // it had no coverage at all — only nodeBudget was ever overridden in
+      // tests. A budget of 0ms means the deadline is already in the past by
+      // the time the first isBudgetExceeded() check runs.
+      _setTraversalBudgetForTests({ timeBudgetMs: 0 });
+      try {
+        const result = await callTool(
+          reportSiteTreeSummaryTool,
+          { parentId: truncationRootId, maxDepth: 1 },
+          extra,
+        );
+
+        expect(result.isError).toBeFalsy();
+        const data = getStructuredContent(result) as any;
+
+        expect(data.truncated).toBe(true);
+      } finally {
+        _resetTraversalBudgetForTests();
+      }
+    }, 30000);
+  });
+
+  describe("deep truncation across a nested level (#306 finding 1 regression)", () => {
+    const childIds: string[] = [];
+    const grandchildIds: string[] = [];
+
+    beforeAll(async () => {
+      const state = await initContentTestState(extra);
+      const { containerTypeId, leafTypeId } = await resolveNestableDocTypePair(state.testPageId);
+
+      // Three siblings directly under the shared root, each with a real
+      // child of its own (same fixture shape as the "parallel sibling
+      // subtree fetch" block above). What matters here is the node budget
+      // set in the test itself: it's set to exactly the number of items at
+      // this level, so the first-pass loop in buildTreeNodes never breaks
+      // (it runs out of items to process before the count check is ever
+      // tripped) — the only call site that can observe the exhausted
+      // budget is the recursion decision for each item's children. Before
+      // the fix, that decision's `&&` short-circuit skipped calling
+      // isBudgetExceeded's side effect entirely, so `truncated` stayed
+      // false while every sibling's real children were silently dropped.
+      for (const label of ["A", "B", "C"]) {
+        const child = await new ContentBuilder()
+          .withName(`_Test STS Deep Truncation ${label}`)
+          .withDocumentType(containerTypeId)
+          .withParent(state.testPageId)
+          .create();
+        childIds.push(child.getId());
+
+        const grandchild = await new ContentBuilder()
+          .withName(`_Test STS Deep Truncation ${label}1`)
+          .withDocumentType(leafTypeId)
+          .withParent(child.getId())
+          .create();
+        grandchildIds.push(grandchild.getId());
+      }
+    }, 60000);
+
+    afterAll(async () => {
+      _resetTraversalBudgetForTests();
+      for (const id of [...grandchildIds, ...childIds]) {
+        await ContentTestHelper.cleanupById(id);
+      }
+    }, 30000);
+
+    it("flags truncated: true when the budget runs out exactly at a level whose items have real children", async () => {
+      // testPageId carries other content (the demo site's own pages, plus
+      // whatever earlier tests in this file left behind) on top of the
+      // three siblings created above, so the exact count is computed here
+      // rather than hardcoded — it just needs to equal the real number of
+      // items report-site-tree-summary will fetch at this level.
+      const siblingsAtThisLevel = await ContentTestHelper.getChildren(testPageId, 100);
+      const nodeBudget = siblingsAtThisLevel.length;
+
+      _setTraversalBudgetForTests({ nodeBudget });
+      try {
+        const result = await callTool(reportSiteTreeSummaryTool, { parentId: testPageId, maxDepth: 2 }, extra);
+
+        expect(result.isError).toBeFalsy();
+        const data = getStructuredContent(result) as any;
+
+        expect(data.truncated).toBe(true);
+        for (const childId of childIds) {
+          const childNode = findNode(data.tree, childId);
+          expect(childNode).toBeDefined();
+          expect(childNode.children).toEqual([]);
+        }
       } finally {
         _resetTraversalBudgetForTests();
       }
