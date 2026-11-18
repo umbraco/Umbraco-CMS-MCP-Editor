@@ -3,6 +3,7 @@ import { withStandardDecorators, createToolResult, createToolResultError, ToolDe
 import { chainCms } from "../../../cms-chain.js";
 import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 import { validateDocumentState, validationResultSchema } from "../../helpers/validate-document.js";
+import { resolveUserName } from "../../helpers/resolve-user-names.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The page ID to rollback"),
@@ -57,17 +58,15 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // Step 2: Elicit confirmation (destructive action, default false). Surface the
     // target version's date and author so the editor can recognise what they're
     // rolling back to without a separate list-versions trip. The chained version
-    // payload only carries the user's id — resolve it via get-user-by-id so the
-    // prompt reads "by <name>" rather than a raw GUID. Format the date in the
-    // runtime locale (en-GB falls through to ISO-style ordering on most runtimes
-    // and produces "20 April 2026 at 15:32" rather than the raw UTC ISO string).
+    // payload only carries the user's id — resolve it via resolveUserName (which
+    // checks Users-section access before calling get-user-by-id, see
+    // helpers/resolve-user-names.ts) so the prompt reads "by <name>" rather than
+    // a raw GUID. Format the date in the runtime locale (en-GB falls through to
+    // ISO-style ordering on most runtimes and produces "20 April 2026 at 15:32"
+    // rather than the raw UTC ISO string).
     const versionDate = targetVersion?.versionDate ?? null;
     const versionUserId = targetVersion?.user?.id ?? null;
-    let versionUserName: string | null = null;
-    if (versionUserId) {
-      const userResult = await chainCms("get-user-by-id", { id: versionUserId });
-      versionUserName = userResult.ok ? (userResult.data.name ?? versionUserId) : versionUserId;
-    }
+    const versionUserName = versionUserId ? await resolveUserName(versionUserId) : null;
     const versionDateFriendly = versionDate
       ? new Date(versionDate).toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" })
       : null;
