@@ -1,6 +1,14 @@
 // AUTO-GENERATED — do not edit by hand.
 // Regenerate via `npm run generate:chained-deps` (or `npm run generate`).
 // Source: scripts/generate-chained-deps.mjs
+//
+// NOTE: the "get-media-change-history", "get-page-change-history" and
+// "rollback-page" entries below had "get-user-by-id" removed by hand (PR
+// #317 / issue #307) — it's no longer a hard dependency now that those
+// tools fall back to raw IDs via resolveUserNames instead of failing when
+// the caller lacks Users-section access. Neither `generate:chained-deps`
+// nor `scripts/generate-chained-deps.mjs` currently exist in this repo, so
+// there was no generator to re-run; this was the only way to apply the fix.
 
 export const CHAINED_DEPS: Record<string, readonly string[]> = {
   "add-blockgrid-block": ["get-document-by-id", "update-document-properties"],
@@ -44,11 +52,11 @@ export const CHAINED_DEPS: Record<string, readonly string[]> = {
   "get-document-type": ["get-document-type-by-id"],
   "get-language": ["get-language-by-iso-code"],
   "get-media": ["get-media-by-id", "get-media-urls"],
-  "get-media-change-history": ["get-media-audit-log", "get-media-by-id", "get-user-by-id"],
+  "get-media-change-history": ["get-media-audit-log", "get-media-by-id"],
   "get-media-type": ["get-media-type-by-id"],
   "get-member": ["get-member"],
   "get-page": ["get-document-by-id"],
-  "get-page-change-history": ["get-document-audit-log", "get-document-by-id", "get-user-by-id"],
+  "get-page-change-history": ["get-document-audit-log", "get-document-by-id"],
   "get-property-value-template": ["get-document-property-value-template"],
   "get-public-access": ["get-document-public-access"],
   "get-publish-status": ["get-document-by-id"],
@@ -90,7 +98,7 @@ export const CHAINED_DEPS: Record<string, readonly string[]> = {
   "report-translation-coverage": ["get-language"],
   "restore-media": ["get-media-by-id", "restore-media-from-recycle-bin"],
   "restore-page": ["get-document-by-id"],
-  "rollback-page": ["create-document-version-rollback", "get-document-by-id", "get-document-version", "get-user-by-id"],
+  "rollback-page": ["create-document-version-rollback", "get-document-by-id", "get-document-version"],
   "save-and-publish": ["get-document-by-id", "get-document-publish-with-descendants-result", "publish-document", "publish-document-with-descendants", "update-and-publish-document", "update-document-properties"],
   "schedule-publish": ["get-document-by-id", "publish-document"],
   "search-content": ["search-document"],
