@@ -147,6 +147,10 @@ const provider = new OAuthProvider({
   authorizeEndpoint: "/authorize",
   tokenEndpoint: "/token",
   clientRegistrationEndpoint: "/register",
+  // Advertise and accept S256 only (the authorize handler also enforces it).
+  allowPlainPKCE: false,
+  // Registered clients never expire (the 0.8.x default is 90 days).
+  clientRegistrationTTL: undefined,
 });
 
 const workerExport = createWorkerExport(provider, options);
