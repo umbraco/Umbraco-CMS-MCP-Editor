@@ -88,8 +88,10 @@ function baseChainCmsMock(versionUser: { id: string } | undefined) {
         };
       case "create-document-version-rollback":
         return { ok: true, data: {} };
-      case "get-item-document":
-        return { ok: true, data: { items: [{ parent: null }] } };
+      // v17: validateDocumentState resolves the parent via get-document-ancestors
+      // (the v18 line uses get-item-document for the same lookup).
+      case "get-document-ancestors":
+        return { ok: true, data: { items: [{ id: TEST_PAGE_ID, parent: null }] } };
       case "validate-document":
         return { ok: true, data: {} };
       default:
