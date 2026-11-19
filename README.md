@@ -155,6 +155,41 @@ UMBRACO_CLOUD_ROUTING_ENABLED = "true"  # multi-tenant: /at/{alias}/ + per-reque
 
 Each Cloud project served by a multi-tenant Worker must register an OpenIddict client with id `umbraco-cms-editor-mcp-hosted` (the per-MCP-type identity baked into `worker.ts`).
 
+## Hosted MCP (Azure Container Apps)
+
+Single-tenant hosted MCP for one Umbraco instance (`UMBRACO_BASE_URL`). Entry point: `src/hosted/azure/server.ts`.
+
+```bash
+# Build the Azure host bundle
+npm run build:azure
+
+# Configure (see .env.azure.example)
+export UMBRACO_BASE_URL=https://your-umbraco.example.com
+export UMBRACO_OAUTH_CLIENT_ID=umbraco-editor-mcp-hosted
+export COOKIE_ENCRYPTION_KEY=$(openssl rand -hex 32)
+# Optional: Azure Cache for Redis (in-memory if omitted)
+# export REDIS_URL=rediss://:PASSWORD@NAME.redis.cache.windows.net:6380
+
+npm run start:azure
+# MCP: http://localhost:8080/mcp  Health: http://localhost:8080/health
+```
+
+**Umbraco OpenIddict:** use `demo-site-template/McpOAuthComposer.cs`. Set `MCP_HOSTED_URL` to the public Container Apps URL (e.g. `https://umbraco-mcp-editor-app.…azurecontainerapps.io`) so `/callback` and `/logout-callback` are registered.
+
+**Docker / infra:**
+
+```bash
+docker build -t umbraco-mcp-editor:local .
+az deployment group create -g <rg> -f infra/main.bicep -p infra/main.bicepparam \
+  cookieEncryptionKey=$(openssl rand -hex 32) \
+  containerImage=<your-acr>/umbraco-mcp-editor:tag \
+  umbracoBaseUrl=https://your-umbraco.example.com
+```
+
+Connect MCP clients to `https://<container-app-fqdn>/mcp`.
+
+Hosted e2e defaults to the Cloudflare Worker (`npm run test:e2e`). Use `npm run test:e2e:azure` (or `HOSTED_E2E_RUNTIME=azure`) to run against the Azure Node host.
+
 ## Publishing
 
 1. Update `package.json` with your package name and details
