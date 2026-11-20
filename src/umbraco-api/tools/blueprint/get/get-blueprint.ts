@@ -23,7 +23,6 @@ const outputSchema = z.object({
   variants: z.array(z.object({
     name: z.string().optional(),
     culture: z.string().nullable().optional(),
-    segment: z.string().nullable().optional(),
   })).optional().describe("Variant information"),
 });
 
@@ -54,7 +53,6 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       variants: (data.variants ?? []).map((v) => ({
         name: v.name ?? undefined,
         culture: v.culture ?? null,
-        segment: v.segment ?? null,
       })),
     });
   },

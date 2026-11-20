@@ -90,7 +90,6 @@ export async function validateDocumentState(
   const variants = (target.variants ?? []).map((v) => ({
     name: v.name,
     culture: v.culture ?? null,
-    segment: v.segment ?? null,
   }));
 
   // get-document-by-id doesn't expose the parent, but validate-document needs it —

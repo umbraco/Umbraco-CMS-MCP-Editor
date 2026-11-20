@@ -44,7 +44,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       password,
       memberType: { id: memberTypeId },
       isApproved: effectiveIsApproved,
-      variants: [{ culture: null, segment: null, name }],
+      variants: [{ culture: null, name }],
       values: (values ?? []).map(v => ({
         alias: v.alias,
         value: v.value,
@@ -86,7 +86,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
             isApproved: member.isApproved ?? effectiveIsApproved,
             isLockedOut: member.isLockedOut ?? false,
             isTwoFactorEnabled: member.isTwoFactorEnabled ?? false,
-            variants: member.variants ?? [{ culture: null, segment: null, name }],
+            variants: member.variants ?? [{ culture: null, name }],
             values: (member.values ?? []).map(v => ({
               alias: v.alias,
               value: v.value,

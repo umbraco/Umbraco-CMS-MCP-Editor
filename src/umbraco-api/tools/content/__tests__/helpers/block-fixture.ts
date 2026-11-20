@@ -44,7 +44,12 @@ type Editor = "Umbraco.BlockList" | "Umbraco.BlockGrid" | "Umbraco.RichText";
 async function findDonor(editorAlias: Editor, extra: any): Promise<DonorInfo | null> {
   const state = await initContentTestState(extra);
   const children = await ContentTestHelper.getChildren(state.testPageId, 30);
-  const candidates = [{ id: state.testPageId }, ...children];
+  // Fixtures create the new page *under* testPageId using the donor's doc type,
+  // so only children qualify — they're known to be allowed there. The root page
+  // itself (Clean's Home) is not allowed under itself, and since Umbraco 19 its
+  // contentRows BlockList is a valid match, which made create-document fail
+  // with NotAllowed.
+  const candidates = children;
 
   for (const candidate of candidates) {
     const inspect = await inspectBlocksTool.handler({ id: candidate.id, propertyAlias: undefined }, extra);

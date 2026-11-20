@@ -19,6 +19,7 @@ import {
 } from "./setup.js";
 import searchElementsTool from "../get/search-elements.js";
 import { callTool } from "../../../../testing/call-tool-with-validation.js";
+import { waitFor } from "../../../../testing/wait-for.js";
 
 const TEST_ELEMENT_NAME = "_Test Search Elements Unique Xyzzy";
 
@@ -38,12 +39,14 @@ describe("search-elements", () => {
   }, 30000);
 
   it("should find the created element by name", async () => {
-    const result = await callTool(searchElementsTool, { query: TEST_ELEMENT_NAME, take: 10, skip: 0 }, extra);
-
-    expect(result.isError).toBeFalsy();
-    const data = getStructuredContent(result) as any;
-    expect(Array.isArray(data.items)).toBe(true);
-    const found = data.items.find((item: any) => item.id === element.getId());
+    // Indexing is async since Umbraco 19 — poll until the new element is searchable.
+    const found = await waitFor(async () => {
+      const result = await callTool(searchElementsTool, { query: TEST_ELEMENT_NAME, take: 10, skip: 0 }, extra);
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      expect(Array.isArray(data.items)).toBe(true);
+      return data.items.find((item: any) => item.id === element.getId());
+    });
     expect(found).toMatchObject({ id: element.getId(), name: TEST_ELEMENT_NAME });
   }, 30000);
 

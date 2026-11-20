@@ -75,7 +75,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     const targetVariantExists = existingVariants.some((v: any) => v.culture === targetCulture);
     const updatedVariants = targetVariantExists
       ? existingVariants
-      : [...existingVariants, { culture: targetCulture, name: pageName, segment: null }];
+      : [...existingVariants, { culture: targetCulture, name: pageName }];
 
     // Step 7: Delegate to update-document
     const updateResult = await chainCms("update-document", {

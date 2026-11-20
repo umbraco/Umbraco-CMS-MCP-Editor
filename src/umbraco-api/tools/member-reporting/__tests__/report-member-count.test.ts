@@ -75,7 +75,7 @@ describe("report-member-count", () => {
       password: "Auditpw123!",
       memberType: { id: memberTypeId },
       isApproved: true,
-      variants: [{ culture: null, segment: null, name: `Count Group Member ${ts}` }],
+      variants: [{ culture: null, name: `Count Group Member ${ts}` }],
       values: [],
       groups: [groupId],
     });

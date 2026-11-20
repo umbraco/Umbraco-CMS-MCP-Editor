@@ -191,7 +191,6 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
           values: mergeValues(doc.values ?? [], values!),
           variants: (doc.variants ?? []).map(v => ({
             culture: v.culture ?? null,
-            segment: v.segment ?? null,
             name: v.name,
           })),
         },

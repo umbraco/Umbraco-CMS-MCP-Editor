@@ -88,7 +88,6 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
         variants: (doc.variants ?? []).map((v) => ({
           name: v.name ?? "",
           culture: v.culture ?? null,
-          segment: v.segment ?? null,
         })),
         template: templateId ? { id: templateId } : null,
       },
