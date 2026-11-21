@@ -14,6 +14,7 @@ import {
   getDefaultTimeoutMs,
 } from "@umbraco-cms/mcp-server-sdk/evals";
 import type { ElementBlockFixture } from "../../src/umbraco-api/tools/element/__tests__/helpers/element-block-fixture.js";
+import type { LibraryBlockFixture } from "../../src/umbraco-api/tools/content/__tests__/helpers/library-block-fixture.js";
 
 const allTools = [
   // Library Elements
@@ -44,6 +45,9 @@ const allTools = [
   "add-blocklist-block",
   "add-blockgrid-block",
   "add-rte-block",
+  "add-library-block",
+  "transfer-block-to-library",
+  "disconnect-block-from-library",
   "get-property-value-template",
   "list-page-templates",
   "set-page-template",
@@ -154,12 +158,18 @@ const allTools = [
 /** Name the element-block scenario prompt refers to, so the LLM can find it. */
 const ELEMENT_BLOCK_NAME = "_Eval Element With Blocks";
 
+/** Names the Library block scenarios (Umbraco 19 reusable content) refer to. */
+const LIBRARY_PAGE_NAME = "_Eval Library Blocks Page";
+const LIBRARY_TRANSFER_ELEMENT_NAME = "_Eval Shared Promo";
+const LIBRARY_EXISTING_ELEMENT_NAME = "_Eval Shared Banner";
+
 describe("Write Workflows", () => {
   setupConsoleMock();
 
   const timeout = getDefaultTimeoutMs();
 
   let elementBlockFixture: ElementBlockFixture | null = null;
+  let libraryFixture: LibraryBlockFixture | null = null;
 
   /**
    * The demo site ships no Library element type with a block-bearing property,
@@ -180,16 +190,28 @@ describe("Write Workflows", () => {
         "../../src/umbraco-api/tools/element/__tests__/helpers/element-block-fixture.js"
       );
       elementBlockFixture = await createElementBlockFixture(ELEMENT_BLOCK_NAME);
+      // The demo site has no Library-enabled element type either, so the
+      // Library block scenarios get a provisioned page + an existing Element.
+      const { createLibraryBlockFixture, createLibraryElement } = await import(
+        "../../src/umbraco-api/tools/content/__tests__/helpers/library-block-fixture.js"
+      );
+      libraryFixture = await createLibraryBlockFixture(LIBRARY_PAGE_NAME);
+      libraryFixture.trackElement(await createLibraryElement(LIBRARY_EXISTING_ELEMENT_NAME, "Banner from the Library"));
     } finally {
       delete process.env.USE_IN_PROCESS_CMS;
     }
   }, 180000);
 
   afterAll(async () => {
-    if (!elementBlockFixture) return;
     process.env.USE_IN_PROCESS_CMS = "true";
     try {
-      await elementBlockFixture.cleanup();
+      if (elementBlockFixture) await elementBlockFixture.cleanup();
+      if (libraryFixture) await libraryFixture.cleanup();
+      // The transfer scenario's Element is created by the LLM, so remove it by name.
+      const { ElementTestHelper } = await import(
+        "../../src/umbraco-api/tools/element/__tests__/helpers/element-test-helper.js"
+      );
+      await ElementTestHelper.cleanupByName(LIBRARY_TRANSFER_ELEMENT_NAME);
     } finally {
       delete process.env.USE_IN_PROCESS_CMS;
     }
@@ -344,6 +366,75 @@ describe("Write Workflows", () => {
       ],
       requiredTools: ["inspect-blocks", "delete-block"],
       successPattern: /remove|deleted|gone|saved/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "editor asks to make a block on a page reusable across the site (Transfer to Library)",
+    runScenarioTest({
+      prompt:
+        `On the page "${LIBRARY_PAGE_NAME}", the block in the "blocks" property should become reusable content that other pages can share. Move it into the Library as an Element named "${LIBRARY_TRANSFER_ELEMENT_NAME}".`,
+      tools: [
+        "search-content",
+        "list-children",
+        "get-page",
+        "inspect-blocks",
+        "transfer-block-to-library",
+        "disconnect-block-from-library",
+        "add-library-block",
+        "edit-element",
+        "create-element",
+      ],
+      requiredTools: ["inspect-blocks", "transfer-block-to-library"],
+      successPattern: /librar|transferred|reusable|shared/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "editor asks to stop a page sharing a Library block (Disconnect from Library)",
+    runScenarioTest({
+      prompt:
+        `On the page "${LIBRARY_PAGE_NAME}", the "blocks" property uses shared Library content. I want this page to have its own copy that I can change without affecting other pages. Don't change the Library Element itself.`,
+      tools: [
+        "search-content",
+        "list-children",
+        "get-page",
+        "inspect-blocks",
+        "transfer-block-to-library",
+        "disconnect-block-from-library",
+        "edit-block",
+        "edit-element",
+        "delete-block",
+      ],
+      requiredTools: ["inspect-blocks", "disconnect-block-from-library"],
+      successPattern: /disconnect|local|copy|own/i,
+      verbose: true,
+    }),
+    timeout
+  );
+
+  it(
+    "editor asks to reuse an existing Library Element on a page",
+    runScenarioTest({
+      prompt:
+        `Add the Library Element "${LIBRARY_EXISTING_ELEMENT_NAME}" to the end of the "blocks" property on the page "${LIBRARY_PAGE_NAME}", as shared content (not a copy).`,
+      tools: [
+        "search-content",
+        "list-children",
+        "get-page",
+        "inspect-blocks",
+        "search-elements",
+        "list-element-children",
+        "get-element",
+        "add-library-block",
+        "add-blocklist-block",
+      ],
+      requiredTools: ["add-library-block"],
+      successPattern: /added|librar|shared|linked/i,
       verbose: true,
     }),
     timeout

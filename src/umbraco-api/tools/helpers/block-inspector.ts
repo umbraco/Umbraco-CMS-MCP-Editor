@@ -14,7 +14,7 @@
 
 import { z } from "zod";
 import { createToolResultError } from "@umbraco-cms/mcp-server-sdk";
-import { extractInnerProblemDetails } from "../../cms-chain.js";
+import { chainCms, extractInnerProblemDetails } from "../../cms-chain.js";
 import { isBlockListOrGridValue, isRteWithBlocks } from "./block-builder.js";
 
 export { isBlockListOrGridValue, isRteWithBlocks };
@@ -34,11 +34,31 @@ export interface InspectedBlock {
   properties: InspectedBlockProperty[];
 }
 
+/**
+ * A block that references a Library Element (Umbraco 19 reusable content)
+ * instead of holding local content. Its layout entry carries
+ * `isExternalContent: true` and its `contentKey` is the Element's id; there is
+ * no `contentData` entry, so the content itself lives on the Element.
+ */
+export interface InspectedLibraryBlock {
+  /** The Library Element's id (the layout entry's contentKey). */
+  elementId: string;
+  /** The layout entry's own key — disambiguates when one Element is used more than once. */
+  layoutKey?: string;
+  settingsKey?: string;
+  /** Filled in by `enrichLibraryBlocks` from the Element itself. */
+  elementName?: string;
+  contentTypeKey?: string;
+  state?: string;
+}
+
 /** A block-bearing property together with the blocks it contains. */
 export interface InspectedBlockContainer {
   propertyAlias: string;
   editorAlias?: string;
   blocks: InspectedBlock[];
+  /** Present only when the property has Library-linked blocks. */
+  libraryBlocks?: InspectedLibraryBlock[];
 }
 
 /**
@@ -61,6 +81,14 @@ export function blockPropertiesSchema(editTool: string) {
         value: z.any(),
       })),
     })),
+    libraryBlocks: z.array(z.object({
+      elementId: z.string().describe("The Library Element's id. Pass it to disconnect-block-from-library (elementId) or delete-block (contentKey); edit the shared content itself with edit-element."),
+      layoutKey: z.string().optional().describe("The layout entry's own key — use it instead of contentKey when the same Element appears more than once in this property"),
+      settingsKey: z.string().optional().describe("The key of this placement's settings entry (settings stay local to the page)"),
+      elementName: z.string().optional().describe("The Library Element's name"),
+      contentTypeKey: z.string().optional().describe("The Element's element type ID"),
+      state: z.string().optional().describe("The Element's publish state (e.g. Published, Draft). A Library block only renders once its Element is published."),
+    })).optional().describe("Blocks linked to a Library Element (reusable content shared across pages). Their content is not in `blocks`; it lives on the Element. Absent when the property has none."),
   }));
 }
 
@@ -145,12 +173,74 @@ export function collectBlockProperties(
       // RTE-with-blocks nests the block container (contentData + layout) one
       // level down under `blocks`; BlockList/BlockGrid carry it at the top.
       const container = isRteWithBlocks(value) ? value.blocks! : value;
+      const libraryBlocks = collectLibraryBlocks(container);
       return {
         propertyAlias: v.alias,
         editorAlias: isRteWithBlocks(value) ? "Umbraco.RichText" : (v.editorAlias ?? undefined),
         blocks: withSettingsKeys(extractBlocks(container.contentData!), container),
+        ...(libraryBlocks.length > 0 ? { libraryBlocks } : {}),
       };
     });
+}
+
+/**
+ * Collect the Library-linked layout entries (`isExternalContent: true`) of a
+ * block container, walking BlockGrid `areas[].items[]` so nested placements are
+ * found too. These have no `contentData` entry, so `extractBlocks` never sees
+ * them — without this walk a transferred block would be invisible.
+ */
+export function collectLibraryBlocks(container: unknown): InspectedLibraryBlock[] {
+  const layout = (container as { layout?: Record<string, unknown> } | null)?.layout;
+  if (!layout || typeof layout !== "object") return [];
+  const found: InspectedLibraryBlock[] = [];
+  const walk = (entries: unknown) => {
+    if (!Array.isArray(entries)) return;
+    for (const entry of entries) {
+      if (!entry || typeof entry !== "object") continue;
+      const e = entry as { contentKey?: unknown; key?: unknown; settingsKey?: unknown; isExternalContent?: unknown; areas?: unknown[] };
+      if (e.isExternalContent === true && typeof e.contentKey === "string") {
+        found.push({
+          elementId: e.contentKey,
+          ...(typeof e.key === "string" ? { layoutKey: e.key } : {}),
+          ...(typeof e.settingsKey === "string" && e.settingsKey.length > 0 ? { settingsKey: e.settingsKey } : {}),
+        });
+      }
+      for (const area of e.areas ?? []) {
+        walk((area as { items?: unknown[] } | null)?.items);
+      }
+    }
+  };
+  for (const entries of Object.values(layout)) walk(entries);
+  return found;
+}
+
+/**
+ * Add each Library block's Element name, element type and publish state, with
+ * one `get-element-batch` call for the whole tree. Best-effort: if the lookup
+ * fails (e.g. no Library access), the blocks are returned with just their keys.
+ */
+export async function enrichLibraryBlocks(containers: InspectedBlockContainer[]): Promise<InspectedBlockContainer[]> {
+  const ids = [...new Set(containers.flatMap((c) => (c.libraryBlocks ?? []).map((b) => b.elementId)))];
+  if (ids.length === 0) return containers;
+  const batch = await chainCms("get-element-batch", { id: ids });
+  if (!batch.ok) return containers;
+  const byId = new Map(batch.data.items.map((item) => [item.id, item]));
+  return containers.map((c) => c.libraryBlocks
+    ? {
+        ...c,
+        libraryBlocks: c.libraryBlocks.map((b) => {
+          const element = byId.get(b.elementId);
+          if (!element) return b;
+          const variant = element.variants?.[0];
+          return {
+            ...b,
+            ...(variant?.name ? { elementName: variant.name } : {}),
+            contentTypeKey: element.documentType.id,
+            ...(variant?.state ? { state: variant.state } : {}),
+          };
+        }),
+      }
+    : c);
 }
 
 /** Cap on how many `availableBlocks` entries get enriched/returned — a page

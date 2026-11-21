@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { blockPropertiesSchema, collectBlockProperties } from "../../helpers/block-inspector.js";
+import { blockPropertiesSchema, collectBlockProperties, enrichLibraryBlocks } from "../../helpers/block-inspector.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the Library element to inspect"),
@@ -29,7 +29,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     return createToolResult({
       id: element.id,
       name: element.variants?.[0]?.name ?? "Unknown",
-      blockProperties: collectBlockProperties(element.values ?? [], propertyAlias),
+      blockProperties: await enrichLibraryBlocks(collectBlockProperties(element.values ?? [], propertyAlias)),
     });
   },
 };
