@@ -2,7 +2,7 @@ import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { buildPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
-import { blockPropertiesSchema, collectBlockProperties } from "../../helpers/block-inspector.js";
+import { blockPropertiesSchema, collectBlockProperties, enrichLibraryBlocks } from "../../helpers/block-inspector.js";
 
 
 const inputSchema = {
@@ -19,7 +19,7 @@ const outputSchema = z.object({
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "inspect-blocks",
-  description: "Inspect the block structure of a content page. Shows each block's type, unique key, and property values. Use this to understand how content is structured inside BlockList, BlockGrid, or Rich Text properties before using edit-block to make changes. Content pages only — for blocks on a Library element use inspect-element-blocks instead.",
+  description: "Inspect the block structure of a content page. Shows each block's type, unique key, and property values. Use this to understand how content is structured inside BlockList, BlockGrid, or Rich Text properties before using edit-block to make changes. Blocks linked to a Library Element (reusable content) are listed separately under libraryBlocks with the Element's name — their content lives on the Element, so edit it with edit-element, or use disconnect-block-from-library to turn the block back into local content. Local blocks can be moved to the Library with transfer-block-to-library. Content pages only — for blocks on a Library element use inspect-element-blocks instead.",
   inputSchema,
   outputSchema,
   slices: ["read"],
@@ -33,7 +33,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       id: doc.id,
       name: doc.variants?.[0]?.name ?? "Unknown",
       previewUrl: buildPreviewUrl(doc.id),
-      blockProperties: collectBlockProperties(doc.values ?? [], propertyAlias),
+      blockProperties: await enrichLibraryBlocks(collectBlockProperties(doc.values ?? [], propertyAlias)),
     });
   },
 };
