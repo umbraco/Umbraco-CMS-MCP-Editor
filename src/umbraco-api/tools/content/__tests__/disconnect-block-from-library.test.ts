@@ -19,6 +19,7 @@ import disconnectTool from "../put/disconnect-block-from-library.js";
 import inspectBlocksTool from "../get/inspect-blocks.js";
 import {
   createLibraryBlockFixture,
+  createMultilingualLibraryBlockFixture,
   LIBRARY_PROPERTY_ALIAS,
   LIBRARY_BLOCK_PROPERTY_ALIAS,
   type LibraryBlockFixture,
@@ -88,6 +89,8 @@ describe("disconnect-block-from-library", () => {
     expect(prop.blocks[0].contentKey).toBe(data.contentKey);
     expect(prop.blocks[0].contentKey).not.toBe(f.elementId);
     expect(prop.blocks[0].properties.find((p: any) => p.alias === LIBRARY_BLOCK_PROPERTY_ALIAS)?.value).toBe(f.blockValue);
+    // The placement's settings stayed local throughout and are still attached.
+    expect(prop.blocks[0].settingsKey).toBe(f.settingsKey);
 
     // The Library Element is not affected.
     const element = await mcpClientManager.callTool("cms", "get-element-by-id", { id: f.elementId });
@@ -111,6 +114,42 @@ describe("disconnect-block-from-library", () => {
     const prop = await inspect(f.pageId);
     expect(prop.libraryBlocks).toHaveLength(1);
     expect(prop.libraryBlocks[0].elementId).toBe(f.elementId);
+  }, 60000);
+
+  it("copies every language of a culture-variant Element into the local block", async () => {
+    const f = await createMultilingualLibraryBlockFixture("_Test disconnect multilingual");
+    fixtures.push(f as unknown as LibraryBlockFixture);
+    const transferred = getStructuredContent(await callTool(transferTool, {
+      id: f.pageId,
+      propertyAlias: LIBRARY_PROPERTY_ALIAS,
+      contentKey: f.blockKey,
+      name: "_Test disconnect multilingual Element",
+      parentFolderId: undefined,
+      publish: undefined,
+      culture: undefined,
+      segment: undefined,
+    }, extra)) as any;
+    f.trackElement(transferred.elementId);
+
+    const result = await callTool(disconnectTool, {
+      id: f.pageId,
+      propertyAlias: LIBRARY_PROPERTY_ALIAS,
+      elementId: transferred.elementId,
+      culture: undefined,
+      segment: undefined,
+    }, extra);
+    expect(result.isError).toBeFalsy();
+    const localKey = (getStructuredContent(result) as any).contentKey;
+
+    const doc = extractChainedResult(await mcpClientManager.callTool("cms", "get-document-by-id", { id: f.pageId }));
+    const value = doc.values.find((v: any) => v.alias === LIBRARY_PROPERTY_ALIAS).value;
+    const local = value.contentData.find((b: any) => b.key === localKey);
+    for (const c of f.cultures) {
+      expect(local.values.find((v: any) => v.alias === LIBRARY_BLOCK_PROPERTY_ALIAS && v.culture === c)?.value).toBe(f.values[c]);
+    }
+    // Shown in the languages the Element was published in — both here.
+    const exposed = value.expose.filter((e: any) => e.contentKey === localKey).map((e: any) => e.culture).sort();
+    expect(exposed).toEqual([...f.cultures].sort());
   }, 60000);
 
   it("rejects a local block without asking for confirmation", async () => {

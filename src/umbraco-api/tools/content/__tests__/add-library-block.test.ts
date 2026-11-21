@@ -19,11 +19,16 @@ import { callTool } from "../../../../testing/call-tool-with-validation.js";
 import addLibraryBlockTool from "../post/add-library-block.js";
 import deleteBlockTool from "../delete/delete-block.js";
 import inspectBlocksTool from "../get/inspect-blocks.js";
+import editBlockTool from "../put/edit-block.js";
 import {
   createLibraryBlockFixture,
   createLibraryElement,
+  createMultilingualLibraryBlockFixture,
+  createVariantLibraryElement,
   LIBRARY_PROPERTY_ALIAS,
+  LIBRARY_BLOCK_PROPERTY_ALIAS,
   type LibraryBlockFixture,
+  type MultilingualLibraryBlockFixture,
 } from "./helpers/library-block-fixture.js";
 
 const ELEMENT_NAME = "_Test Add Library Block Element";
@@ -35,6 +40,7 @@ const baseArgs = {
   rowSpan: undefined,
   areaKey: undefined,
   parentContentKey: undefined,
+  settingsValues: undefined,
   culture: undefined,
   segment: undefined,
 };
@@ -110,6 +116,119 @@ describe("add-library-block", () => {
     const element = await mcpClientManager.callTool("cms", "get-element-by-id", { id: elementId });
     expect(element.isError).toBeFalsy();
   }, 60000);
+
+  describe("settings stay local to each placement", () => {
+    let settingsElementId: string;
+    let placementLayoutKey: string;
+
+    async function settingsValueOf(elementIdOrKey: string): Promise<unknown> {
+      const doc = extractChainedResult(await mcpClientManager.callTool("cms", "get-document-by-id", { id: f.pageId }));
+      const value = doc.values.find((v: any) => v.alias === LIBRARY_PROPERTY_ALIAS).value;
+      const entry = value.layout["Umbraco.BlockList"].find((e: any) => e.contentKey === elementIdOrKey || e.key === elementIdOrKey);
+      const settings = value.settingsData.find((s: any) => s.key === entry.settingsKey);
+      return settings?.values.find((v: any) => v.alias === LIBRARY_BLOCK_PROPERTY_ALIAS)?.value;
+    }
+
+    it("sets the placement's settings with settingsValues", async () => {
+      settingsElementId = await createLibraryElement("_Test Add Library Block Settings Element", "Shared content");
+      f.trackElement(settingsElementId);
+
+      const result = await callTool(addLibraryBlockTool, {
+        ...baseArgs,
+        id: f.pageId,
+        propertyAlias: LIBRARY_PROPERTY_ALIAS,
+        elementId: settingsElementId,
+        settingsValues: [{ alias: LIBRARY_BLOCK_PROPERTY_ALIAS, value: "Placement settings" }],
+      }, extra);
+
+      expect(result.isError).toBeFalsy();
+      placementLayoutKey = (getStructuredContent(result) as any).layoutKey;
+      const prop = await inspect();
+      const lib = prop.libraryBlocks.find((b: any) => b.elementId === settingsElementId);
+      expect(lib.settingsKey).toBeDefined();
+      expect(await settingsValueOf(settingsElementId)).toBe("Placement settings");
+    }, 60000);
+
+    it("edits a Library block's settings with edit-block (blockType settings) without touching the Element", async () => {
+      const result = await callTool(editBlockTool, {
+        id: f.pageId,
+        propertyAlias: LIBRARY_PROPERTY_ALIAS,
+        contentKey: settingsElementId,
+        values: [{ alias: LIBRARY_BLOCK_PROPERTY_ALIAS, value: "Edited placement settings" }],
+        blockType: "settings",
+        culture: undefined,
+        segment: undefined,
+      }, extra);
+
+      expect(result.isError).toBeFalsy();
+      expect(await settingsValueOf(placementLayoutKey)).toBe("Edited placement settings");
+      const element = extractChainedResult(await mcpClientManager.callTool("cms", "get-element-by-id", { id: settingsElementId }));
+      expect(element.values.find((v: any) => v.alias === LIBRARY_BLOCK_PROPERTY_ALIAS).value).toBe("Shared content");
+    }, 60000);
+
+    it("points edit-block at edit-element when asked to edit a Library block's content", async () => {
+      const result = await callTool(editBlockTool, {
+        id: f.pageId,
+        propertyAlias: LIBRARY_PROPERTY_ALIAS,
+        contentKey: settingsElementId,
+        values: [{ alias: LIBRARY_BLOCK_PROPERTY_ALIAS, value: "Should not be written" }],
+        blockType: undefined,
+        culture: undefined,
+        segment: undefined,
+      }, extra);
+
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.content)).toContain("edit-element");
+    }, 60000);
+  });
+
+  describe("multilingual", () => {
+    let ml: MultilingualLibraryBlockFixture;
+
+    beforeAll(async () => {
+      ml = await createMultilingualLibraryBlockFixture("_Test add-library-block multilingual");
+    }, 120000);
+
+    afterAll(async () => {
+      if (ml) await ml.cleanup();
+    }, 60000);
+
+    it("warns about the page's languages the Element isn't published in", async () => {
+      const [def, second] = ml.cultures;
+      const { id } = await createVariantLibraryElement("_Test Partly Published Element", [def]);
+      ml.trackElement(id);
+
+      const result = await callTool(addLibraryBlockTool, {
+        ...baseArgs,
+        id: ml.pageId,
+        propertyAlias: LIBRARY_PROPERTY_ALIAS,
+        elementId: id,
+      }, extra);
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      expect(data.elementPublished).toBe(false);
+      expect(data.unpublishedCultures).toEqual([second]);
+      expect(data.message).toContain(`not published in ${second}`);
+    }, 60000);
+
+    it("reports no warning when the Element is published in every language of the page", async () => {
+      const { id } = await createVariantLibraryElement("_Test Fully Published Element", [...ml.cultures]);
+      ml.trackElement(id);
+
+      const result = await callTool(addLibraryBlockTool, {
+        ...baseArgs,
+        id: ml.pageId,
+        propertyAlias: LIBRARY_PROPERTY_ALIAS,
+        elementId: id,
+      }, extra);
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      expect(data.elementPublished).toBe(true);
+      expect(data.unpublishedCultures).toBeUndefined();
+    }, 60000);
+  });
 
   it("errors clearly when the Element does not exist", async () => {
     const result = await callTool(addLibraryBlockTool, {

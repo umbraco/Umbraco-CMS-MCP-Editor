@@ -2,6 +2,7 @@ import { z } from "zod";
 import { withStandardDecorators, createToolResult, createToolResultError, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { blockPropertyAliasSchema, classifyBlockUpdateResults, enrichBlockNotFoundError, findSettingsKey, isRteWithBlocks } from "../../helpers/block-inspector.js";
+import { findLayoutEntry, getBlockContainer } from "../../helpers/library-blocks.js";
 import { fetchPreviewUrl, previewUrlSchema } from "../../helpers/preview-url.js";
 import { validateDocumentState, validationResultSchema } from "../../helpers/validate-document.js";
 
@@ -48,11 +49,22 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
     // settings edit, translate the caller's contentKey (what inspect-blocks
     // reports) into the paired settingsKey.
     let targetKey = contentKey;
+    const rawValue = (docResult.data.values ?? []).find(
+      (v) => v.alias === propertyAlias && (v.culture ?? null) === (culture ?? null) && (v.segment ?? null) === (segment ?? null),
+    )?.value;
+    const container = isRteWithBlocks(rawValue) ? (rawValue as { blocks: unknown }).blocks : rawValue;
+
+    // A Library-linked block's content lives on the Element, not the page —
+    // only its settings are local. Point at the right tool instead of failing.
+    const located = getBlockContainer(rawValue);
+    const libraryEntry = located ? findLayoutEntry(located.container, contentKey) : undefined;
+    if (resolvedBlockType === "content" && libraryEntry?.isExternalContent === true) {
+      return createToolResultError(
+        `Block ${contentKey} in property "${propertyAlias}" is linked to Library Element '${libraryEntry.contentKey}', so its content is shared and lives on the Element. Edit it with edit-element (the change shows on every page using it), or use disconnect-block-from-library first to give this page its own copy. Its settings are local to this page — pass blockType: "settings" to edit those.`,
+      );
+    }
+
     if (resolvedBlockType === "settings") {
-      const rawValue = (docResult.data.values ?? []).find(
-        (v) => v.alias === propertyAlias && (v.culture ?? null) === (culture ?? null) && (v.segment ?? null) === (segment ?? null),
-      )?.value;
-      const container = isRteWithBlocks(rawValue) ? (rawValue as { blocks: unknown }).blocks : rawValue;
       const settingsKey = findSettingsKey(container, contentKey);
       if (!settingsKey) {
         return createToolResultError(

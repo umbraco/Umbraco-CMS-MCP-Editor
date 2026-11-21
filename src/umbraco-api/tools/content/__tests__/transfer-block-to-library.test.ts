@@ -18,9 +18,11 @@ import transferTool from "../put/transfer-block-to-library.js";
 import inspectBlocksTool from "../get/inspect-blocks.js";
 import {
   createLibraryBlockFixture,
+  createMultilingualLibraryBlockFixture,
   LIBRARY_PROPERTY_ALIAS,
   LIBRARY_BLOCK_PROPERTY_ALIAS,
   type LibraryBlockFixture,
+  type MultilingualLibraryBlockFixture,
 } from "./helpers/library-block-fixture.js";
 import { createBlockListFixture, type BlockListFixture } from "./helpers/block-fixture.js";
 
@@ -89,6 +91,33 @@ describe("transfer-block-to-library", () => {
     });
   }, 60000);
 
+  it("keeps the block's settings on the page — only the content moves to the Element", async () => {
+    const f = await fixture("_Test transfer-block-to-library settings");
+
+    const result = await callTool(transferTool, {
+      ...baseArgs,
+      id: f.pageId,
+      propertyAlias: LIBRARY_PROPERTY_ALIAS,
+      contentKey: f.blockKey,
+      name: "_Test Promo With Settings",
+    }, extra);
+    expect(result.isError).toBeFalsy();
+    const data = getStructuredContent(result) as any;
+    f.trackElement(data.elementId);
+
+    // The placement still points at the same, unchanged settings entry.
+    const inspect = getStructuredContent(await callTool(inspectBlocksTool, { id: f.pageId, propertyAlias: LIBRARY_PROPERTY_ALIAS }, extra)) as any;
+    expect(inspect.blockProperties[0].libraryBlocks[0].settingsKey).toBe(f.settingsKey);
+    const doc = extractChainedResult(await mcpClientManager.callTool("cms", "get-document-by-id", { id: f.pageId }));
+    const value = doc.values.find((v: any) => v.alias === LIBRARY_PROPERTY_ALIAS).value;
+    const settings = value.settingsData.find((s: any) => s.key === f.settingsKey);
+    expect(settings.values.find((v: any) => v.alias === LIBRARY_BLOCK_PROPERTY_ALIAS).value).toBe(f.settingsValue);
+
+    // The Element holds the content only.
+    const element = await getElement(data.elementId);
+    expect(element.values.map((v: any) => v.value)).not.toContain(f.settingsValue);
+  }, 60000);
+
   it("leaves the Element as a draft when publish is false", async () => {
     const f = await fixture("_Test transfer-block-to-library draft");
 
@@ -152,6 +181,78 @@ describe("transfer-block-to-library", () => {
     expect(inspect.blockProperties[0].blocks.map((b: any) => b.contentKey)).toContain(f.seededBlockKey);
     expect(inspect.blockProperties[0].libraryBlocks).toBeUndefined();
   }, 60000);
+
+  describe("multilingual (culture-variant element type)", () => {
+    const mlFixtures: MultilingualLibraryBlockFixture[] = [];
+
+    afterAll(async () => {
+      for (const f of mlFixtures) await f.cleanup();
+    }, 60000);
+
+    it("creates the Element in both languages and publishes it in both when the block is shown in both", async () => {
+      const f = await createMultilingualLibraryBlockFixture("_Test transfer multilingual both");
+      mlFixtures.push(f);
+      const [def, second] = f.cultures;
+
+      const result = await callTool(transferTool, {
+        ...baseArgs,
+        id: f.pageId,
+        propertyAlias: LIBRARY_PROPERTY_ALIAS,
+        contentKey: f.blockKey,
+        name: "_Test Multilingual Promo",
+      }, extra);
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      f.trackElement(data.elementId);
+      expect(data.published).toBe(true);
+      expect(data.message).toContain(`published in ${def}, ${second}`);
+      expect(data.elementVariants).toEqual(expect.arrayContaining([
+        expect.objectContaining({ culture: def, state: "Published" }),
+        expect.objectContaining({ culture: second, state: "Published" }),
+      ]));
+
+      // Each language keeps its own content on the Element.
+      const element = await getElement(data.elementId);
+      for (const c of f.cultures) {
+        expect(element.values.find((v: any) => v.alias === LIBRARY_BLOCK_PROPERTY_ALIAS && v.culture === c)?.value).toBe(f.values[c]);
+      }
+
+      // inspect-blocks reports the state per language, not one ambiguous state.
+      const inspect = getStructuredContent(await callTool(inspectBlocksTool, { id: f.pageId, propertyAlias: LIBRARY_PROPERTY_ALIAS }, extra)) as any;
+      const lib = inspect.blockProperties[0].libraryBlocks[0];
+      expect(lib.state).toBeUndefined();
+      expect(lib.elementVariants).toEqual(expect.arrayContaining([
+        expect.objectContaining({ culture: def, state: "Published" }),
+        expect.objectContaining({ culture: second, state: "Published" }),
+      ]));
+    }, 60000);
+
+    it("publishes only in the languages the block is shown in", async () => {
+      const f = await createMultilingualLibraryBlockFixture("_Test transfer multilingual default only", { exposeIn: "default" });
+      mlFixtures.push(f);
+      const [def, second] = f.cultures;
+
+      const result = await callTool(transferTool, {
+        ...baseArgs,
+        id: f.pageId,
+        propertyAlias: LIBRARY_PROPERTY_ALIAS,
+        contentKey: f.blockKey,
+        name: "_Test Partly Shown Promo",
+      }, extra);
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+      f.trackElement(data.elementId);
+      // "Published" means published everywhere the block is shown — here, just the default language.
+      expect(data.published).toBe(true);
+      expect(data.message).toContain(`published in ${def}`);
+      const byCulture = Object.fromEntries(data.elementVariants.map((v: any) => [v.culture, v.state]));
+      expect(byCulture[def]).toBe("Published");
+      // The second language's content still comes across, as a draft.
+      expect(byCulture[second]).toBe("Draft");
+    }, 60000);
+  });
 
   it("errors when the block does not exist", async () => {
     const f = await fixture("_Test transfer-block-to-library missing");

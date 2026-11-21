@@ -89,3 +89,40 @@ Umbraco 19 lets a block on a page link to a reusable **Library Element** instead
 - `libraryBlocks` is omitted when a property has none, so existing outputs are unchanged.
 
 **Related.** `delete-block` can now remove a Library block, including inside Rich Text. It removes only the placement; the Element stays in the Library.
+
+## Multilingual
+
+These rules come from `block-transfer-variants.function.ts` and `block-manager.context.ts` at `release-19.0.0-rc1`.
+
+**Language access (transfer).**
+- The back office refuses a transfer when the block holds content in a language the user can't edit: "This Block has content in languages you do not have access to: …".
+- It also refuses when a culture-variant block has shared content and the user lacks `hasAccessToInvariantForVariant`: "It has shared content that you do not have access to edit."
+- The chained CMS tool checks neither, so `transfer-block-to-library` ports the rule as `getBlockedTransferVariants` in `helpers/library-blocks.ts`, using `get-user-current`. It is pinned by unit tests, because the integration API user can access every language.
+
+**Cultures (transfer).**
+- A culture-variant Element gets every language the block has content in.
+- It is published in the languages the block is *shown* in (its expose entries).
+- An invariant element type gives one invariant variant, published if the block is shown at all.
+- The tool reports `published` as "published everywhere the block is shown", and returns `elementVariants` with each language's state.
+
+**Cultures (disconnect).** The local copy carries every language of the Element and is shown in the languages the Element is published in.
+
+**Reading state.**
+- `inspect-blocks` reports `elementVariants` (per language) for a culture-variant Element, and a single `state` only for an invariant one.
+- `add-library-block` checks the Element against the page's languages (or the `culture` passed) and lists any `unpublishedCultures`, where the block won't render yet.
+
+**Integration fixture.** The block-level variance shape:
+- a culture-variant host page whose BlockList property is shared,
+- a culture-variant, Library-enabled element type,
+- a second language. It reuses an existing one, else adds `nb-NO`, the same convention as the translation tests.
+
+## Settings are local
+
+- A Library Element holds a block's **content only**.
+- The placement's settings stay on the page: the layout entry keeps its `settingsKey`, and the `settingsData` entry stays in the page's value.
+- This holds through transfer and through disconnect, in BlockList, BlockGrid and Rich Text. Each page, and each placement, that uses an Element can have its own settings.
+
+How the editor tools handle this:
+- **`add-library-block`** takes `settingsValues` for the new placement. Without them, the back office and the CMS tool create an empty settings entry when the block type has settings.
+- **`edit-block` with `blockType: "settings"`** edits a Library block's settings, looked up by the Element id.
+- **`edit-block` on a Library block's content** returns an error pointing to `edit-element` (shared content) or `disconnect-block-from-library` (a local copy), because that content isn't on the page.

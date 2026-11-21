@@ -49,7 +49,10 @@ export interface InspectedLibraryBlock {
   /** Filled in by `enrichLibraryBlocks` from the Element itself. */
   elementName?: string;
   contentTypeKey?: string;
+  /** Only for an Element that doesn't vary by culture — one state applies everywhere. */
   state?: string;
+  /** Only for a culture-variant Element: each language's name and publish state. */
+  elementVariants?: Array<{ culture: string; name: string; state: string }>;
 }
 
 /** A block-bearing property together with the blocks it contains. */
@@ -87,7 +90,12 @@ export function blockPropertiesSchema(editTool: string) {
       settingsKey: z.string().optional().describe("The key of this placement's settings entry (settings stay local to the page)"),
       elementName: z.string().optional().describe("The Library Element's name"),
       contentTypeKey: z.string().optional().describe("The Element's element type ID"),
-      state: z.string().optional().describe("The Element's publish state (e.g. Published, Draft). A Library block only renders once its Element is published."),
+      state: z.string().optional().describe("The Element's publish state (e.g. Published, Draft), for an Element that doesn't vary by culture. A Library block only renders once its Element is published."),
+      elementVariants: z.array(z.object({
+        culture: z.string(),
+        name: z.string(),
+        state: z.string(),
+      })).optional().describe("For an Element that varies by culture: each language's name and publish state. The block only renders in languages where the Element is published."),
     })).optional().describe("Blocks linked to a Library Element (reusable content shared across pages). Their content is not in `blocks`; it lives on the Element. Absent when the property has none."),
   }));
 }
@@ -231,12 +239,18 @@ export async function enrichLibraryBlocks(containers: InspectedBlockContainer[])
         libraryBlocks: c.libraryBlocks.map((b) => {
           const element = byId.get(b.elementId);
           if (!element) return b;
-          const variant = element.variants?.[0];
+          const variants = element.variants ?? [];
+          const cultureVariants = variants.filter((v): v is typeof v & { culture: string } => typeof v.culture === "string" && v.culture.length > 0);
+          const first = variants[0];
           return {
             ...b,
-            ...(variant?.name ? { elementName: variant.name } : {}),
+            ...(first?.name ? { elementName: first.name } : {}),
             contentTypeKey: element.documentType.id,
-            ...(variant?.state ? { state: variant.state } : {}),
+            // A culture-variant Element has a state per language, so a single
+            // `state` (whichever variant came first) would be misleading.
+            ...(cultureVariants.length > 0
+              ? { elementVariants: cultureVariants.map((v) => ({ culture: v.culture, name: v.name, state: v.state })) }
+              : (first?.state ? { state: first.state } : {})),
           };
         }),
       }
