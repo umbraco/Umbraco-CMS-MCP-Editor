@@ -1,12 +1,15 @@
-# Tag + GitHub Release when the version on `main` changes.
+# Tag + GitHub Release when the version on `v19/main` changes.
 #
-# Publishing to MyGet is handled separately by build/azure-pipelines.yml on
-# pushes to `main`. This workflow only creates the git tag and the GitHub
-# Release, which the Azure pipeline does not do.
+# This is the Umbraco 19 line's copy: it releases from `v19/main` (mirroring
+# the Dev MCP's v19 line). `main` keeps its own copy that releases from `main`.
+#
+# Publishing to MyGet/npm is handled separately by build/azure-pipelines.yml on
+# pushes to `main` / `v19/main`. This workflow only creates the git tag and the
+# GitHub Release, which the Azure pipeline does not do.
 #
 # Idempotent: it computes v<version> from package.json and skips if that tag
 # already exists, so it only tags + releases when the version is actually
-# bumped (i.e. when a release branch merges to main).
+# bumped (i.e. when a release branch merges to v19/main).
 #
 # Prereleases (alpha/beta/rc suffixes) are flagged with --prerelease so they
 # don't show as the latest stable release, mirroring the dist-tag logic in
@@ -16,7 +19,7 @@ name: release-tag
 
 on:
   push:
-    branches: [main]
+    branches: [v19/main]
 
 permissions:
   contents: write        # push tags + create releases

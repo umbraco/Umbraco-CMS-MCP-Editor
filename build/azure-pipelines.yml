@@ -75,12 +75,12 @@ stages:
         artifact: 'npm-package'
 
 # Runs in parallel with the build and gates Deploy_Prerelease and Deploy_Npm: a failed SBOM (e.g. a
-# license policy violation) must stop a publish. Runs on the same branches (main), or on any branch
-# when sbom_generate is set (a forced run is not flagged isLatest in Dependency-Track).
+# license policy violation) must stop a publish. Runs on the same branches (main, v19/main), or on any
+# branch when sbom_generate is set (a forced run is not flagged isLatest in Dependency-Track).
 - stage: GenerateSBOM
   displayName: Generate SBOM
   dependsOn: []
-  condition: or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq('${{ parameters.sbom_generate }}', 'true'))
+  condition: or(in(variables['Build.SourceBranch'], 'refs/heads/main', 'refs/heads/v19/main'), eq('${{ parameters.sbom_generate }}', 'true'))
   variables:
   - group: dependency-track
   jobs:
@@ -97,10 +97,10 @@ stages:
           sbom_is_latest: 'false'
 
 # Prereleases go to the private MyGet feed (umbracoprereleases). Public npm
-# publishing is enabled below (Deploy_Npm, gated to refs/heads/main).
+# publishing is enabled below (Deploy_Npm). Both are gated to main / v19/main.
 - stage: Deploy_Prerelease
   displayName: Prerelease (MyGet)
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  condition: and(succeeded(), in(variables['Build.SourceBranch'], 'refs/heads/main', 'refs/heads/v19/main'))
   dependsOn:
     - BuildAndTest
     - GenerateSBOM
@@ -151,10 +151,11 @@ stages:
           displayName: Push package to MyGet
           workingDirectory: $(Pipeline.Workspace)/npm-package
 
-# Public npm release, gated to refs/heads/main (the v18/main line).
+# Public npm release, gated to refs/heads/main (the v18 line) and refs/heads/v19/main
+# (the Umbraco 19 line, mirroring the Dev MCP). The dist-tag comes from the version suffix.
 - stage: Deploy_Npm
   displayName: Npm release
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  condition: and(succeeded(), in(variables['Build.SourceBranch'], 'refs/heads/main', 'refs/heads/v19/main'))
   dependsOn:
     - BuildAndTest
     - GenerateSBOM
