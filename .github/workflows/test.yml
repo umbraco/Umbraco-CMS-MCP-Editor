@@ -2,7 +2,7 @@ name: Test
 
 on:
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev, v19/main, v19/dev]
 
 jobs:
   test:
@@ -45,7 +45,8 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '11.0.x'
+          dotnet-quality: 'preview'
 
       - name: Cache NuGet packages
         uses: actions/cache@v6
@@ -139,7 +140,7 @@ jobs:
 
   evals:
     name: LLM Eval Tests
-    if: github.base_ref == 'main'
+    if: github.base_ref == 'main' || github.base_ref == 'v19/main'
     runs-on: ubuntu-latest
 
     services:
@@ -176,7 +177,8 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '11.0.x'
+          dotnet-quality: 'preview'
 
       - name: Cache NuGet packages
         uses: actions/cache@v6

@@ -13,13 +13,6 @@ exports[`get-blueprint should get blueprint details by ID 1`] = `
     "name": "_Test Get Blueprint",
     "values": [
       {
-        "alias": "socialIconLinks",
-        "culture": null,
-        "editorAlias": "Umbraco.BlockList",
-        "segment": null,
-        "value": "[NORMALIZED_VALUE]",
-      },
-      {
         "alias": "contentRows",
         "culture": null,
         "editorAlias": "Umbraco.BlockList",
@@ -27,14 +20,14 @@ exports[`get-blueprint should get blueprint details by ID 1`] = `
         "value": "[NORMALIZED_VALUE]",
       },
       {
-        "alias": "isIndexable",
+        "alias": "isFollowable",
         "culture": null,
         "editorAlias": "Umbraco.TrueFalse",
         "segment": null,
         "value": "[NORMALIZED_VALUE]",
       },
       {
-        "alias": "isFollowable",
+        "alias": "isIndexable",
         "culture": null,
         "editorAlias": "Umbraco.TrueFalse",
         "segment": null,
@@ -48,9 +41,9 @@ exports[`get-blueprint should get blueprint details by ID 1`] = `
         "value": "[NORMALIZED_VALUE]",
       },
       {
-        "alias": "title",
+        "alias": "socialIconLinks",
         "culture": null,
-        "editorAlias": "Umbraco.TextBox",
+        "editorAlias": "Umbraco.BlockList",
         "segment": null,
         "value": "[NORMALIZED_VALUE]",
       },
@@ -61,12 +54,18 @@ exports[`get-blueprint should get blueprint details by ID 1`] = `
         "segment": null,
         "value": "[NORMALIZED_VALUE]",
       },
+      {
+        "alias": "title",
+        "culture": null,
+        "editorAlias": "Umbraco.TextBox",
+        "segment": null,
+        "value": "[NORMALIZED_VALUE]",
+      },
     ],
     "variants": [
       {
         "culture": null,
         "name": "_Test Get Blueprint",
-        "segment": null,
       },
     ],
   },

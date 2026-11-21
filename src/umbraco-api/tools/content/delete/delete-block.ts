@@ -2,13 +2,14 @@ import { z } from "zod";
 import { withStandardDecorators, createToolResultError, ToolDefinition, requestApproval } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
 import { buildBlockWriteResult, isBlockListOrGridValue, isRteWithBlocks } from "../../helpers/block-builder.js";
+import { findLayoutEntry } from "../../helpers/library-blocks.js";
 import { previewUrlSchema } from "../../helpers/preview-url.js";
 import { validationResultSchema } from "../../helpers/validate-document.js";
 
 const inputSchema = {
   id: z.string().uuid().describe("The ID of the page containing the block property"),
   propertyAlias: z.string().describe("The document property alias holding the block (e.g. 'mainContent'). Use inspect-blocks to find this."),
-  contentKey: z.string().uuid().describe("The unique key of the block to remove. Use inspect-blocks to find this."),
+  contentKey: z.string().uuid().describe("The unique key of the block to remove. Use inspect-blocks to find this. For a Library-linked block use its contentKey (the Element id) or layoutKey from libraryBlocks — only the block is removed from this page; the Library Element is kept."),
   culture: z.string().nullable().optional().describe("Culture code if the document property is variant"),
   segment: z.string().nullable().optional().describe("Segment if the document property is variant"),
 };
@@ -24,12 +25,13 @@ const outputSchema = z.object({
 
 type GridLayoutItem = {
   contentKey: string;
+  key?: string;
   areas?: Array<{ key: string; items: GridLayoutItem[] }>;
 };
 
 function gridContainsBlock(items: GridLayoutItem[], contentKey: string): boolean {
   return items.some(item =>
-    item.contentKey === contentKey ||
+    item.contentKey === contentKey || item.key === contentKey ||
     (item.areas ?? []).some(area => gridContainsBlock(area.items ?? [], contentKey)),
   );
 }
@@ -51,8 +53,8 @@ function locateBlock(
   const draftSuffix = "Will be saved as a draft, not published.";
 
   if (isBlockListOrGridValue(propValue) && editorAlias === "Umbraco.BlockList") {
-    const layoutList: Array<{ contentKey: string }> = propValue.layout?.["Umbraco.BlockList"] ?? [];
-    if (!layoutList.some(e => e.contentKey === contentKey)) return notFound;
+    const layoutList: Array<{ contentKey: string; key?: string }> = propValue.layout?.["Umbraco.BlockList"] ?? [];
+    if (!layoutList.some(e => e.contentKey === contentKey || e.key === contentKey)) return notFound;
     return { ok: true, confirmMessage: `Remove block ${contentKey} from "${pageName}" (BlockList ${propertyAlias})? ${draftSuffix}` };
   }
 
@@ -62,7 +64,10 @@ function locateBlock(
   }
 
   if (isRteWithBlocks(propValue)) {
-    if (!(propValue.blocks.contentData ?? []).some((e: any) => e.key === contentKey)) return notFound;
+    // A Library-linked block has no contentData entry — only a layout entry
+    // (isExternalContent) whose contentKey is the Element id.
+    const inContent = (propValue.blocks.contentData ?? []).some((e: any) => e.key === contentKey);
+    if (!inContent && !findLayoutEntry(propValue.blocks, contentKey)) return notFound;
     return { ok: true, confirmMessage: `Remove block ${contentKey} from a Rich Text in "${pageName}" (${propertyAlias})? ${draftSuffix}` };
   }
 

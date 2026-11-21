@@ -26,7 +26,6 @@ interface DocumentValue {
 interface DocumentVariant {
   name: string;
   culture: string | null;
-  segment: string | null;
 }
 
 export class ContentBuilder {
@@ -37,7 +36,7 @@ export class ContentBuilder {
   private createdItem: DocumentTreeItem | null = null;
 
   withName(name: string): ContentBuilder {
-    this.variants = [{ name, culture: null, segment: null }];
+    this.variants = [{ name, culture: null }];
     return this;
   }
 
@@ -56,8 +55,8 @@ export class ContentBuilder {
     return this;
   }
 
-  withVariant(name: string, culture: string | null = null, segment: string | null = null): ContentBuilder {
-    this.variants.push({ name, culture, segment });
+  withVariant(name: string, culture: string | null = null): ContentBuilder {
+    this.variants.push({ name, culture });
     return this;
   }
 

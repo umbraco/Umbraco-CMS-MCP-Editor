@@ -69,7 +69,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       isLockedOut: isLockedOut ?? member.isLockedOut ?? false,
       isTwoFactorEnabled: isTwoFactorEnabled ?? member.isTwoFactorEnabled ?? false,
       variants: name !== undefined
-        ? [{ culture: null, segment: null, name }]
+        ? [{ culture: null, name }]
         : existingVariants,
       values: values ?? existingValues,
     };

@@ -64,7 +64,7 @@ describe("report-members-by-group", () => {
       password: "Auditpw123!",
       memberType: { id: memberTypeId },
       isApproved: true,
-      variants: [{ culture: null, segment: null, name: `Group Filter Member ${ts}` }],
+      variants: [{ culture: null, name: `Group Filter Member ${ts}` }],
       values: [],
       groups: [groupId],
     });

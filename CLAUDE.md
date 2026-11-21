@@ -23,6 +23,13 @@ A live-MCP audit campaign in `docs/audits/mcp-live-validation/` exercised every 
   `-v17` suffix says "this branch targets the v17 line"). **The worktree hook doesn't know
   about this yet** — `EnterWorktree` always bases new branches off `dev`/`main`, so a
   `-v17` branch needs its base moved to `v17/dev` by hand until the hook is taught to do it.
+- `v19/dev` / `v19/main` — the Umbraco 19 line (`@umbraco-cms/mcp-dev` 19.x, net11.0),
+  same relationship as `dev`/`main`, mirroring the Dev MCP's v19 line. Releases ship from
+  `v19/main`: a merge there with a new `package.json` version publishes to MyGet + npm
+  (dist-tag from the version suffix, e.g. `beta`) via `build/azure-pipelines.yml`, and
+  `release-tag.yml` (which on this line triggers on `v19/main`) creates the tag + GitHub
+  Release. PRs into `v19/dev` / `v19/main` run the test suite; PRs into `v19/main` also
+  run evals. Feature branches for this line are based on `v19/dev` (by hand, as above).
 
 ## Release process
 

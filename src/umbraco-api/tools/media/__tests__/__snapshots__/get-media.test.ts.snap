@@ -17,7 +17,6 @@ exports[`get-media should get media item details by ID 1`] = `
         "createDate": "NORMALIZED_DATE",
         "culture": null,
         "name": "Social Icons",
-        "segment": null,
         "updateDate": "NORMALIZED_DATE",
       },
     ],

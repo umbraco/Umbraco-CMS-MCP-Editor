@@ -51,7 +51,7 @@ export class MemberBuilder {
       password: this.password,
       memberType: { id: this.memberTypeId },
       isApproved: this.isApproved,
-      variants: [{ culture: null, segment: null, name: this.name }],
+      variants: [{ culture: null, name: this.name }],
       values: [],
       groups: null,
     });

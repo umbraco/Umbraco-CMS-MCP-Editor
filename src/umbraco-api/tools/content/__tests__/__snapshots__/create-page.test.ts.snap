@@ -25,7 +25,6 @@ exports[`create-page should create a draft page 1`] = `
         "publishDate": null,
         "scheduledPublishDate": null,
         "scheduledUnpublishDate": null,
-        "segment": null,
         "state": "Draft",
         "updateDate": "NORMALIZED_DATE",
       },

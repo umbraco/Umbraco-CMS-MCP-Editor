@@ -49,7 +49,7 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
       return createToolResultError({ isError: true, content: [{ type: "text", text: `Variant for ${culture} already exists on this page` }] });
     }
 
-    const newVariant = { culture, name: pageName, segment: null };
+    const newVariant = { culture, name: pageName };
     const newCultureValues = (values ?? []).map((v) => ({
       alias: v.alias,
       value: v.value,

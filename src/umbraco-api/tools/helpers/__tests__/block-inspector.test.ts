@@ -12,6 +12,7 @@ import {
   blockPropertyAliasSchema,
   classifyBlockUpdateResults,
   collectBlockProperties,
+  collectLibraryBlocks,
   enrichBlockNotFoundError,
   extractBlocks,
   findSettingsKey,
@@ -481,5 +482,54 @@ describe("blockPropertyAliasSchema", () => {
     expect(blockPropertyAliasSchema.safeParse("has space").success).toBe(false);
     expect(blockPropertyAliasSchema.safeParse("has.dot").success).toBe(false);
     expect(blockPropertyAliasSchema.safeParse("").success).toBe(false);
+  });
+});
+
+describe("collectLibraryBlocks (Umbraco 19 Library-linked blocks)", () => {
+  const ELEMENT_ID = "dddddddd-4444-4444-8444-444444444444";
+  const LAYOUT_KEY = "eeeeeeee-5555-4555-8555-555555555555";
+
+  it("returns BlockList layout entries flagged isExternalContent, keyed by Element id", () => {
+    const container = {
+      contentData: [blockEntry()],
+      layout: { "Umbraco.BlockList": [
+        { contentKey: CONTENT_KEY },
+        { contentKey: ELEMENT_ID, key: LAYOUT_KEY, settingsKey: SETTINGS_KEY, isExternalContent: true },
+      ] },
+    };
+    expect(collectLibraryBlocks(container)).toEqual([
+      { elementId: ELEMENT_ID, layoutKey: LAYOUT_KEY, settingsKey: SETTINGS_KEY },
+    ]);
+  });
+
+  it("finds Library blocks nested in BlockGrid areas", () => {
+    const container = {
+      contentData: [blockEntry()],
+      layout: { "Umbraco.BlockGrid": [
+        { contentKey: CONTENT_KEY, areas: [{ key: "area-1", items: [{ contentKey: ELEMENT_ID, isExternalContent: true }] }] },
+      ] },
+    };
+    expect(collectLibraryBlocks(container)).toEqual([{ elementId: ELEMENT_ID }]);
+  });
+
+  it("surfaces them on the property via collectBlockProperties (and omits libraryBlocks when there are none)", () => {
+    const [withLibrary, without] = collectBlockProperties([
+      {
+        alias: "body",
+        editorAlias: "Umbraco.RichText",
+        value: {
+          markup: `<umb-rte-block data-content-key="${ELEMENT_ID}"></umb-rte-block>`,
+          blocks: { contentData: [], layout: { "Umbraco.RichText": [{ contentKey: ELEMENT_ID, isExternalContent: true }] } },
+        },
+      },
+      {
+        alias: "rows",
+        editorAlias: "Umbraco.BlockList",
+        value: { contentData: [blockEntry()], layout: { "Umbraco.BlockList": [{ contentKey: CONTENT_KEY }] } },
+      },
+    ]);
+    expect(withLibrary.blocks).toEqual([]);
+    expect(withLibrary.libraryBlocks).toEqual([{ elementId: ELEMENT_ID }]);
+    expect(without).not.toHaveProperty("libraryBlocks");
   });
 });
