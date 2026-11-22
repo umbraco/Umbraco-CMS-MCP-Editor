@@ -25,3 +25,9 @@ export {
   type ServerConfig,
   type MyServerCustomConfig,
 } from "./server-config.js";
+
+export {
+  UMBRACO_TARGET_MAJOR,
+  getExpectedUmbracoMajor,
+  withParentCheckedMajor,
+} from "./version-guard.js";

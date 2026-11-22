@@ -46,9 +46,9 @@
   "dependencies": {
     "@cfworker/json-schema": "^4.1.1",
     "@modelcontextprotocol/sdk": "^1.25.1",
-    "@umbraco-cms/mcp-dev": "^17.6.14",
-    "@umbraco-cms/mcp-hosted": "^1.0.0",
-    "@umbraco-cms/mcp-server-sdk": "^1.0.0",
+    "@umbraco-cms/mcp-dev": "^17.8.0",
+    "@umbraco-cms/mcp-hosted": "^1.1.0",
+    "@umbraco-cms/mcp-server-sdk": "^1.1.0",
     "dotenv": "^16.5.0",
     "uuid": "^11.1.0",
     "yargs": "^18.0.0",
