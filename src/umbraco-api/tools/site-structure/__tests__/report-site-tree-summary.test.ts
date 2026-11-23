@@ -8,9 +8,65 @@ import { ContentBuilder } from "../../content/__tests__/helpers/content-builder.
 import { ContentTestHelper } from "../../content/__tests__/helpers/content-test-helper.js";
 import { initContentTestState } from "../../content/__tests__/setup.js";
 import { callTool } from "../../../../testing/call-tool-with-validation.js";
-import reportSiteTreeSummaryTool from "../get/report-site-tree-summary.js";
+import { mcpClientManager } from "../../../mcp-client.js";
+import { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
+import reportSiteTreeSummaryTool, {
+  _setBudgetOverridesForTests,
+  _resetBudgetOverridesForTests,
+} from "../get/report-site-tree-summary.js";
 
 const TEST_PAGE_NAME = "_Test Site Tree Summary";
+
+function findNode(nodes: any[], id: string): any {
+  for (const node of nodes) {
+    if (node.id === id) return node;
+    const found = findNode(node.children ?? [], id);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+/**
+ * Discover a document-type pair that can actually be nested two levels deep
+ * under the root content item used by the shared test state — the demo
+ * site's single-purpose "page" content type (`testDocumentTypeId`) allows no
+ * children at all, so tests that need a real two-level tree (parallel
+ * sibling fetch, truncation) can't just reuse it for both levels. Walks the
+ * root's own allowed-children list, and for each candidate checks whether
+ * *it* in turn allows some leaf type as a child. Cached per test run.
+ */
+let cachedNestablePair: { containerTypeId: string; leafTypeId: string } | null = null;
+
+async function resolveNestableDocTypePair(testPageId: string): Promise<{ containerTypeId: string; leafTypeId: string }> {
+  if (cachedNestablePair) return cachedNestablePair;
+
+  const rootDocResult = await mcpClientManager.callTool("cms", "get-document-by-id", { id: testPageId });
+  const rootDoc = extractChainedResult(rootDocResult) as any;
+  const rootTypeId: string | undefined = rootDoc?.documentType?.id;
+  if (!rootTypeId) {
+    throw new Error("resolveNestableDocTypePair: could not resolve the root content item's document type");
+  }
+
+  const allowedUnderRootResult = await mcpClientManager.callTool("cms", "get-document-type-allowed-children", {
+    id: rootTypeId,
+  });
+  const candidates = (extractChainedResult(allowedUnderRootResult) as any)?.items ?? [];
+
+  for (const candidate of candidates) {
+    const allowedUnderCandidateResult = await mcpClientManager.callTool("cms", "get-document-type-allowed-children", {
+      id: candidate.id,
+    });
+    const leafItems = (extractChainedResult(allowedUnderCandidateResult) as any)?.items ?? [];
+    if (leafItems.length > 0) {
+      cachedNestablePair = { containerTypeId: candidate.id as string, leafTypeId: leafItems[0].id as string };
+      return cachedNestablePair;
+    }
+  }
+
+  throw new Error(
+    "resolveNestableDocTypePair: no two-level nestable document type pair found under the root content item's type — the demo site's content-type tree may have changed.",
+  );
+}
 
 describe("report-site-tree-summary", () => {
   setupTestEnvironment();
@@ -46,11 +102,7 @@ describe("report-site-tree-summary", () => {
   }, 30000);
 
   it("should return tree structure with pages", async () => {
-    const result = await callTool(
-      reportSiteTreeSummaryTool,
-      { parentId: undefined, maxDepth: 3, includeUrls: true },
-      extra,
-    );
+    const result = await callTool(reportSiteTreeSummaryTool, { parentId: undefined, maxDepth: 3 }, extra);
 
     expect(result.isError).toBeFalsy();
     const data = getStructuredContent(result) as any;
@@ -59,7 +111,7 @@ describe("report-site-tree-summary", () => {
     expect(data.totalPages).toBeGreaterThan(0);
     expect(typeof data.pagesPerLevel).toBe("object");
     expect(typeof data.maxDepthFound).toBe("number");
-    expect(data.truncated).toBe(false);
+    expect(typeof data.truncated).toBe("boolean");
 
     if (data.tree.length > 0) {
       expect(data.tree[0]).toHaveProperty("id");
@@ -70,23 +122,10 @@ describe("report-site-tree-summary", () => {
   }, 30000);
 
   it("reports '' for a draft-only page and a real URL for a published page (regression for #233)", async () => {
-    const result = await callTool(
-      reportSiteTreeSummaryTool,
-      { parentId: testPageId, maxDepth: 1, includeUrls: true },
-      extra,
-    );
+    const result = await callTool(reportSiteTreeSummaryTool, { parentId: testPageId, maxDepth: 1 }, extra);
 
     expect(result.isError).toBeFalsy();
     const data = getStructuredContent(result) as any;
-
-    const findNode = (nodes: any[], id: string): any => {
-      for (const node of nodes) {
-        if (node.id === id) return node;
-        const found = findNode(node.children ?? [], id);
-        if (found) return found;
-      }
-      return undefined;
-    };
 
     const draftNode = findNode(data.tree, createdId!);
     const publishedNode = findNode(data.tree, publishedId!);
@@ -96,27 +135,274 @@ describe("report-site-tree-summary", () => {
     expect(publishedNode?.url.length).toBeGreaterThan(0);
   }, 30000);
 
-  it("reports '' for every node's url when includeUrls is false, even for a published page (#306)", async () => {
-    const result = await callTool(
-      reportSiteTreeSummaryTool,
-      { parentId: testPageId, maxDepth: 1, includeUrls: false },
-      extra,
-    );
+  describe("parallel sibling subtree fetch (#306)", () => {
+    const childIds: string[] = [];
+    const grandchildIds: string[] = [];
 
-    expect(result.isError).toBeFalsy();
-    const data = getStructuredContent(result) as any;
+    beforeAll(async () => {
+      const state = await initContentTestState(extra);
+      const { containerTypeId, leafTypeId } = await resolveNestableDocTypePair(state.testPageId);
 
-    const findNode = (nodes: any[], id: string): any => {
-      for (const node of nodes) {
-        if (node.id === id) return node;
-        const found = findNode(node.children ?? [], id);
-        if (found) return found;
+      // Three siblings directly under the shared root, each of a type that
+      // allows one child of its own — giving a real two-level tree without
+      // a dedicated wrapper root (the demo site's "page" type allows no
+      // children at all, so it can't be nested two levels deep).
+      for (const label of ["A", "B", "C"]) {
+        const child = await new ContentBuilder()
+          .withName(`_Test STS Concurrency ${label}`)
+          .withDocumentType(containerTypeId)
+          .withParent(state.testPageId)
+          .create();
+        childIds.push(child.getId());
+
+        if (label === "A") {
+          // Publish this sibling so it has a real, non-empty URL when
+          // includeUrls: true — otherwise an unpublished draft also reports
+          // url === "", and the includeUrls: false test below can't tell
+          // "lookup skipped" from "lookup ran and returned empty because
+          // the page is a draft" (mirrors the #233 regression test's
+          // publish pattern further up this file).
+          await child.publish();
+        }
+
+        const grandchild = await new ContentBuilder()
+          .withName(`_Test STS Concurrency ${label}1`)
+          .withDocumentType(leafTypeId)
+          .withParent(child.getId())
+          .create();
+        grandchildIds.push(grandchild.getId());
       }
-      return undefined;
-    };
+    }, 60000);
 
-    const publishedNode = findNode(data.tree, publishedId!);
-    expect(publishedNode).toBeDefined();
-    expect(publishedNode?.url).toBe("");
-  }, 30000);
+    afterAll(async () => {
+      for (const id of [...grandchildIds, ...childIds]) {
+        await ContentTestHelper.cleanupById(id);
+      }
+    }, 30000);
+
+    it("returns the correct tree shape when sibling subtrees are fetched in parallel", async () => {
+      const result = await callTool(reportSiteTreeSummaryTool, { parentId: testPageId, maxDepth: 2 }, extra);
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+
+      // All three siblings must be present, each with exactly its own child
+      // nested underneath — parallel fetch must not drop, duplicate, or
+      // cross-wire sibling subtrees. Asserted by ID rather than by total
+      // counts, since testPageId may carry other pre-existing content.
+      for (let i = 0; i < childIds.length; i++) {
+        const childNode = findNode(data.tree, childIds[i]);
+        expect(childNode).toBeDefined();
+        expect(childNode.depth).toBe(1);
+        expect(childNode.children).toHaveLength(1);
+        expect(childNode.children[0].id).toBe(grandchildIds[i]);
+        expect(childNode.children[0].depth).toBe(2);
+      }
+    }, 30000);
+
+    it("skips URL lookups entirely when includeUrls is false", async () => {
+      // childIds[0] ("A") was published in beforeAll, so it has a real,
+      // non-empty URL — prove the lookup actually runs and finds it with
+      // includeUrls: true first, so the includeUrls: false assertion below
+      // can only be explained by the lookup being skipped, not by the page
+      // being an unpublished draft (which would also report url === "").
+      const publishedResult = await callTool(
+        reportSiteTreeSummaryTool,
+        { parentId: testPageId, maxDepth: 2, includeUrls: true },
+        extra,
+      );
+      expect(publishedResult.isError).toBeFalsy();
+      const publishedData = getStructuredContent(publishedResult) as any;
+      const publishedChild = findNode(publishedData.tree, childIds[0]);
+      expect(publishedChild).toBeDefined();
+      expect(typeof publishedChild.url).toBe("string");
+      expect(publishedChild.url.length).toBeGreaterThan(0);
+
+      const result = await callTool(
+        reportSiteTreeSummaryTool,
+        { parentId: testPageId, maxDepth: 2, includeUrls: false },
+        extra,
+      );
+
+      expect(result.isError).toBeFalsy();
+      const data = getStructuredContent(result) as any;
+
+      const createdChild = findNode(data.tree, childIds[0]);
+      expect(createdChild).toBeDefined();
+      expect(createdChild.url).toBe("");
+      expect(createdChild.children[0].url).toBe("");
+    }, 30000);
+  });
+
+  describe("truncation budget (#306)", () => {
+    let truncationRootId: string | undefined;
+    const childIds: string[] = [];
+
+    beforeAll(async () => {
+      const state = await initContentTestState(extra);
+      const { containerTypeId, leafTypeId } = await resolveNestableDocTypePair(state.testPageId);
+
+      // A dedicated, brand-new container node so it starts with *zero*
+      // children — unlike testPageId, which may carry other content —
+      // making the node-budget count below fully deterministic.
+      const root = await new ContentBuilder()
+        .withName("_Test STS Truncation Root")
+        .withDocumentType(containerTypeId)
+        .withParent(state.testPageId)
+        .create();
+      truncationRootId = root.getId();
+
+      for (const label of ["A", "B", "C"]) {
+        const child = await new ContentBuilder()
+          .withName(`_Test STS Truncation ${label}`)
+          .withDocumentType(leafTypeId)
+          .withParent(truncationRootId)
+          .create();
+        childIds.push(child.getId());
+      }
+    }, 60000);
+
+    afterAll(async () => {
+      _resetBudgetOverridesForTests();
+      for (const id of childIds) {
+        await ContentTestHelper.cleanupById(id);
+      }
+      if (truncationRootId) await ContentTestHelper.cleanupById(truncationRootId);
+    }, 30000);
+
+    it("stops early and reports truncated: true once the node budget is hit", async () => {
+      // Override the production 500-node budget so this is deterministic
+      // with 3 real pages instead of requiring 500.
+      _setBudgetOverridesForTests({ nodeBudget: 2 });
+      try {
+        const result = await callTool(
+          reportSiteTreeSummaryTool,
+          { parentId: truncationRootId, maxDepth: 1 },
+          extra,
+        );
+
+        expect(result.isError).toBeFalsy();
+        const data = getStructuredContent(result) as any;
+
+        expect(data.truncated).toBe(true);
+        expect(data.totalPages).toBe(2);
+        expect(data.tree).toHaveLength(2);
+      } finally {
+        _resetBudgetOverridesForTests();
+      }
+    }, 30000);
+
+    it("does not truncate when all nodes fit inside the budget", async () => {
+      _setBudgetOverridesForTests({ nodeBudget: 500 });
+      try {
+        const result = await callTool(
+          reportSiteTreeSummaryTool,
+          { parentId: truncationRootId, maxDepth: 1 },
+          extra,
+        );
+
+        expect(result.isError).toBeFalsy();
+        const data = getStructuredContent(result) as any;
+
+        expect(data.truncated).toBe(false);
+        expect(data.totalPages).toBe(3);
+      } finally {
+        _resetBudgetOverridesForTests();
+      }
+    }, 30000);
+
+    it("stops immediately and reports truncated: true once the time budget has already expired", async () => {
+      // timeBudgetMs is the other half of the safety mechanism (and the one
+      // most directly tied to #306's motivating 256s-in-prod incident), but
+      // it had no coverage at all — only nodeBudget was ever overridden in
+      // tests. A budget of 0ms means the deadline is already in the past by
+      // the time the first isBudgetExceeded() check runs.
+      _setBudgetOverridesForTests({ timeBudgetMs: 0 });
+      try {
+        const result = await callTool(
+          reportSiteTreeSummaryTool,
+          { parentId: truncationRootId, maxDepth: 1 },
+          extra,
+        );
+
+        expect(result.isError).toBeFalsy();
+        const data = getStructuredContent(result) as any;
+
+        expect(data.truncated).toBe(true);
+      } finally {
+        _resetBudgetOverridesForTests();
+      }
+    }, 30000);
+  });
+
+  describe("deep truncation across a nested level (#306 finding 1 regression)", () => {
+    const childIds: string[] = [];
+    const grandchildIds: string[] = [];
+
+    beforeAll(async () => {
+      const state = await initContentTestState(extra);
+      const { containerTypeId, leafTypeId } = await resolveNestableDocTypePair(state.testPageId);
+
+      // Three siblings directly under the shared root, each with a real
+      // child of its own (same fixture shape as the "parallel sibling
+      // subtree fetch" block above). What matters here is the node budget
+      // set in the test itself: it's set to exactly the number of items at
+      // this level, so the first-pass loop in buildTreeNodes never breaks
+      // (it runs out of items to process before the count check is ever
+      // tripped) — the only call site that can observe the exhausted
+      // budget is the recursion decision for each item's children. Before
+      // the fix, that decision's `&&` short-circuit skipped calling
+      // isBudgetExceeded's side effect entirely, so `truncated` stayed
+      // false while every sibling's real children were silently dropped.
+      for (const label of ["A", "B", "C"]) {
+        const child = await new ContentBuilder()
+          .withName(`_Test STS Deep Truncation ${label}`)
+          .withDocumentType(containerTypeId)
+          .withParent(state.testPageId)
+          .create();
+        childIds.push(child.getId());
+
+        const grandchild = await new ContentBuilder()
+          .withName(`_Test STS Deep Truncation ${label}1`)
+          .withDocumentType(leafTypeId)
+          .withParent(child.getId())
+          .create();
+        grandchildIds.push(grandchild.getId());
+      }
+    }, 60000);
+
+    afterAll(async () => {
+      _resetBudgetOverridesForTests();
+      for (const id of [...grandchildIds, ...childIds]) {
+        await ContentTestHelper.cleanupById(id);
+      }
+    }, 30000);
+
+    it("flags truncated: true when the budget runs out exactly at a level whose items have real children", async () => {
+      // testPageId carries other content (the demo site's own pages, plus
+      // whatever earlier tests in this file left behind) on top of the
+      // three siblings created above, so the exact count is computed here
+      // rather than hardcoded — it just needs to equal the real number of
+      // items report-site-tree-summary will fetch at this level.
+      const siblingsAtThisLevel = await ContentTestHelper.getChildren(testPageId, 100);
+      const nodeBudget = siblingsAtThisLevel.length;
+
+      _setBudgetOverridesForTests({ nodeBudget });
+      try {
+        const result = await callTool(reportSiteTreeSummaryTool, { parentId: testPageId, maxDepth: 2 }, extra);
+
+        expect(result.isError).toBeFalsy();
+        const data = getStructuredContent(result) as any;
+
+        expect(data.truncated).toBe(true);
+        for (const childId of childIds) {
+          const childNode = findNode(data.tree, childId);
+          expect(childNode).toBeDefined();
+          expect(childNode.children).toEqual([]);
+        }
+      } finally {
+        _resetBudgetOverridesForTests();
+      }
+    }, 30000);
+  });
 });
