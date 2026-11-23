@@ -46,18 +46,45 @@ async function getCmsToolMap(): Promise<Map<string, any>> {
   });
   configureApiClient(() => UmbracoManagementClient.getClient());
 
-  const toolMap = new Map<string, any>();
-  for (const collection of collections) {
-    const tools = typeof collection.tools === "function"
-      ? collection.tools(permissiveUser)
-      : collection.tools;
-    for (const tool of tools) {
-      toolMap.set(tool.name, tool);
+  const buildToolMap = (umbracoVersion?: string) => {
+    const map = new Map<string, any>();
+    for (const collection of collections) {
+      const tools = typeof collection.tools === "function"
+        ? collection.tools(permissiveUser, { umbracoVersion })
+        : collection.tools;
+      for (const tool of tools) {
+        map.set(tool.name, tool);
+      }
     }
+    return map;
+  };
+
+  // mcp-dev gates tools on the connected Umbraco's minor (e.g. 18.1's
+  // update-and-publish-document) and lists the legacy variants when it doesn't
+  // know the version. The real stdio subprocess and hosted both supply it, so
+  // do the same here: read it with get-server-information, then rebuild.
+  let toolMap = buildToolMap();
+  const umbracoVersion = await readUmbracoVersion(toolMap.get("get-server-information"));
+  if (umbracoVersion) {
+    collectionsModule.setUmbracoVersion?.(umbracoVersion);
+    toolMap = buildToolMap(umbracoVersion);
   }
 
   (process as any).__cmsToolMap = toolMap;
   return toolMap;
+}
+
+/** The connected Umbraco's version, or undefined if it can't be read. */
+async function readUmbracoVersion(tool: any): Promise<string | undefined> {
+  if (!tool) return undefined;
+  try {
+    const result = await tool.handler({}, createMockRequestHandlerExtra());
+    if (result?.isError) return undefined;
+    const data = result?.structuredContent ?? JSON.parse(result?.content?.[0]?.text ?? "{}");
+    return typeof data?.version === "string" ? data.version : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**

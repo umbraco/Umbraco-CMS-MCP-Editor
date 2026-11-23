@@ -18,6 +18,11 @@ import {
   setServerRef,
   initializeUmbracoFetch,
   useDraft202012ToolSchemas,
+  runStartupVersionCheck,
+  UmbracoManagementClient,
+  SERVER_INFORMATION_PATH,
+  CAPTURE_RAW_HTTP_RESPONSE,
+  type HttpResponse,
   type CollectionConfiguration,
   type ToolCollectionExport,
 } from "@umbraco-cms/mcp-server-sdk";
@@ -37,31 +42,22 @@ import { mcpClientManager } from "./umbraco-api/mcp-client.js";
 import { mcpServers } from "./config/mcp-servers.js";
 
 // Import registries for tool filtering
-import { allModes, allModeNames, allSliceNames, loadServerConfig, clearConfigCache } from "./config/index.js";
+import {
+  allModes,
+  allModeNames,
+  allSliceNames,
+  loadServerConfig,
+  clearConfigCache,
+  UMBRACO_TARGET_MAJOR,
+  getExpectedUmbracoMajor,
+  withParentCheckedMajor,
+} from "./config/index.js";
 
 // Server-level instructions sent to MCP clients during initialization.
 import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
 
 // Configure the API client for use with toolkit helpers
 // This connects your generated Orval client to executeGetApiCall, executeVoidApiCall, etc.
-// ============================================================================
-// MCP Server Setup
-// ============================================================================
-
-// Create MCP server
-const server = new McpServer(
-  {
-    name: "umbraco-editor-mcp",
-    version: packageJson.version,
-  },
-  {
-    instructions: SERVER_INSTRUCTIONS,
-  },
-);
-
-// Make the underlying Server available to tools that need elicitation
-setServerRef(server.server);
-
 // ============================================================================
 // Tool Filtering Setup
 // ============================================================================
@@ -101,6 +97,43 @@ const registeredCollections: ToolCollectionExport[] = collections;
 
 // Start the server
 async function main() {
+  // Umbraco-major guard (#247), the same one @umbraco-cms/mcp-dev runs: on a
+  // mismatch the first editor tool call is blocked once (a retry succeeds)
+  // and the warning goes into `instructions`. The lookup is a direct
+  // /server/information call, not a chained one, so it works with chaining
+  // off and isn't caught by mcp-dev's own guard. It runs under the SDK's 5s
+  // deadline, and an unreachable or slow CMS only produces a warning.
+  const expectedUmbracoMajor = getExpectedUmbracoMajor(serverConfig.custom.expectedUmbracoMajor);
+  const versionCheckMessage = await runStartupVersionCheck({
+    expectedUmbracoMajorOverride: serverConfig.custom.expectedUmbracoMajor,
+    generatedUmbracoMajor: UMBRACO_TARGET_MAJOR,
+    mcpVersion: packageJson.version,
+    client: {
+      getServerInformation: async ({ signal } = {}) => {
+        const response = (await UmbracoManagementClient<{ version: string }>(
+          { url: SERVER_INFORMATION_PATH, method: "GET" },
+          { ...CAPTURE_RAW_HTTP_RESPONSE, signal },
+        )) as unknown as HttpResponse<{ version: string }>;
+        return { version: response.data.version };
+      },
+    },
+  });
+
+  const server = new McpServer(
+    {
+      name: "umbraco-editor-mcp",
+      version: packageJson.version,
+    },
+    {
+      instructions: versionCheckMessage
+        ? `${SERVER_INSTRUCTIONS}\n\n${versionCheckMessage}`
+        : SERVER_INSTRUCTIONS,
+    },
+  );
+
+  // Make the underlying Server available to tools that need elicitation
+  setServerRef(server.server);
+
   // Connect to chained MCP servers. The dev MCP filters its own tool list by
   // the authenticated user — we read that filtered list back and let
   // shouldIncludeTool gate each editor wrapper against its chainedDeps.
@@ -111,6 +144,12 @@ async function main() {
     console.error("MCP chaining enabled — pre-connecting to chained servers...");
     try {
       for (const srv of mcpServers) {
+        // We've just checked this instance's major, so tell a chained mcp-dev
+        // that targets the same major not to check (and block) again: one
+        // mismatch, one block. See withParentCheckedMajor.
+        mcpClientManager.registerServer(
+          withParentCheckedMajor(srv, expectedUmbracoMajor, serverConfig.umbraco.auth.baseUrl),
+        );
         await mcpClientManager.connect(srv.name);
         console.error(`Connected to chained server: ${srv.name}`);
       }

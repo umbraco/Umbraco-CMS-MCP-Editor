@@ -229,8 +229,28 @@ entries, and the tree-walk audit — its own change.
 | `UMBRACO_READONLY` | `--umbraco-readonly` | Block write operations |
 | `UMBRACO_DRY_RUN` | `--umbraco-dry-run` | Preview mutations instead of executing them (read-only tools unaffected) |
 | `DISABLE_MCP_CHAINING` | `--disable-mcp-chaining` | Disable MCP server chaining |
+| `UMBRACO_EXPECTED_MAJOR` | `--umbraco-expected-major` (stdio only) | Umbraco major to check the connected instance against. Defaults to this package's major; a blank value falls back to it |
 
 Custom fields defined in `config/server-config.ts`.
+
+**Umbraco-major version guard** (`config/version-guard.ts`, #247). This package's
+major tracks the Umbraco major it targets (18.x on `dev`/`main`, 17.x on `v17/*`),
+so the guard checks against the package major, not a generated constant.
+
+- **Stdio blocks once**, the same as `@umbraco-cms/mcp-dev`: `src/index.ts` runs the
+  SDK's `runStartupVersionCheck` against `/server/information` (direct call, 5s
+  deadline). On a mismatch the first editor tool call is refused once and a retry
+  succeeds; the warning is also appended to `instructions`. An unreachable or slow
+  CMS gives a warning and no block.
+- **Hosted only warns**, via the request's `instructions` (`@umbraco-cms/mcp-hosted`).
+  A block is per isolate and would leak across requests and sites
+  (umbraco/Umbraco-MCP-Base#224). `env.UMBRACO_EXPECTED_MAJOR` overrides it per
+  deployment, with the same blank-falls-back rule (umbraco/Umbraco-MCP-Base#426).
+- **One block, not two.** The chained mcp-dev subprocess runs its own guard. The
+  editor passes it `UMBRACO_MCP_PARENT_CHECKED_MAJOR` (`withParentCheckedMajor`, via
+  the SDK's `chainedVersionCheckEnv`) when it connects to the same instance, so an
+  mcp-dev that targets the same major (18.3.0+ / 17.8.0+) skips its check. Don't
+  add a second guard or a retry around mcp-dev's block (the #109 approach).
 
 ## Modes and Slices
 
