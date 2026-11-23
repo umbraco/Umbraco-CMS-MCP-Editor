@@ -11,8 +11,8 @@ import { callTool } from "../../../../testing/call-tool-with-validation.js";
 import { mcpClientManager } from "../../../mcp-client.js";
 import { extractChainedResult } from "@umbraco-cms/mcp-server-sdk";
 import reportSiteTreeSummaryTool, {
-  _setTraversalBudgetForTests,
-  _resetTraversalBudgetForTests,
+  _setBudgetOverridesForTests,
+  _resetBudgetOverridesForTests,
 } from "../get/report-site-tree-summary.js";
 
 const TEST_PAGE_NAME = "_Test Site Tree Summary";
@@ -263,7 +263,7 @@ describe("report-site-tree-summary", () => {
     }, 60000);
 
     afterAll(async () => {
-      _resetTraversalBudgetForTests();
+      _resetBudgetOverridesForTests();
       for (const id of childIds) {
         await ContentTestHelper.cleanupById(id);
       }
@@ -273,7 +273,7 @@ describe("report-site-tree-summary", () => {
     it("stops early and reports truncated: true once the node budget is hit", async () => {
       // Override the production 500-node budget so this is deterministic
       // with 3 real pages instead of requiring 500.
-      _setTraversalBudgetForTests({ nodeBudget: 2 });
+      _setBudgetOverridesForTests({ nodeBudget: 2 });
       try {
         const result = await callTool(
           reportSiteTreeSummaryTool,
@@ -288,12 +288,12 @@ describe("report-site-tree-summary", () => {
         expect(data.totalPages).toBe(2);
         expect(data.tree).toHaveLength(2);
       } finally {
-        _resetTraversalBudgetForTests();
+        _resetBudgetOverridesForTests();
       }
     }, 30000);
 
     it("does not truncate when all nodes fit inside the budget", async () => {
-      _setTraversalBudgetForTests({ nodeBudget: 500 });
+      _setBudgetOverridesForTests({ nodeBudget: 500 });
       try {
         const result = await callTool(
           reportSiteTreeSummaryTool,
@@ -307,7 +307,7 @@ describe("report-site-tree-summary", () => {
         expect(data.truncated).toBe(false);
         expect(data.totalPages).toBe(3);
       } finally {
-        _resetTraversalBudgetForTests();
+        _resetBudgetOverridesForTests();
       }
     }, 30000);
 
@@ -317,7 +317,7 @@ describe("report-site-tree-summary", () => {
       // it had no coverage at all — only nodeBudget was ever overridden in
       // tests. A budget of 0ms means the deadline is already in the past by
       // the time the first isBudgetExceeded() check runs.
-      _setTraversalBudgetForTests({ timeBudgetMs: 0 });
+      _setBudgetOverridesForTests({ timeBudgetMs: 0 });
       try {
         const result = await callTool(
           reportSiteTreeSummaryTool,
@@ -330,7 +330,7 @@ describe("report-site-tree-summary", () => {
 
         expect(data.truncated).toBe(true);
       } finally {
-        _resetTraversalBudgetForTests();
+        _resetBudgetOverridesForTests();
       }
     }, 30000);
   });
@@ -372,7 +372,7 @@ describe("report-site-tree-summary", () => {
     }, 60000);
 
     afterAll(async () => {
-      _resetTraversalBudgetForTests();
+      _resetBudgetOverridesForTests();
       for (const id of [...grandchildIds, ...childIds]) {
         await ContentTestHelper.cleanupById(id);
       }
@@ -387,7 +387,7 @@ describe("report-site-tree-summary", () => {
       const siblingsAtThisLevel = await ContentTestHelper.getChildren(testPageId, 100);
       const nodeBudget = siblingsAtThisLevel.length;
 
-      _setTraversalBudgetForTests({ nodeBudget });
+      _setBudgetOverridesForTests({ nodeBudget });
       try {
         const result = await callTool(reportSiteTreeSummaryTool, { parentId: testPageId, maxDepth: 2 }, extra);
 
@@ -401,7 +401,7 @@ describe("report-site-tree-summary", () => {
           expect(childNode.children).toEqual([]);
         }
       } finally {
-        _resetTraversalBudgetForTests();
+        _resetBudgetOverridesForTests();
       }
     }, 30000);
   });

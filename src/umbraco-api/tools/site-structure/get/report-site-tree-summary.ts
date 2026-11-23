@@ -1,57 +1,54 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition, encodeCursor } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
-import { fetchPrimaryPublishedUrlsBatch } from "../../helpers/preview-url.js";
+import { fetchPrimaryPublishedUrlsBatch, describeChainError } from "../../helpers/preview-url.js";
+import { mapWithConcurrency, Semaphore } from "../../helpers/concurrency.js";
 
-// #306: siblings used to be walked strictly serially (await the recursive
-// subtree call for one child before moving to the next), so total run time
-// summed every Umbraco round trip across the whole tree — seen in prod up to
-// 256s. Sibling subtrees are now fanned out with a plain Promise.all, while
-// the actual CMS calls (fetchTreeLevel, the per-level URL batch lookup) are
-// gated through a single shared ConcurrencyLimiter threaded through the
-// whole recursion — so the total number of in-flight CMS calls across the
-// entire traversal is bounded at MAX_CONCURRENT_CMS_CALLS, regardless of
-// tree depth or width. Plus a wall-clock/node budget so a pathological tree
-// returns a partial, clearly-marked result instead of running unbounded.
-const MAX_CONCURRENT_CMS_CALLS = 5;
+// Real outbound chained-CMS calls are capped at this many in flight at once,
+// globally across the whole walk (never one at a time, and never fully
+// unbounded) — see https://github.com/umbraco/Umbraco-CMS-MCP-Editor/issues/306.
+// Enforced by a single `Semaphore` instance per tool invocation (see
+// `WalkBudget.semaphore`), not by `mapWithConcurrency` alone: that helper only
+// bounds concurrency within one call, so the recursive call back into
+// `buildTreeNodes` for each item's children would otherwise spin up its own
+// independent 5-worker pool per recursion level, multiplying the effective
+// ceiling to 5^depth.
+const CONCURRENCY_LIMIT = 5;
+
+// Stop the walk once either budget is hit and report what was collected so
+// far with `truncated: true`, rather than running for minutes on a large
+// site. Mirrors the 500-node scan cap `report-deep-pages.ts` already uses,
+// plus a wall-clock cap for the pathological case where each round trip is
+// individually slow (the 91s/66-call and 256s runs reported in #306).
 const DEFAULT_NODE_BUDGET = 500;
 const DEFAULT_TIME_BUDGET_MS = 20_000;
-
-// Overridable only via the test-only setter below, so truncation can be
-// exercised deterministically with a handful of real pages instead of
-// requiring 500 of them. Never set these from tool input — they're an
-// internal safety valve, not a per-call parameter.
-let nodeBudgetOverride: number | null = null;
-let timeBudgetMsOverride: number | null = null;
+let NODE_BUDGET = DEFAULT_NODE_BUDGET;
+let TIME_BUDGET_MS = DEFAULT_TIME_BUDGET_MS;
 
 /**
- * @internal Test-only helper. Overrides the node/time traversal budget so
- * truncation can be exercised with a small number of real pages. Do NOT call
- * from production code.
+ * @internal Test-only hook to shrink the node/time budget so truncation can
+ * be exercised deterministically and fast. Do NOT call from production code.
  */
-export function _setTraversalBudgetForTests(overrides: { nodeBudget?: number; timeBudgetMs?: number }): void {
-  if (overrides.nodeBudget !== undefined) nodeBudgetOverride = overrides.nodeBudget;
-  if (overrides.timeBudgetMs !== undefined) timeBudgetMsOverride = overrides.timeBudgetMs;
+export function _setBudgetOverridesForTests(overrides: { nodeBudget?: number; timeBudgetMs?: number }): void {
+  if (overrides.nodeBudget !== undefined) NODE_BUDGET = overrides.nodeBudget;
+  if (overrides.timeBudgetMs !== undefined) TIME_BUDGET_MS = overrides.timeBudgetMs;
 }
 
-/**
- * @internal Test-only helper. Resets the budget override so other tests see
- * production defaults. Do NOT call from production code.
- */
-export function _resetTraversalBudgetForTests(): void {
-  nodeBudgetOverride = null;
-  timeBudgetMsOverride = null;
+/** @internal Test-only hook to restore the default budgets after a test overrides them. */
+export function _resetBudgetOverridesForTests(): void {
+  NODE_BUDGET = DEFAULT_NODE_BUDGET;
+  TIME_BUDGET_MS = DEFAULT_TIME_BUDGET_MS;
 }
 
 const inputSchema = {
   parentId: z.string().uuid().optional().describe("Scope to a subtree by parent page ID. Omit to start from root."),
-  maxDepth: z.number().optional().default(5).describe("How many levels deep to scan (default 5)"),
+  maxDepth: z.number().int().positive().max(10).optional().default(5).describe("How many levels deep to scan (default 5, max 10)"),
   includeUrls: z
     .boolean()
     .optional()
     .default(true)
     .describe(
-      "Look up each page's published URL (default true). Set to false to skip the per-level URL lookup and speed up large trees — every node's `url` will be \"\"."
+      "Resolve each page's published URL (one batched get-document-urls call per level). Set to false to skip URL lookups entirely and scan faster — every node's url is '' when disabled.",
     ),
 };
 
@@ -85,152 +82,120 @@ const outputSchema = z.object({
   truncated: z
     .boolean()
     .describe(
-      "True when the scan hit its node or time budget before the whole requested tree was walked, so `tree` is a partial result. Narrow a truncated request with `parentId` to scope to a smaller subtree, lower `maxDepth`, or set `includeUrls: false` to skip URL lookups."
+      "True when the scan stopped early after hitting its node or time budget, before walking the whole tree/depth. The tree above is a partial result. Narrow the request with parentId (scope to a subtree) and/or a smaller maxDepth to see the rest.",
     ),
 });
 
-interface TraversalBudget {
-  maxNodes: number;
-  deadlineMs: number;
-  truncated: boolean;
+interface WalkBudget {
+  totalRef: { count: number };
+  maxDepthRef: { value: number };
+  truncatedRef: { value: boolean };
+  deadline: number;
+  // One instance per tool invocation, shared across every recursion level —
+  // see CONCURRENCY_LIMIT's comment for why a per-call mapWithConcurrency
+  // pool alone isn't enough.
+  semaphore: Semaphore;
 }
 
-// Side-effecting on purpose: this is the single decision point for "has the
-// traversal run out of room", so every call site that checks the budget
-// also correctly flags the output as truncated, including the recursion
-// call site where an `&&` short-circuit previously skipped setting the flag
-// (see #306 finding 1 — a tree could come back silently incomplete with
-// `truncated: false`).
-function isBudgetExceeded(budget: TraversalBudget, totalRef: { count: number }): boolean {
-  const exceeded = totalRef.count >= budget.maxNodes || Date.now() >= budget.deadlineMs;
-  if (exceeded) budget.truncated = true;
-  return exceeded;
+function budgetExceeded(budget: WalkBudget): boolean {
+  return budget.totalRef.count >= NODE_BUDGET || Date.now() >= budget.deadline;
 }
 
-/**
- * Bounds the number of CMS calls in flight at once, across the whole
- * traversal (not per recursion frame — see #306 finding 2). Callers await
- * `run(fn)`; if the limiter is already at capacity, the call queues until a
- * slot frees up.
- */
-class ConcurrencyLimiter {
-  private active = 0;
-  private readonly queue: Array<() => void> = [];
-
-  constructor(private readonly limit: number) {}
-
-  async run<T>(fn: () => Promise<T>): Promise<T> {
-    if (this.active >= this.limit) {
-      // Slot is handed directly to this waiter by the releaser below —
-      // don't increment here, it's already been incremented on our behalf.
-      await new Promise<void>((resolve) => this.queue.push(resolve));
-    } else {
-      this.active++;
-    }
-    try {
-      return await fn();
-    } finally {
-      const next = this.queue.shift();
-      if (next) {
-        next(); // hand our slot straight to the next waiter — active stays the same
-      } else {
-        this.active--; // no one waiting, actually free the slot
-      }
-    }
+async function fetchTreeLevel(parentId: string | undefined, budget: WalkBudget): Promise<any[]> {
+  await budget.semaphore.acquire();
+  let result;
+  try {
+    result = parentId
+      ? await chainCms("get-document-children", { parentId, cursor: encodeCursor({ s: 0, t: 100 }) })
+      : await chainCms("get-document-root", { cursor: encodeCursor({ s: 0, t: 100 }) });
+  } finally {
+    budget.semaphore.release();
   }
-}
-
-async function fetchTreeLevel(parentId: string | undefined, depth: number): Promise<{ items: any[]; failed: boolean }> {
-  const result = parentId
-    ? await chainCms("get-document-children", { parentId, cursor: encodeCursor({ s: 0, t: 100 }) })
-    : await chainCms("get-document-root", { cursor: encodeCursor({ s: 0, t: 100 }) });
 
   if (!result.ok) {
-    console.warn(`report-site-tree-summary: failed to fetch children of ${parentId ?? "<root>"} at depth ${depth}`);
-    return { items: [], failed: true };
+    // Indistinguishable from "this node has no children" otherwise — a
+    // failed call must not be reported as a complete, empty level.
+    console.warn(
+      `report-site-tree-summary: fetchTreeLevel failed for parentId ${parentId ?? "<root>"} — ${describeChainError(result.errorResult)}`,
+    );
+    budget.truncatedRef.value = true;
+    return [];
   }
-  return { items: result.data?.items ?? [], failed: false };
+
+  const data = result.data;
+  const items = data?.items ?? [];
+  const total = data?.total ?? items.length;
+  // The cursor is capped at 100 items per level (see encodeCursor call
+  // above); a level with more children than that is itself a partial result,
+  // even though this call succeeded.
+  if (total > items.length) {
+    budget.truncatedRef.value = true;
+  }
+  return items;
 }
 
 async function buildTreeNodes(
   parentId: string | undefined,
   depth: number,
   maxDepth: number,
-  includeUrls: boolean,
   pagesPerLevel: Record<string, number>,
-  totalRef: { count: number },
-  maxDepthRef: { value: number },
-  budget: TraversalBudget,
-  limiter: ConcurrencyLimiter,
+  budget: WalkBudget,
+  includeUrls: boolean,
 ): Promise<TreeNode[]> {
-  if (isBudgetExceeded(budget, totalRef)) {
+  if (budgetExceeded(budget)) {
+    budget.truncatedRef.value = true;
     return [];
   }
 
-  const { items, failed } = await limiter.run(() => fetchTreeLevel(parentId, depth));
-  if (failed) {
-    budget.truncated = true;
+  const items = await fetchTreeLevel(parentId, budget);
+
+  // One get-document-urls request per parent's children fetched here — never
+  // per item — and skipped entirely when the caller doesn't need URLs.
+  let urlsById = new Map<string, string>();
+  if (includeUrls) {
+    await budget.semaphore.acquire();
+    try {
+      urlsById = await fetchPrimaryPublishedUrlsBatch(
+        items.map((item) => item.id).filter((id): id is string => typeof id === "string"),
+      );
+    } finally {
+      budget.semaphore.release();
+    }
   }
 
-  // One get-document-urls request per tree level fetched — never per item —
-  // and skippable entirely via includeUrls:false for large/slow trees.
-  const urlsById = includeUrls
-    ? await limiter.run(() =>
-        fetchPrimaryPublishedUrlsBatch(
-          items.map((item) => item.id).filter((id): id is string => typeof id === "string"),
-        ),
-      )
-    : new Map<string, string>();
-
-  // First pass: sequentially (no await in this loop) decide how many items
-  // at this level fit inside the remaining node budget, and record their
-  // per-level stats. Keeping this part synchronous makes totalPages /
-  // pagesPerLevel deterministic regardless of how child subtrees below are
-  // later fetched in parallel.
+  // First pass: synchronously (no await in this loop) decide which items at
+  // this level fit inside the remaining budget and record their stats. Doing
+  // this before any subtree fetch means a truncated level always keeps its
+  // first N siblings in tree order, rather than whichever siblings' fetches
+  // happened to win the race.
   const included: typeof items = [];
   for (const item of items) {
-    if (isBudgetExceeded(budget, totalRef)) {
+    if (budgetExceeded(budget)) {
+      budget.truncatedRef.value = true;
       break;
     }
-    totalRef.count++;
+    budget.totalRef.count++;
     const levelKey = String(depth);
     pagesPerLevel[levelKey] = (pagesPerLevel[levelKey] ?? 0) + 1;
-    if (depth > maxDepthRef.value) {
-      maxDepthRef.value = depth;
+    if (depth > budget.maxDepthRef.value) {
+      budget.maxDepthRef.value = depth;
     }
     included.push(item);
   }
 
-  // Second pass: fetch each included item's subtree. Sibling fan-out is a
-  // plain Promise.all — the real throttling happens inside each recursive
-  // call, at the limiter.run() call sites above, which bound total in-flight
-  // CMS calls across the whole traversal rather than per recursion frame
-  // (#306 finding 2).
-  const childrenByIndex = await Promise.all(
-    included.map((item) => {
-      if (item.hasChildren && depth < maxDepth && !isBudgetExceeded(budget, totalRef)) {
-        return buildTreeNodes(
-          item.id,
-          depth + 1,
-          maxDepth,
-          includeUrls,
-          pagesPerLevel,
-          totalRef,
-          maxDepthRef,
-          budget,
-          limiter,
-        );
-      }
-      return Promise.resolve([] as TreeNode[]);
-    }),
-  );
+  // Second pass: sibling subtrees fan out with a concurrency cap instead of
+  // one at a time (the root cause of #306) and instead of fully unbounded
+  // (which would hit the CMS as hard as the tree's widest level).
+  return mapWithConcurrency(included, CONCURRENCY_LIMIT, async (item): Promise<TreeNode> => {
+    let children: TreeNode[] = [];
+    if (item.hasChildren && depth < maxDepth) {
+      children = await buildTreeNodes(item.id, depth + 1, maxDepth, pagesPerLevel, budget, includeUrls);
+    }
 
-  return included.map((item, i) => {
-    const children = childrenByIndex[i];
     return {
       id: item.id ?? "",
       name: item.name ?? item.variants?.[0]?.name ?? "Unknown",
-      url: urlsById.get(item.id) ?? "",
+      url: includeUrls ? (urlsById.get(item.id) ?? "") : "",
       documentType: item.documentType?.name ?? item.contentTypeName ?? "",
       depth,
       childCount: children.length,
@@ -242,47 +207,33 @@ async function buildTreeNodes(
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: "report-site-tree-summary",
   description:
-    "Full site tree structure with page counts per level. Returns hierarchical data that maps to tree diagrams, sitemaps, and flowcharts. Use maxDepth to limit how deep to scan. On a large site the scan stops early once it hits an internal time/node budget and returns `truncated: true` with a partial tree — if you see that, narrow the request with `parentId` to scope to a smaller subtree, lower `maxDepth`, or set `includeUrls: false` to skip URL lookups.",
+    "Full site tree structure with page counts per level. Returns hierarchical data that maps to tree diagrams, sitemaps, and flowcharts. Use maxDepth to limit how deep to scan, and includeUrls: false to skip URL lookups for a faster scan. Stops after 500 nodes or 20 seconds on a large site and returns truncated: true — narrow with parentId and/or a smaller maxDepth to cover the rest.",
   inputSchema,
   outputSchema,
   slices: ["read"],
   annotations: { readOnlyHint: true },
-  // `includeUrls = true` is a belt-and-suspenders JS default alongside the
-  // zod `.default(true)` above: zod's default only applies when input goes
-  // through schema parsing (the real MCP transport path) — a test or any
-  // other caller that invokes `.handler()` directly with `includeUrls`
-  // omitted would otherwise see `undefined` here and silently skip URL
-  // lookups.
+  // `includeUrls = true` backs up the schema's .default(true): a caller that
+  // invokes the handler without schema parsing would otherwise get
+  // `undefined` here and silently lose every URL.
   handler: async ({ parentId, maxDepth, includeUrls = true }) => {
     const pagesPerLevel: Record<string, number> = {};
-    const totalRef = { count: 0 };
-    const maxDepthRef = { value: 0 };
-    const budget: TraversalBudget = {
-      maxNodes: nodeBudgetOverride ?? DEFAULT_NODE_BUDGET,
-      deadlineMs: Date.now() + (timeBudgetMsOverride ?? DEFAULT_TIME_BUDGET_MS),
-      truncated: false,
+    const budget: WalkBudget = {
+      totalRef: { count: 0 },
+      maxDepthRef: { value: 0 },
+      truncatedRef: { value: false },
+      deadline: Date.now() + TIME_BUDGET_MS,
+      semaphore: new Semaphore(CONCURRENCY_LIMIT),
     };
 
-    const limiter = new ConcurrencyLimiter(MAX_CONCURRENT_CMS_CALLS);
     const startDepth = parentId ? 1 : 0;
-    const tree = await buildTreeNodes(
-      parentId,
-      startDepth,
-      maxDepth,
-      includeUrls,
-      pagesPerLevel,
-      totalRef,
-      maxDepthRef,
-      budget,
-      limiter,
-    );
+    const tree = await buildTreeNodes(parentId, startDepth, maxDepth, pagesPerLevel, budget, includeUrls);
 
     return createToolResult({
       tree,
-      totalPages: totalRef.count,
-      maxDepthFound: maxDepthRef.value,
+      totalPages: budget.totalRef.count,
+      maxDepthFound: budget.maxDepthRef.value,
       pagesPerLevel,
-      truncated: budget.truncated,
+      truncated: budget.truncatedRef.value,
     });
   },
 };
