@@ -173,9 +173,10 @@ describe("Server Config", () => {
     it("should return all custom field definitions", () => {
       const fields = getCustomFieldDefinitions();
 
-      expect(fields).toHaveLength(1);
+      expect(fields).toHaveLength(2);
       expect(fields.map(f => f.name)).toEqual([
         "disableMcpChaining",
+        "expectedUmbracoMajor",
       ]);
     });
 
@@ -186,6 +187,11 @@ describe("Server Config", () => {
       expect(chaining?.type).toBe("boolean");
       expect(chaining?.envVar).toBe("DISABLE_MCP_CHAINING");
       expect(chaining?.cliFlag).toBe("disable-mcp-chaining");
+
+      const expectedMajor = fields.find(f => f.name === "expectedUmbracoMajor");
+      expect(expectedMajor?.type).toBe("string");
+      expect(expectedMajor?.envVar).toBe("UMBRACO_EXPECTED_MAJOR");
+      expect(expectedMajor?.cliFlag).toBe("umbraco-expected-major");
     });
 
     it("should return a copy to prevent mutation", () => {
