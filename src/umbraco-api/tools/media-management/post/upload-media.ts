@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withStandardDecorators, createToolResult, ToolDefinition } from "@umbraco-cms/mcp-server-sdk";
 import { chainCms } from "../../../cms-chain.js";
+import { normalizeFileUrl } from "../media-upload-helpers.js";
 
 const BASE64_MAX_KIB = 10;
 
@@ -17,7 +18,7 @@ const inputSchema = {
   ),
   name: z.string().describe("The name of the media item"),
   mediaTypeName: z.string().describe("Media type: 'Image', 'Article', 'Audio', 'Video', 'SVG', 'File', or custom media type name"),
-  fileUrl: z.string().url().optional().describe("[raw] Public, direct-download URL to fetch the file from (required if sourceType is 'url'). Must be reachable without authentication. Share/viewer links (e.g. drive.google.com/file/d/<id>/view, Dropbox ?dl=0, OneDrive view URLs) must be converted to their direct-download equivalent first — Google Drive: drive.google.com/uc?export=download&id=<id>. Uploads are streamed, so multi-MB files round-trip without timing out."),
+  fileUrl: z.string().url().optional().describe("[raw] Public, direct-download URL to fetch the file from (required if sourceType is 'url'). Must be reachable without authentication. Google Drive share/view links (drive.google.com/file/d/<id>/view, /open?id=<id>, /uc?id=<id>) are automatically rewritten to their direct-download form, so pass them as-is. Other share/viewer links (e.g. Dropbox ?dl=0, OneDrive view URLs) must still be converted to their direct-download equivalent first. Uploads are streamed, so multi-MB files round-trip without timing out."),
   file: fileObjectSchema.optional().describe(
     "[raw] Host-injected file object (required if sourceType is 'file'). ChatGPT's connector populates this automatically when the user attached a file or you generated one in this chat — leave it for the host to fill, do not synthesise it yourself.",
   ),
@@ -56,7 +57,8 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   _meta: { "openai/fileParams": ["file"] },
   handler: async (args) => {
-    const result = await chainCms("create-media", args);
+    const normalizedArgs = args.fileUrl ? { ...args, fileUrl: normalizeFileUrl(args.fileUrl) } : args;
+    const result = await chainCms("create-media", normalizedArgs);
     if (!result.ok) return result.errorResult;
     return createToolResult(result.data);
   },
