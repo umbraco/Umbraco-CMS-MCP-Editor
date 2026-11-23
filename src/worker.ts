@@ -35,6 +35,7 @@ import { collections, allModes, allModeNames, allSliceNames } from "./collection
 import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
 import { registerCmsChainedServer } from "./umbraco-api/cms-chained-server.js";
 import { applyWorkerDryRun } from "./config/worker-dry-run.js";
+import { UMBRACO_TARGET_MAJOR } from "./config/version-guard.js";
 import packageJson from "../package.json" with { type: "json" };
 
 // @umbraco-cms/mcp-hosted's HostedMcpEnv doesn't read UMBRACO_DRY_RUN (unlike
@@ -78,9 +79,11 @@ const options: HostedMcpServerOptions = {
   // This package's major tracks the Umbraco major it targets (18.x on
   // dev/main, 17.x on v17/*). Tags every span with umbraco.mcp.umbraco_major
   // and enables the hosted version check, which folds a mismatch warning into
-  // the request's instructions (never blocks). `env.UMBRACO_EXPECTED_MAJOR`
-  // overrides it per deployment.
-  expectedUmbracoMajor: packageJson.version.split(".")[0],
+  // the request's instructions (never blocks: a block is per isolate and
+  // would leak across requests/sites, Umbraco-MCP-Base#224).
+  // `env.UMBRACO_EXPECTED_MAJOR` overrides it per deployment; mcp-hosted
+  // resolves it per request with the same blank-falls-back rule as stdio.
+  expectedUmbracoMajor: UMBRACO_TARGET_MAJOR,
   instructions: SERVER_INSTRUCTIONS,
   collections,
   modeRegistry: allModes,
