@@ -20,8 +20,10 @@ const CONCURRENCY_LIMIT = 5;
 // site. Mirrors the 500-node scan cap `report-deep-pages.ts` already uses,
 // plus a wall-clock cap for the pathological case where each round trip is
 // individually slow (the 91s/66-call and 256s runs reported in #306).
-let NODE_BUDGET = 500;
-let TIME_BUDGET_MS = 20_000;
+const DEFAULT_NODE_BUDGET = 500;
+const DEFAULT_TIME_BUDGET_MS = 20_000;
+let NODE_BUDGET = DEFAULT_NODE_BUDGET;
+let TIME_BUDGET_MS = DEFAULT_TIME_BUDGET_MS;
 
 /**
  * @internal Test-only hook to shrink the node/time budget so truncation can
@@ -34,8 +36,8 @@ export function _setBudgetOverridesForTests(overrides: { nodeBudget?: number; ti
 
 /** @internal Test-only hook to restore the default budgets after a test overrides them. */
 export function _resetBudgetOverridesForTests(): void {
-  NODE_BUDGET = 500;
-  TIME_BUDGET_MS = 20_000;
+  NODE_BUDGET = DEFAULT_NODE_BUDGET;
+  TIME_BUDGET_MS = DEFAULT_TIME_BUDGET_MS;
 }
 
 const inputSchema = {
@@ -161,22 +163,30 @@ async function buildTreeNodes(
     }
   }
 
-  // Sibling subtrees fan out with a concurrency cap instead of one at a time
-  // (the root cause of #306) and instead of fully unbounded (which would hit
-  // the CMS as hard as the tree's widest level).
-  const nodes = await mapWithConcurrency(items, CONCURRENCY_LIMIT, async (item): Promise<TreeNode | null> => {
+  // First pass: synchronously (no await in this loop) decide which items at
+  // this level fit inside the remaining budget and record their stats. Doing
+  // this before any subtree fetch means a truncated level always keeps its
+  // first N siblings in tree order, rather than whichever siblings' fetches
+  // happened to win the race.
+  const included: typeof items = [];
+  for (const item of items) {
     if (budgetExceeded(budget)) {
       budget.truncatedRef.value = true;
-      return null;
+      break;
     }
-
     budget.totalRef.count++;
     const levelKey = String(depth);
     pagesPerLevel[levelKey] = (pagesPerLevel[levelKey] ?? 0) + 1;
     if (depth > budget.maxDepthRef.value) {
       budget.maxDepthRef.value = depth;
     }
+    included.push(item);
+  }
 
+  // Second pass: sibling subtrees fan out with a concurrency cap instead of
+  // one at a time (the root cause of #306) and instead of fully unbounded
+  // (which would hit the CMS as hard as the tree's widest level).
+  return mapWithConcurrency(included, CONCURRENCY_LIMIT, async (item): Promise<TreeNode> => {
     let children: TreeNode[] = [];
     if (item.hasChildren && depth < maxDepth) {
       children = await buildTreeNodes(item.id, depth + 1, maxDepth, pagesPerLevel, budget, includeUrls);
@@ -192,8 +202,6 @@ async function buildTreeNodes(
       children,
     };
   });
-
-  return nodes.filter((n): n is TreeNode => n !== null);
 }
 
 const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
@@ -204,7 +212,10 @@ const tool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   outputSchema,
   slices: ["read"],
   annotations: { readOnlyHint: true },
-  handler: async ({ parentId, maxDepth, includeUrls }) => {
+  // `includeUrls = true` backs up the schema's .default(true): a caller that
+  // invokes the handler without schema parsing would otherwise get
+  // `undefined` here and silently lose every URL.
+  handler: async ({ parentId, maxDepth, includeUrls = true }) => {
     const pagesPerLevel: Record<string, number> = {};
     const budget: WalkBudget = {
       totalRef: { count: 0 },
